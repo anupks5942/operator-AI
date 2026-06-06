@@ -1,74 +1,94 @@
 import streamlit as st
 import os
+import uuid
 from dotenv import load_dotenv
-from src.services.rag_service import RAGService
 
+# Load environment variables
 load_dotenv()
 
-st.set_page_config(page_title="Setomatic KB RAG Prototype", page_icon="🤖")
-st.title("SpyderWash Technical Support Agent (Prototype)")
+# Import your compiled LangGraph agent
+# Note: Ensure this path correctly points to where you instantiated `compiled_graph`
+from src.agent.graph import agent_app as compiled_graph
 
-groq_api_key = os.environ.get("GROQ_API_KEY")
+st.set_page_config(page_title="Setomatic Operator AI", page_icon="🕷️", layout="wide")
+st.title("🕷️ SpyderWash Operator AI - MVP Demo")
 
-# Setup Sidebar for config
-with st.sidebar:
-    st.header("Configuration")
-    if not groq_api_key:
-        groq_api_key = st.text_input("Groq API Key", type="password")
-        if groq_api_key:
-            os.environ["GROQ_API_KEY"] = groq_api_key
-    else:
-        st.success("API Key loaded from .env")
-        
-    st.markdown("""
-    **Architecture:**
-    - UI: Streamlit
-    - LLM: Groq (llama-3.3-70b-versatile)
-    - Embeddings: HuggingFace (all-MiniLM-L6-v2)
-    - Vector Store: ChromaDB
-    - Backend: LangGraph & FastAPI (API)
-    """)
-
-if not groq_api_key:
-    st.warning("Please enter your Groq API Key in the sidebar or add it to a .env file to continue.")
-    st.stop()
-
-@st.cache_resource
-def get_rag_service():
-    return RAGService()
-
-with st.spinner("Initializing RAG Service... (Loading documents if needed)"):
-    rag_service = get_rag_service()
-    if not rag_service.rag_chain:
-        st.error("Could not initialize RAG Chain. Please ensure the KB directory contains documents.")
-        st.stop()
-
-# Streamlit Chat UI
+# --- Session State Initialization ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "thread_id" not in st.session_state:
+    # Generate a unique thread ID for this session's multi-turn memory
+    st.session_state.thread_id = str(uuid.uuid4())
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+# --- Sidebar Configuration & Diagnostics ---
+with st.sidebar:
+    st.header("🧠 AI Routing Diagnostics")
+    st.markdown("*(Real-time backend state)*")
+    st.divider()
+    
+    # Placeholders for dynamic updates during graph execution
+    intent_placeholder = st.empty()
+    guardrail_placeholder = st.empty()
+    escalation_placeholder = st.empty()
+    api_placeholder = st.empty()
+    
+    st.divider()
+    st.markdown("""
+    **Architecture Updated:**
+    - UI: Streamlit
+    - Orchestration: **LangGraph** State Machine
+    - Tool Execution: FastAPI Mock Server / Web Scraper
+    - Memory: SQLite Checkpointer
+    """)
 
-if prompt_input := st.chat_input("Ask a troubleshooting question..."):
-    st.session_state.messages.append({"role": "user", "content": prompt_input})
+# --- Main Chat Interface ---
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+if prompt := st.chat_input("Ask a troubleshooting question, check balance, or report an outage..."):
+    # Add user message to UI state
+    st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
-        st.markdown(prompt_input)
+        st.markdown(prompt)
 
-    with st.chat_message("assistant"):
-        with st.spinner("Retrieving from KB and generating response..."):
-            response = rag_service.query(prompt_input)
-            answer = response.get("answer", "No answer found.")
-            st.markdown(answer)
+    with st.spinner("AI is evaluating intent and routing..."):
+        # Prepare the input state for LangGraph
+        initial_state = {"messages": [("user", prompt)]}
+        config = {"configurable": {"thread_id": st.session_state.thread_id}}
+        
+        try:
+            # Execute the LangGraph state machine
+            result = compiled_graph.invoke(initial_state, config=config)
             
-            # Show retrieved sources
-            if "context" in response and response["context"]:
-                with st.expander("Source Documents"):
-                    for i, doc in enumerate(response["context"]):
-                        source_name = os.path.basename(doc.metadata.get('source', 'Unknown'))
-                        page = doc.metadata.get('page', 'N/A')
-                        st.write(f"**Source {i+1}:** {source_name} (Page {page})")
-                        st.caption(doc.page_content[:200] + "...")
-                    
-    st.session_state.messages.append({"role": "assistant", "content": answer})
+            # Extract final AI response
+            final_response = result["messages"][-1].content
+            
+            # --- Update Visual Diagnostics in Sidebar ---
+            current_intent = result.get('current_intent', 'Unknown')
+            intent_placeholder.info(f"**Detected Intent:**\n{current_intent}")
+            
+            if result.get('hardware_lookup_attempted', False):
+                guardrail_placeholder.error("🛑 **Guardrail:**\nTRIGGERED (Action Blocked)")
+            else:
+                guardrail_placeholder.success("✅ **Guardrail:**\nCLEAR")
+                
+            if result.get('escalation_required', False):
+                escalation_placeholder.error("🚨 **Escalation:**\nACTIVE (Simulating SMS Alert)")
+            else:
+                escalation_placeholder.success("✅ **Escalation:**\nNONE")
+                
+            api_req = result.get('api_action_required', False)
+            if api_req:
+                api_placeholder.warning(f"⚡ **API Tool Triggered:**\nTrue")
+            else:
+                api_placeholder.success(f"🔌 **API Tool Triggered:**\nFalse")
+
+        except Exception as e:
+            final_response = f"An error occurred while processing your request: {str(e)}"
+            st.error(final_response)
+
+    # Display AI response
+    with st.chat_message("assistant"):
+        st.markdown(final_response)
+    st.session_state.messages.append({"role": "assistant", "content": final_response})

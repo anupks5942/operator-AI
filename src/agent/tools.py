@@ -1,13 +1,15 @@
 """
-LangChain tool definitions that call the local mock API server and live web endpoints.
-The mock API server must be running at http://localhost:8001 before loyalty/transaction tools are invoked.
+LangChain tool definitions for the Setomatic/SpyderWash support agent.
+
+Tools:
+  - get_loyalty_balance:        Live SpyderWash production API (OperatorId=4)
+  - get_transaction_history:    Live SpyderWash production API (LoggedInUserId=4, last 5 transactions)
+  - check_global_system_status: Live web scrape of setomaticsystems.com/status
 """
 import httpx
 import requests
 from bs4 import BeautifulSoup
 from langchain_core.tools import tool
-
-BASE_URL = "http://localhost:8001"
 
 # Chrome-mimicking headers — Accept-Encoding intentionally omitted so requests
 # receives plain HTML (not brotli/gzip binary that requests can't decompress natively)
@@ -28,65 +30,209 @@ _BROWSER_HEADERS = {
     "Cache-Control": "max-age=0",
 }
 
+
+# Live SpyderWash production API — OperatorId=4 is hardcoded per platform spec
+_LOYALTY_BALANCE_URL = (
+    "https://betasetomaticposwebapplication.spyderwash.com"
+    "/api/Transactions/CheckLoyaltyCardBalance"
+)
+_LOYALTY_OPERATOR_ID = 4
+
 @tool
-def get_loyalty_balance(card_number: str) -> dict:
+def get_loyalty_balance(card_number: str) -> str:
     """
-    Use this tool when the user asks about a loyalty card balance, current points,
-    or loyalty tier for a specific card number.
+    Use this tool when the user asks about a loyalty card balance, current dollar
+    value, points, or remaining credit for a specific SpyderWash loyalty card number.
+
+    Calls the live SpyderWash production API to retrieve the real-time card balance.
+    OperatorId is always 4 (hardcoded). The card number is passed as LoyaltyCardNo.
 
     Args:
-        card_number: The full loyalty card number provided by the user (e.g. "LC-12345678").
+        card_number: The loyalty card number extracted from the user's message
+                     (e.g. "LC-5555", "5555", or any card identifier the user provides).
 
     Returns:
-        A dictionary containing:
-        - status: "success" or "error"
-        - card_number: the card queried
-        - balance_usd: current dollar balance on the card
-        - loyalty_tier: "Gold" or "Standard"
-        - points: accumulated loyalty points
+        A formatted string with the current balance (e.g. "Loyalty card LC-5555
+        has a current balance of $12.50."), or a graceful error message if the
+        API is unreachable, the card is not found, or the response is malformed.
     """
     try:
-        response = httpx.post(
-            f"{BASE_URL}/api/v1/loyalty/balance",
-            json={"card_number": card_number},
-            timeout=10.0,
+        response = httpx.get(
+            _LOYALTY_BALANCE_URL,
+            params={
+                "OperatorId":    _LOYALTY_OPERATOR_ID,
+                "LoyaltyCardNo": card_number,
+            },
+            timeout=12.0,
         )
-        response.raise_for_status()
-        return response.json()
-    except httpx.ConnectError:
-        return {"status": "error", "detail": "Mock API server is not running. Start it with: uv run uvicorn src.api.mock_server:mock_app --port 8001"}
-    except Exception as e:
-        return {"status": "error", "detail": str(e)}
 
+        # Surface HTTP-level errors (4xx / 5xx) as graceful messages
+        if response.status_code == 500:
+            return (
+                f"The SpyderWash API returned a server error (500) for card '{card_number}'. "
+                "The card may not exist in this operator's system, or the backend is temporarily unavailable."
+            )
+        if response.status_code != 200:
+            return (
+                f"Unexpected API response (HTTP {response.status_code}) "
+                f"while looking up loyalty card '{card_number}'. Please try again shortly."
+            )
+
+        payload = response.json()
+
+        # Parse balance from: response['data'][0]['currentValue']
+        data_array = payload.get("data")
+        if not data_array or not isinstance(data_array, list) or len(data_array) == 0:
+            return (
+                f"No balance data found for loyalty card '{card_number}'. "
+                "The card may not be registered under Operator ID 4, or the card number is incorrect."
+            )
+
+        current_value = data_array[0].get("currentValue")
+        if current_value is None:
+            return (
+                f"The API responded successfully but 'currentValue' was missing in the data "
+                f"for card '{card_number}'. The response structure may have changed — please contact support."
+            )
+
+        # Format as a currency string
+        balance_str = f"${float(current_value):.2f}"
+        return (
+            f"Loyalty card '{card_number}' has a current balance of {balance_str}."
+        )
+
+    except httpx.TimeoutException:
+        return (
+            f"The loyalty balance request for card '{card_number}' timed out after 12 seconds. "
+            "The SpyderWash API may be temporarily slow — please try again in a moment."
+        )
+    except httpx.ConnectError:
+        return (
+            f"Could not connect to the SpyderWash API to look up card '{card_number}'. "
+            "Check network connectivity or contact Setomatic support."
+        )
+    except (KeyError, IndexError, ValueError, TypeError) as e:
+        return (
+            f"Failed to parse the loyalty balance response for card '{card_number}': {e}. "
+            "The API response format may have changed — please contact Setomatic support."
+        )
+    except Exception as e:
+        return f"An unexpected error occurred while checking loyalty card '{card_number}': {e}"
+
+
+
+# Live SpyderWash production transaction API
+_TRANSACTION_SEARCH_URL = (
+    "https://betasetomaticposwebapplication.spyderwash.com"
+    "/api/Transactions/ViewAllTransactionSearch"
+)
+_TRANSACTION_LOGGED_IN_USER_ID = 4
+_TRANSACTION_PAGE_NO   = 1
+_TRANSACTION_PAGE_SIZE = 5   # Keep small to avoid context window overflow
 
 @tool
-def get_transaction_history(card_ending: str) -> dict:
+def get_transaction_history(card_number: str) -> str:
     """
     Use this tool when the user asks to look up recent transactions, payment history,
-    or wash history for a loyalty card identified by its last few digits.
+    or wash history for a specific SpyderWash loyalty card.
+
+    Calls the live SpyderWash production API and returns the last 5 transactions
+    within the past 6 months, formatted as a human-readable summary.
+
+    LoggedInUserId is always 4 (hardcoded). PageNo=1, PageSize=5 (hardcoded to
+    prevent context window overflow). StartDate and EndDate are auto-computed.
 
     Args:
-        card_ending: The last 4 digits of the loyalty card (e.g. "4521").
+        card_number: The full loyalty card number extracted from the user's message
+                     or conversation history (e.g. "00000212", "LC-5555").
 
     Returns:
-        A dictionary containing:
-        - status: "success" or "error"
-        - card_ending: the card suffix queried
-        - transaction_count: number of transactions returned
-        - transactions: list of transaction records, each with tx_id, date, type, amount_usd, machine_id
+        A formatted multi-line string listing each transaction's date/time,
+        amount, type, and location — or a graceful error string if the API
+        is unreachable, returns no data, or the response is malformed.
     """
+    from datetime import datetime, timedelta, timezone
+
+    # Auto-compute date range: last 6 months → today
+    now       = datetime.now(timezone.utc)
+    end_date  = now.strftime("%Y-%m-%d")
+    start_date = (now - timedelta(days=182)).strftime("%Y-%m-%d")
+
     try:
-        response = httpx.post(
-            f"{BASE_URL}/api/v1/transactions/lookup",
-            json={"card_ending": card_ending},
-            timeout=10.0,
+        response = httpx.get(
+            _TRANSACTION_SEARCH_URL,
+            params={
+                "LoggedInUserId": _TRANSACTION_LOGGED_IN_USER_ID,
+                "LoyaltyCardNo":  card_number,
+                "StartDate":      start_date,
+                "EndDate":        end_date,
+                "PageNo":         _TRANSACTION_PAGE_NO,
+                "PageSize":       _TRANSACTION_PAGE_SIZE,
+            },
+            timeout=12.0,
         )
-        response.raise_for_status()
-        return response.json()
+
+        if response.status_code == 500:
+            return (
+                f"The SpyderWash API returned a server error (500) for card '{card_number}'. "
+                "The card may not exist under this operator, or the backend is temporarily unavailable."
+            )
+        if response.status_code != 200:
+            return (
+                f"Unexpected API response (HTTP {response.status_code}) while fetching "
+                f"transactions for card '{card_number}'. Please try again shortly."
+            )
+
+        # Parse: response['data'] is the transaction array
+        transactions = response.json().get("data", [])
+
+        if not transactions:
+            return (
+                f"No transactions found for loyalty card '{card_number}' "
+                f"between {start_date} and {end_date}. "
+                "The card may have no activity in this period, or the card number is incorrect."
+            )
+
+        # Format a clean, LLM-friendly summary
+        lines = [
+            f"Last {len(transactions)} transaction(s) for loyalty card '{card_number}' "
+            f"({start_date} → {end_date}):\n"
+        ]
+        for i, tx in enumerate(transactions, start=1):
+            dt     = tx.get("transactionDateTime", "N/A")
+            amount = tx.get("transactionAmount",   "N/A")
+            t_type = tx.get("transactionType",     "N/A")
+            loc    = tx.get("locationName",        "N/A")
+
+            # Format amount as currency if numeric
+            try:
+                amount_str = f"${float(amount):.2f}"
+            except (TypeError, ValueError):
+                amount_str = str(amount)
+
+            lines.append(
+                f"  {i}. [{dt}]  {t_type}  {amount_str}  @ {loc}"
+            )
+
+        return "\n".join(lines)
+
+    except httpx.TimeoutException:
+        return (
+            f"The transaction history request for card '{card_number}' timed out after 12 seconds. "
+            "The SpyderWash API may be temporarily slow — please try again in a moment."
+        )
     except httpx.ConnectError:
-        return {"status": "error", "detail": "Mock API server is not running. Start it with: uv run uvicorn src.api.mock_server:mock_app --port 8001"}
+        return (
+            f"Could not connect to the SpyderWash API to retrieve transactions for card '{card_number}'. "
+            "Check network connectivity or contact Setomatic support."
+        )
+    except (KeyError, IndexError, ValueError, TypeError) as e:
+        return (
+            f"Failed to parse the transaction response for card '{card_number}': {e}. "
+            "The API response format may have changed — please contact Setomatic support."
+        )
     except Exception as e:
-        return {"status": "error", "detail": str(e)}
+        return f"An unexpected error occurred while fetching transactions for card '{card_number}': {e}"
 
 
 @tool

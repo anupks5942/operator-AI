@@ -1,1 +1,0 @@
-•	Work on to Constructed a rigorous verification suite comprising twenty-five categorized questions designed to systematically validate the accuracy of information retrieved from the indexed knowledge base.
