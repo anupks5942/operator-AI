@@ -61,8 +61,20 @@ if prompt := st.chat_input("Ask a troubleshooting question, check balance, or re
             # Execute the LangGraph state machine
             result = compiled_graph.invoke(initial_state, config=config)
             
-            # Extract final AI response
-            final_response = result["messages"][-1].content
+            # Walk backwards to find the last AIMessage with actual text content.
+            # When tool_node runs, the message sequence is:
+            #   [AIMessage(tool_call, content=""), ToolMessage(result), AIMessage(summary, content="...")]
+            # The very last message is the human-readable summary — but if the LLM
+            # emitted only a tool_call with no follow-up text, content="" and we must
+            # keep searching backwards for the nearest non-empty AIMessage.
+            from langchain_core.messages import AIMessage as _AIMsg
+            final_response = ""
+            for msg in reversed(result.get("messages", [])):
+                if isinstance(msg, _AIMsg) and msg.content and str(msg.content).strip():
+                    final_response = str(msg.content).strip()
+                    break
+            if not final_response:
+                final_response = "I processed your request but could not generate a response. Please try again."
             
             # --- Update Visual Diagnostics in Sidebar ---
             current_intent = result.get('current_intent', 'Unknown')

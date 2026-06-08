@@ -24,6 +24,7 @@ def escalation_node(state: AgentState):
 _TOOL_SYSTEM_PROMPT = (
     "You are a Setomatic/SpyderWash technical support agent with access to tools. "
     "Use the tools available to you to answer the user's question accurately.\n\n"
+
     "CRITICAL OUTAGE RULE: If the user reports a system outage OR asks whether SpyderWash or Setomatic "
     "is down, you MUST call the check_global_system_status tool FIRST before doing anything else. "
     "After receiving the tool result, follow these rules EXACTLY:\n\n"
@@ -44,7 +45,21 @@ _TOOL_SYSTEM_PROMPT = (
     "confirm the global outage and advise the user to monitor https://setomaticsystems.com/status. "
     "No local troubleshooting is needed until the global issue is resolved.\n\n"
     "4. If the result says 'SYSTEM STATUS CHECK FAILED': tell the user you could not automatically "
-    "check the status page and ask them to visit https://setomaticsystems.com/status directly."
+    "check the status page and ask them to visit https://setomaticsystems.com/status directly.\n\n"
+
+    "CRITICAL REFUND RULE: If the user asks for a refund on any transaction, you MUST follow this "
+    "exact 3-step sequential workflow. Do NOT skip or reorder any step:\n\n"
+    "  STEP 1 — Call get_transaction_history with the user's loyalty card number to retrieve recent "
+    "transactions. Each transaction line includes its ID in the format [ID:xxxx]. Identify the "
+    "transactionDetailId for the transaction the user wants refunded. If the user has not provided "
+    "a card number, ask for it before proceeding.\n\n"
+    "  STEP 2 — Call check_refund_eligibility with that transactionDetailId. Parse the result:\n"
+    "    - If the result says 'IS eligible': inform the user and proceed to Step 3.\n"
+    "    - If the result says 'is NOT eligible': inform the user of the reason and STOP. "
+    "Do NOT call execute_refund under any circumstances if eligibility is false.\n\n"
+    "  STEP 3 — ONLY if Step 2 confirmed eligibility: call execute_refund with the same "
+    "transactionDetailId. Report the refund confirmation message and receipt number "
+    "(e.g. REF-998877) back to the user."
 )
 
 _tool_llm = None
@@ -58,8 +73,14 @@ def _get_tool_llm():
 def tool_node(state: AgentState):
     """
     Tool_Node: Binds SETOMATIC_TOOLS to GPT-4o and executes the appropriate
-    API tool (loyalty balance, transaction lookup, or system status check).
-    Handles the full tool call loop: inject system prompt → invoke LLM → execute tool → summarise.
+    API tool (loyalty balance, transaction lookup, refund, or system status check).
+
+    Handles the full tool call loop:
+      inject system prompt + entity hints → invoke LLM → execute tool → summarise.
+
+    Critically: extracted_entities and current_intent from the router are injected
+    as an explicit system hint so the LLM does NOT re-ask for parameters that the
+    user already provided (e.g. card number given in the previous turn).
     """
     messages = state.get("messages", [])
     if not messages:
@@ -67,9 +88,38 @@ def tool_node(state: AgentState):
 
     llm_with_tools = _get_tool_llm()
 
-    # Prepend system prompt so the LLM knows the outage-handling rules
-    system_msg = {"role": "system", "content": _TOOL_SYSTEM_PROMPT}
-    augmented_messages = [system_msg] + list(messages)
+    # ── Build entity hint from router state ───────────────────────────────────
+    # If the router already extracted entities (e.g. card_number="00000212"),
+    # surface them explicitly so the LLM skips re-asking and calls the tool directly.
+    entities     = state.get("extracted_entities") or {}
+    intent       = state.get("current_intent") or ""
+    hint_parts   = []
+
+    if intent:
+        hint_parts.append(f"Active workflow intent: {intent}.")
+
+    if entities:
+        entity_lines = "\n".join(
+            f"  - {k}: {v}" for k, v in entities.items() if v is not None
+        )
+        hint_parts.append(
+            f"The router has already extracted the following entities from the user's input. "
+            f"Use them directly as tool arguments — do NOT ask the user for them again:\n{entity_lines}"
+        )
+
+    entity_hint_msg = None
+    if hint_parts:
+        entity_hint_msg = {
+            "role": "system",
+            "content": "EXTRACTED CONTEXT (use immediately):\n" + "\n".join(hint_parts),
+        }
+
+    # ── Assemble message list ─────────────────────────────────────────────────
+    base_system = {"role": "system", "content": _TOOL_SYSTEM_PROMPT}
+    if entity_hint_msg:
+        augmented_messages = [base_system, entity_hint_msg] + list(messages)
+    else:
+        augmented_messages = [base_system] + list(messages)
 
     # Step 1: LLM selects which tool to call
     ai_response = llm_with_tools.invoke(augmented_messages)
@@ -90,7 +140,7 @@ def tool_node(state: AgentState):
                 )
 
         # Step 3: Feed results back to LLM for a natural language summary
-        follow_up_messages = [system_msg] + list(messages) + [ai_response] + tool_results
+        follow_up_messages = [base_system] + list(messages) + [ai_response] + tool_results
         final_response = llm_with_tools.invoke(follow_up_messages)
         return {"messages": [ai_response] + tool_results + [final_response]}
 

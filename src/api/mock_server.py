@@ -68,3 +68,35 @@ def get_transaction_history(request: TransactionLookupRequest):
         "transaction_count": len(transactions),
         "transactions": transactions,
     }
+
+
+# ── Refund endpoints ──────────────────────────────────────────────────────────
+
+@mock_app.get("/api/Transactions/RefundEligibility")
+def check_refund_eligibility(transactionDetailId: str, OperatorId: int):
+    """
+    Returns mock refund eligibility for a given transactionDetailId.
+    The transaction is always eligible in the mock environment.
+    """
+    return {
+        "status": 200,
+        "data": {
+            "isEligible": True,
+            "reason": "Transaction within 30-day window",
+        },
+    }
+
+
+@mock_app.get("/api/Transactions/RefundProcessing")
+def process_refund(transactionDetailId: str, OperatorId: int):
+    """
+    Processes a mock refund for a given transactionDetailId.
+    Returns a mock refund receipt number.
+    """
+    return {
+        "status": 200,
+        "message": "Refund of $2.00 processed successfully to loyalty card.",
+        "data": {
+            "refundReceipt": "REF-998877",
+        },
+    }

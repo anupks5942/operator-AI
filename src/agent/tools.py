@@ -3,7 +3,9 @@ LangChain tool definitions for the Setomatic/SpyderWash support agent.
 
 Tools:
   - get_loyalty_balance:        Live SpyderWash production API (OperatorId=4)
-  - get_transaction_history:    Live SpyderWash production API (LoggedInUserId=4, last 5 transactions)
+  - get_transaction_history:    Live SpyderWash production API — includes transactionDetailId for refund flow
+  - check_refund_eligibility:   Mock API (localhost:8001) — checks 30-day refund window
+  - execute_refund:             Mock API (localhost:8001) — processes refund, returns receipt
   - check_global_system_status: Live web scrape of setomaticsystems.com/status
 """
 import httpx
@@ -199,6 +201,7 @@ def get_transaction_history(card_number: str) -> str:
             f"({start_date} → {end_date}):\n"
         ]
         for i, tx in enumerate(transactions, start=1):
+            tx_id  = tx.get("transactionDetailId", "N/A")  # required for refund flow
             dt     = tx.get("transactionDateTime", "N/A")
             amount = tx.get("transactionAmount",   "N/A")
             t_type = tx.get("transactionType",     "N/A")
@@ -211,7 +214,7 @@ def get_transaction_history(card_number: str) -> str:
                 amount_str = str(amount)
 
             lines.append(
-                f"  {i}. [{dt}]  {t_type}  {amount_str}  @ {loc}"
+                f"  {i}. [ID:{tx_id}]  [{dt}]  {t_type}  {amount_str}  @ {loc}"
             )
 
         return "\n".join(lines)
@@ -403,5 +406,166 @@ def check_global_system_status() -> str:
     )
 
 
+# ── Refund tool constants (mock endpoints on localhost:8001) ─────────────────
+_MOCK_REFUND_BASE = "http://localhost:8001"
+_REFUND_OPERATOR_ID = 4
+
+
+@tool
+def check_refund_eligibility(transaction_detail_id: str) -> str:
+    """
+    Use this tool AFTER calling get_transaction_history to check whether a specific
+    transaction is eligible for a refund.
+
+    MUST be called as step 2 of the refund workflow:
+      1. get_transaction_history  → obtain transactionDetailId
+      2. check_refund_eligibility → verify the 30-day window (this tool)
+      3. execute_refund           → ONLY if isEligible is true
+
+    OperatorId is always 4 (hardcoded).
+
+    Args:
+        transaction_detail_id: The transactionDetailId string from the transaction
+                               history result (e.g. "12345").
+
+    Returns:
+        A plain-text string indicating whether the transaction is eligible for a
+        refund and the reason provided by the API, or a graceful error string.
+    """
+    try:
+        response = httpx.get(
+            f"{_MOCK_REFUND_BASE}/api/Transactions/RefundEligibility",
+            params={
+                "transactionDetailId": transaction_detail_id,
+                "OperatorId":          _REFUND_OPERATOR_ID,
+            },
+            timeout=10.0,
+        )
+
+        if response.status_code == 500:
+            return (
+                f"The API returned a server error (500) while checking refund eligibility "
+                f"for transaction ID '{transaction_detail_id}'. Please try again shortly."
+            )
+        if response.status_code != 200:
+            return (
+                f"Unexpected API response (HTTP {response.status_code}) while checking "
+                f"refund eligibility for transaction ID '{transaction_detail_id}'."
+            )
+
+        data       = response.json().get("data", {})
+        is_eligible = data.get("isEligible")
+        reason     = data.get("reason", "No reason provided.")
+
+        if is_eligible is None:
+            return (
+                f"Refund eligibility check for transaction '{transaction_detail_id}' returned "
+                "an unexpected response structure. Please contact Setomatic support."
+            )
+
+        if is_eligible:
+            return (
+                f"Transaction ID '{transaction_detail_id}' IS eligible for a refund. "
+                f"Reason: {reason}. You may now proceed to process the refund."
+            )
+        else:
+            return (
+                f"Transaction ID '{transaction_detail_id}' is NOT eligible for a refund. "
+                f"Reason: {reason}. No refund can be issued."
+            )
+
+    except httpx.TimeoutException:
+        return (
+            f"Refund eligibility check for transaction '{transaction_detail_id}' timed out. "
+            "The mock API server may not be running. Start it with: "
+            "uv run uvicorn src.api.mock_server:mock_app --port 8001"
+        )
+    except httpx.ConnectError:
+        return (
+            "Could not connect to the mock API server for refund eligibility. "
+            "Ensure it is running: uv run uvicorn src.api.mock_server:mock_app --port 8001"
+        )
+    except (KeyError, ValueError, TypeError) as e:
+        return f"Failed to parse refund eligibility response for transaction '{transaction_detail_id}': {e}."
+    except Exception as e:
+        return f"Unexpected error during refund eligibility check for '{transaction_detail_id}': {e}"
+
+
+@tool
+def execute_refund(transaction_detail_id: str) -> str:
+    """
+    Use this tool ONLY after check_refund_eligibility confirms isEligible=True.
+    This is step 3 of the mandatory refund workflow:
+
+      1. get_transaction_history  → obtain transactionDetailId
+      2. check_refund_eligibility → must return isEligible=True
+      3. execute_refund           → this tool — processes the refund
+
+    WARNING: Do NOT call this tool if check_refund_eligibility returned
+    isEligible=False. The refund will be rejected.
+
+    OperatorId is always 4 (hardcoded).
+
+    Args:
+        transaction_detail_id: The transactionDetailId string confirmed as
+                               eligible in step 2 (e.g. "12345").
+
+    Returns:
+        A confirmation string with the refund receipt number on success,
+        or a graceful error string if the API fails.
+    """
+    try:
+        response = httpx.get(
+            f"{_MOCK_REFUND_BASE}/api/Transactions/RefundProcessing",
+            params={
+                "transactionDetailId": transaction_detail_id,
+                "OperatorId":          _REFUND_OPERATOR_ID,
+            },
+            timeout=10.0,
+        )
+
+        if response.status_code == 500:
+            return (
+                f"The API returned a server error (500) while processing the refund "
+                f"for transaction ID '{transaction_detail_id}'. Please try again shortly."
+            )
+        if response.status_code != 200:
+            return (
+                f"Unexpected API response (HTTP {response.status_code}) while processing "
+                f"refund for transaction ID '{transaction_detail_id}'."
+            )
+
+        payload = response.json()
+        message = payload.get("message", "Refund processed.")
+        receipt = payload.get("data", {}).get("refundReceipt", "N/A")
+
+        return (
+            f"Refund successfully processed for transaction ID '{transaction_detail_id}'. "
+            f"{message} Receipt number: {receipt}."
+        )
+
+    except httpx.TimeoutException:
+        return (
+            f"Refund processing for transaction '{transaction_detail_id}' timed out. "
+            "The mock API server may not be running. Start it with: "
+            "uv run uvicorn src.api.mock_server:mock_app --port 8001"
+        )
+    except httpx.ConnectError:
+        return (
+            "Could not connect to the mock API server for refund processing. "
+            "Ensure it is running: uv run uvicorn src.api.mock_server:mock_app --port 8001"
+        )
+    except (KeyError, ValueError, TypeError) as e:
+        return f"Failed to parse refund processing response for transaction '{transaction_detail_id}': {e}."
+    except Exception as e:
+        return f"Unexpected error during refund processing for '{transaction_detail_id}': {e}"
+
+
 # Exported list for binding to LLM
-SETOMATIC_TOOLS = [get_loyalty_balance, get_transaction_history, check_global_system_status]
+SETOMATIC_TOOLS = [
+    get_loyalty_balance,
+    get_transaction_history,
+    check_refund_eligibility,
+    execute_refund,
+    check_global_system_status,
+]
