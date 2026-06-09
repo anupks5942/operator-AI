@@ -72,80 +72,94 @@ def _get_tool_llm():
 
 def tool_node(state: AgentState):
     """
-    Tool_Node: Binds SETOMATIC_TOOLS to GPT-4o and executes the appropriate
-    API tool (loyalty balance, transaction lookup, refund, or system status check).
+    Tool_Node: Executes tools via a ReAct-style loop until the LLM produces
+    a plain-text response (no more tool_calls).
 
-    Handles the full tool call loop:
-      inject system prompt + entity hints → invoke LLM → execute tool → summarise.
+    WHY A LOOP: The refund workflow requires sequential tool calls:
+      get_transaction_history → check_refund_eligibility → execute_refund
+    A single-shot implementation (invoke → tool → summarize) causes the
+    "summarize" LLM call to itself return tool_calls=[...] for the next step.
+    That AIMessage gets persisted to state WITHOUT a ToolMessage response,
+    causing OpenAI 400 errors on subsequent turns.
 
-    Critically: extracted_entities and current_intent from the router are injected
-    as an explicit system hint so the LLM does NOT re-ask for parameters that the
-    user already provided (e.g. card number given in the previous turn).
+    The loop guarantees that every AIMessage with tool_calls is ALWAYS
+    followed by its ToolMessages before the next LLM call — maintaining a
+    valid OpenAI message sequence at all times.
     """
     messages = state.get("messages", [])
     if not messages:
         return {"messages": [AIMessage(content="No query to process.")]}
 
+    tool_map      = {t.name: t for t in SETOMATIC_TOOLS}
     llm_with_tools = _get_tool_llm()
 
     # ── Build entity hint from router state ───────────────────────────────────
-    # If the router already extracted entities (e.g. card_number="00000212"),
-    # surface them explicitly so the LLM skips re-asking and calls the tool directly.
-    entities     = state.get("extracted_entities") or {}
-    intent       = state.get("current_intent") or ""
-    hint_parts   = []
+    entities   = state.get("extracted_entities") or {}
+    intent     = state.get("current_intent") or ""
+    hint_parts = []
 
     if intent:
         hint_parts.append(f"Active workflow intent: {intent}.")
-
     if entities:
         entity_lines = "\n".join(
             f"  - {k}: {v}" for k, v in entities.items() if v is not None
         )
         hint_parts.append(
-            f"The router has already extracted the following entities from the user's input. "
-            f"Use them directly as tool arguments — do NOT ask the user for them again:\n{entity_lines}"
+            "The router has already extracted the following entities from the "
+            "user's input. Use them directly as tool arguments — do NOT ask the "
+            f"user for them again:\n{entity_lines}"
         )
 
-    entity_hint_msg = None
-    if hint_parts:
-        entity_hint_msg = {
-            "role": "system",
-            "content": "EXTRACTED CONTEXT (use immediately):\n" + "\n".join(hint_parts),
-        }
-
-    # ── Assemble message list ─────────────────────────────────────────────────
     base_system = {"role": "system", "content": _TOOL_SYSTEM_PROMPT}
-    if entity_hint_msg:
-        augmented_messages = [base_system, entity_hint_msg] + list(messages)
-    else:
-        augmented_messages = [base_system] + list(messages)
+    msgs        = [base_system]
+    if hint_parts:
+        msgs.append({
+            "role":    "system",
+            "content": "EXTRACTED CONTEXT (use immediately):\n" + "\n".join(hint_parts),
+        })
+    msgs += list(messages)
 
-    # Step 1: LLM selects which tool to call
-    ai_response = llm_with_tools.invoke(augmented_messages)
+    # ── ReAct loop ────────────────────────────────────────────────────────────
+    # `new_messages` collects everything added THIS invocation (appended to state).
+    # `msgs`         is the growing working context sent to the LLM each round.
+    new_messages   = []
+    MAX_ITERATIONS = 6   # safety cap — prevents runaway tool chains
 
-    # Step 2: If the LLM chose a tool, execute it
-    if ai_response.tool_calls:
-        tool_results = []
-        tool_map = {t.name: t for t in SETOMATIC_TOOLS}
+    for _ in range(MAX_ITERATIONS):
+        ai_response = llm_with_tools.invoke(msgs)
+
+        # Always accumulate the AI response
+        new_messages.append(ai_response)
+        msgs.append(ai_response)
+
+        # If the LLM produced text (no tool calls), we are done
+        if not ai_response.tool_calls:
+            break
+
+        # Execute every tool call; always add a ToolMessage (even on failure)
+        # so the message sequence is ALWAYS valid for OpenAI
         for tool_call in ai_response.tool_calls:
             tool_fn = tool_map.get(tool_call["name"])
             if tool_fn:
-                result = tool_fn.invoke(tool_call["args"])
-                tool_results.append(
-                    ToolMessage(
-                        content=str(result),
-                        tool_call_id=tool_call["id"],
-                    )
+                try:
+                    result = tool_fn.invoke(tool_call["args"])
+                except Exception as exc:
+                    result = f"Tool '{tool_call['name']}' raised an error: {exc}"
+            else:
+                result = (
+                    f"Unknown tool '{tool_call['name']}'. "
+                    f"Available tools: {list(tool_map.keys())}"
                 )
 
-        # Step 3: Feed results back to LLM for a natural language summary
-        follow_up_messages = [base_system] + list(messages) + [ai_response] + tool_results
-        final_response = llm_with_tools.invoke(follow_up_messages)
-        return {"messages": [ai_response] + tool_results + [final_response]}
+            tool_msg = ToolMessage(
+                content=str(result),
+                tool_call_id=tool_call["id"],
+            )
+            new_messages.append(tool_msg)
+            msgs.append(tool_msg)
 
-    # LLM answered without a tool call (fallback)
-    return {"messages": [ai_response]}
+    return {"messages": new_messages}
+
 
 
 # ── Conditional routing ───────────────────────────────────────────────────────
