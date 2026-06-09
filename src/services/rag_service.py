@@ -107,7 +107,11 @@ class RAGService:
     def load_and_process_documents(self):
         """
         Load all PDF and DOCX files from kb_dir, split into chunks of 500/50,
-        and enrich each chunk with source metadata.
+        enrich each chunk with source metadata, and prepend a provenance header
+        to each chunk's page_content so the LLM sees the source inline.
+
+        Provenance header format (prepended before Chroma ingestion):
+            [DOCUMENT: {filename} | PAGE: {page_number}]
         """
         docs = []
 
@@ -139,6 +143,19 @@ class RAGService:
             separators=["\n\n", "\n", ".", " ", ""],
         )
         splits = splitter.split_documents(docs)
+
+        # ── Prepend provenance header to each chunk's page_content ────────────
+        # Embedding the source/page directly in the text ensures the LLM sees
+        # where each passage came from, independent of metadata retrieval.
+        for chunk in splits:
+            source = os.path.basename(
+                chunk.metadata.get("source_file") or
+                chunk.metadata.get("source", "Unknown")
+            )
+            page = chunk.metadata.get("page", "N/A")
+            header = f"[DOCUMENT: {source} | PAGE: {page}]\n\n"
+            chunk.page_content = header + chunk.page_content
+
         return splits
 
     def initialize_vectorstore(self, splits):

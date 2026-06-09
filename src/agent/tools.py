@@ -2,16 +2,21 @@
 LangChain tool definitions for the Setomatic/SpyderWash support agent.
 
 Tools:
-  - get_loyalty_balance:        Live SpyderWash production API (OperatorId=4)
-  - get_transaction_history:    Live SpyderWash production API — includes transactionDetailId for refund flow
-  - check_refund_eligibility:   Mock API (localhost:8001) — checks 30-day refund window
-  - execute_refund:             Mock API (localhost:8001) — processes refund, returns receipt
+  - get_loyalty_balance:        Routes to SETOMATIC_BASE_URL (live production API, OperatorId=4)
+  - get_transaction_history:    Routes to SETOMATIC_BASE_URL (live production API) — includes transactionDetailId for refund flow
+  - check_refund_eligibility:   Routes to MOCK_BASE_URL when USE_MOCK_REFUNDS=True, else SETOMATIC_BASE_URL
+  - execute_refund:             Routes to MOCK_BASE_URL when USE_MOCK_REFUNDS=True, else SETOMATIC_BASE_URL
   - check_global_system_status: Live web scrape of setomaticsystems.com/status
+
+URL routing is controlled by src/config.py — set environment variables in .env to override defaults.
 """
 import httpx
 import requests
 from bs4 import BeautifulSoup
 from langchain_core.tools import tool
+
+# Import centralized URL config — all base URLs are defined in src/config.py
+from src.config import MOCK_BASE_URL, SETOMATIC_BASE_URL, USE_MOCK_REFUNDS
 
 # Chrome-mimicking headers — Accept-Encoding intentionally omitted so requests
 # receives plain HTML (not brotli/gzip binary that requests can't decompress natively)
@@ -33,10 +38,10 @@ _BROWSER_HEADERS = {
 }
 
 
-# Live SpyderWash production API — OperatorId=4 is hardcoded per platform spec
+# Loyalty balance always routes to the live production API, never the mock server
 _LOYALTY_BALANCE_URL = (
-    "https://betasetomaticposwebapplication.spyderwash.com"
-    "/api/Transactions/CheckLoyaltyCardBalance"
+    SETOMATIC_BASE_URL
+    + "/api/Transactions/CheckLoyaltyCardBalance"
 )
 _LOYALTY_OPERATOR_ID = 4
 
@@ -123,10 +128,10 @@ def get_loyalty_balance(card_number: str) -> str:
 
 
 
-# Live SpyderWash production transaction API
+# Transaction history always routes to the live production API, never the mock server
 _TRANSACTION_SEARCH_URL = (
-    "https://betasetomaticposwebapplication.spyderwash.com"
-    "/api/Transactions/ViewAllTransactionSearch"
+    SETOMATIC_BASE_URL
+    + "/api/Transactions/ViewAllTransactionSearch"
 )
 _TRANSACTION_LOGGED_IN_USER_ID = 4
 _TRANSACTION_PAGE_NO   = 1
@@ -406,8 +411,8 @@ def check_global_system_status() -> str:
     )
 
 
-# ── Refund tool constants (mock endpoints on localhost:8001) ─────────────────
-_MOCK_REFUND_BASE = "http://localhost:8001"
+# Refund tools route to MOCK_BASE_URL when USE_MOCK_REFUNDS is True, else fall back to production
+_REFUND_BASE = MOCK_BASE_URL if USE_MOCK_REFUNDS else SETOMATIC_BASE_URL
 _REFUND_OPERATOR_ID = 4
 
 
@@ -434,7 +439,7 @@ def check_refund_eligibility(transaction_detail_id: str) -> str:
     """
     try:
         response = httpx.get(
-            f"{_MOCK_REFUND_BASE}/api/Transactions/RefundEligibility",
+            f"{_REFUND_BASE}/api/Transactions/RefundEligibility",
             params={
                 "transactionDetailId": transaction_detail_id,
                 "OperatorId":          _REFUND_OPERATOR_ID,
@@ -516,7 +521,7 @@ def execute_refund(transaction_detail_id: str) -> str:
     """
     try:
         response = httpx.get(
-            f"{_MOCK_REFUND_BASE}/api/Transactions/RefundProcessing",
+            f"{_REFUND_BASE}/api/Transactions/RefundProcessing",
             params={
                 "transactionDetailId": transaction_detail_id,
                 "OperatorId":          _REFUND_OPERATOR_ID,
