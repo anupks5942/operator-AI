@@ -1,0 +1,1541 @@
+{
+  "version": "1.0.0",
+  "gitCommitHash": "215a1dd782e15f9127ebd88b8409d3e019287560",
+  "generatedAt": "2026-06-16T20:02:01.840Z",
+  "files": {
+    ".antigravitycli/524bfffd-250e-4652-bc99-c31f281296ed.json": {
+      "filePath": ".antigravitycli/524bfffd-250e-4652-bc99-c31f281296ed.json",
+      "contentHash": "744c510df48a3be062881d04d4f95605aa0bfab5bfd4666762d72ccdfeff1db5",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 14,
+      "hasStructuralAnalysis": true
+    },
+    ".env": {
+      "filePath": ".env",
+      "contentHash": "3791a43f2e04680813c46a7ef37ffab2bccc3130427dc4e7f919e01bd28fdaf0",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 11,
+      "hasStructuralAnalysis": true
+    },
+    ".python-version": {
+      "filePath": ".python-version",
+      "contentHash": "a876e0b10411037a012498b9fe18d9bc1df32ed8b722a13564dc944ddcfd9135",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 2,
+      "hasStructuralAnalysis": false
+    },
+    ".understand-anything/.understandignore": {
+      "filePath": ".understand-anything/.understandignore",
+      "contentHash": "150630aec2cca33d853a8e11542d4687c768c7dd010c7deb59b3e52131a693b6",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 23,
+      "hasStructuralAnalysis": false
+    },
+    ".understand-anything/config.json": {
+      "filePath": ".understand-anything/config.json",
+      "contentHash": "8b872a34689f66b2cf598b9de6815aabe320504f432521d0e1e4c1c8d4b6258b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 4,
+      "hasStructuralAnalysis": true
+    },
+    "API_Requirements.docx": {
+      "filePath": "API_Requirements.docx",
+      "contentHash": "4e14aed299637eebf2901f303e5f23612d9cba4883f33b21555e1419ba4f6872",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 72,
+      "hasStructuralAnalysis": false
+    },
+    "app.py": {
+      "filePath": "app.py",
+      "contentHash": "9969c38898d44893784bef8634b2c33ffa20bee4e75e32b7d6c41584f1d179ea",
+      "functions": [
+        {
+          "name": "_now_ts",
+          "params": [],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "_render_ts",
+          "params": [
+            "ts",
+            "align"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "_node_label",
+          "params": [
+            "node_name"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "_extract_final_response",
+          "params": [
+            "accumulated_state"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 5
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "streamlit",
+          "specifiers": [
+            "st"
+          ]
+        },
+        {
+          "source": "uuid",
+          "specifiers": [
+            "uuid"
+          ]
+        },
+        {
+          "source": "datetime",
+          "specifiers": [
+            "datetime"
+          ]
+        },
+        {
+          "source": "dotenv",
+          "specifiers": [
+            "load_dotenv"
+          ]
+        },
+        {
+          "source": "langchain_core.messages",
+          "specifiers": [
+            "_AIMsg"
+          ]
+        },
+        {
+          "source": "src.agent.graph",
+          "specifiers": [
+            "compiled_graph"
+          ]
+        }
+      ],
+      "exports": [
+        "_now_ts",
+        "_render_ts",
+        "_node_label",
+        "_extract_final_response"
+      ],
+      "totalLines": 176,
+      "hasStructuralAnalysis": true
+    },
+    "chroma_db/chroma.sqlite3": {
+      "filePath": "chroma_db/chroma.sqlite3",
+      "contentHash": "5957ad3dcdc75830f8f8f44f423fb2ed527ae7ccf2ee1de90bcf3f32b00ab525",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 10178,
+      "hasStructuralAnalysis": false
+    },
+    "KB_VERIFICATION_QA.md": {
+      "filePath": "KB_VERIFICATION_QA.md",
+      "contentHash": "5eb0a2df975b116c7bf10afb299d15cedbc0a5c07cf2eefc3c76663e8e6e52e3",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 71,
+      "hasStructuralAnalysis": true
+    },
+    "KB/Condensed Troubleshooting Guide.docx": {
+      "filePath": "KB/Condensed Troubleshooting Guide.docx",
+      "contentHash": "5d4987dcb419e1c6472c0b1d003d527290aaef40108e014147ec00c251df1e4c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 28259,
+      "hasStructuralAnalysis": false
+    },
+    "KB/Condensed Troubleshooting Guide.docx.txt": {
+      "filePath": "KB/Condensed Troubleshooting Guide.docx.txt",
+      "contentHash": "1ea2a06c92d90dc8fe73cb1b10ef6c50beab60c53c5ef3b7816c9370ed4cdb42",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 258,
+      "hasStructuralAnalysis": false
+    },
+    "KB/SpyderWash Manual.txt": {
+      "filePath": "KB/SpyderWash Manual.txt",
+      "contentHash": "fc823614636445eb9079e0e88f0c9355db14c52416da0a9b3ad5c7a8258911df",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 559,
+      "hasStructuralAnalysis": false
+    },
+    "KB/Voiceover SpyderWash Troubleshooting Guide.docx": {
+      "filePath": "KB/Voiceover SpyderWash Troubleshooting Guide.docx",
+      "contentHash": "c3cfd6cda0034d8ab18d8dec0a09bfeab559b3d3c0a3c16bc2f65f05f0b6edb2",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 64,
+      "hasStructuralAnalysis": false
+    },
+    "KB/Voiceover SpyderWash Troubleshooting Guide.docx.txt": {
+      "filePath": "KB/Voiceover SpyderWash Troubleshooting Guide.docx.txt",
+      "contentHash": "139432acf8f693dea5ed2720f5dc51cf60b098daa3c52016bd079bfed0a3f211",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 423,
+      "hasStructuralAnalysis": false
+    },
+    "main.py": {
+      "filePath": "main.py",
+      "contentHash": "4a4b2bb41af1408870bf1c7ebc35bb0a80c0ff057396a6c478815e5893c33d7e",
+      "functions": [
+        {
+          "name": "stream_turn",
+          "params": [
+            "query",
+            "thread_id",
+            "turn_label"
+          ],
+          "exported": true,
+          "lineCount": 44
+        },
+        {
+          "name": "run_multi_turn_test",
+          "params": [],
+          "exported": true,
+          "lineCount": 29
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "uvicorn",
+          "specifiers": [
+            "uvicorn"
+          ]
+        },
+        {
+          "source": "uuid",
+          "specifiers": [
+            "uuid"
+          ]
+        },
+        {
+          "source": "fastapi",
+          "specifiers": [
+            "FastAPI"
+          ]
+        },
+        {
+          "source": "dotenv",
+          "specifiers": [
+            "load_dotenv"
+          ]
+        },
+        {
+          "source": "langchain_core.messages",
+          "specifiers": [
+            "AIMessage",
+            "ToolMessage"
+          ]
+        },
+        {
+          "source": "src.api.routes",
+          "specifiers": [
+            "router"
+          ]
+        },
+        {
+          "source": "src.agent.graph",
+          "specifiers": [
+            "compiled_graph"
+          ]
+        }
+      ],
+      "exports": [
+        "stream_turn",
+        "run_multi_turn_test"
+      ],
+      "totalLines": 99,
+      "hasStructuralAnalysis": true
+    },
+    "pyproject.toml": {
+      "filePath": "pyproject.toml",
+      "contentHash": "2860ce8d34d677872139fe0d1b2e0695e7c935ab896d5c1b874c416e8ebbb33f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 32,
+      "hasStructuralAnalysis": true
+    },
+    "rag_test_results.md": {
+      "filePath": "rag_test_results.md",
+      "contentHash": "7c1b0b40a13f8e410edb92975ec79127215ee381505a8c9d89fa3bbac5de49be",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 214,
+      "hasStructuralAnalysis": true
+    },
+    "README.md": {
+      "filePath": "README.md",
+      "contentHash": "63cab4b98bfd6d779fe9f6b5c4cfedc77e9c471473656e1df036b2ace324c289",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 89,
+      "hasStructuralAnalysis": true
+    },
+    "Requirement understading.docx": {
+      "filePath": "Requirement understading.docx",
+      "contentHash": "c7654f21835d508c6b9037b4beafae7b3fd69967eceaead4a6fcb306ecbb5cbc",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 103,
+      "hasStructuralAnalysis": false
+    },
+    "Setomatic Summary Document.docx": {
+      "filePath": "Setomatic Summary Document.docx",
+      "contentHash": "697ff10c7c684256606eaab7113651b5f15d4c397e564c379683f3f249eb9029",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 31045,
+      "hasStructuralAnalysis": false
+    },
+    "src/agent/graph.py": {
+      "filePath": "src/agent/graph.py",
+      "contentHash": "b85417944acf83e0a9037f5e5719e09fa496df0238648922b78ab028e8987b3f",
+      "functions": [
+        {
+          "name": "escalation_node",
+          "params": [
+            "state"
+          ],
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "_get_tool_llm",
+          "params": [],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "tool_node",
+          "params": [
+            "state"
+          ],
+          "exported": true,
+          "lineCount": 89
+        },
+        {
+          "name": "route_after_classifier",
+          "params": [
+            "state"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 43
+        },
+        {
+          "name": "create_agent_graph",
+          "params": [],
+          "exported": true,
+          "lineCount": 43
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "langgraph.graph",
+          "specifiers": [
+            "StateGraph",
+            "END"
+          ]
+        },
+        {
+          "source": "langgraph.checkpoint.memory",
+          "specifiers": [
+            "MemorySaver"
+          ]
+        },
+        {
+          "source": "langchain_core.messages",
+          "specifiers": [
+            "AIMessage",
+            "ToolMessage"
+          ]
+        },
+        {
+          "source": "langchain_openai",
+          "specifiers": [
+            "ChatOpenAI"
+          ]
+        },
+        {
+          "source": "src.agent.state",
+          "specifiers": [
+            "AgentState"
+          ]
+        },
+        {
+          "source": "src.agent.nodes",
+          "specifiers": [
+            "retrieve_and_generate",
+            "guardrail_node",
+            "handle_out_of_domain"
+          ]
+        },
+        {
+          "source": "src.agent.router",
+          "specifiers": [
+            "semantic_router"
+          ]
+        },
+        {
+          "source": "src.agent.tools",
+          "specifiers": [
+            "SETOMATIC_TOOLS"
+          ]
+        }
+      ],
+      "exports": [
+        "escalation_node",
+        "_get_tool_llm",
+        "tool_node",
+        "route_after_classifier",
+        "create_agent_graph"
+      ],
+      "totalLines": 261,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/nodes.py": {
+      "filePath": "src/agent/nodes.py",
+      "contentHash": "ac4b911b36adeed57735ec123cc92c350b5d6664aca261283e5e133577fdd172",
+      "functions": [
+        {
+          "name": "get_rag_service",
+          "params": [],
+          "returnType": "RAGService",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "_extract_metadata_filter",
+          "params": [
+            "state"
+          ],
+          "returnType": "dict | None",
+          "exported": true,
+          "lineCount": 41
+        },
+        {
+          "name": "retrieve_and_generate",
+          "params": [
+            "state"
+          ],
+          "exported": true,
+          "lineCount": 34
+        },
+        {
+          "name": "guardrail_node",
+          "params": [
+            "state"
+          ],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "handle_out_of_domain",
+          "params": [
+            "state"
+          ],
+          "exported": true,
+          "lineCount": 14
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "langchain_core.messages",
+          "specifiers": [
+            "AIMessage"
+          ]
+        },
+        {
+          "source": "src.agent.state",
+          "specifiers": [
+            "AgentState"
+          ]
+        },
+        {
+          "source": "src.services.rag_service",
+          "specifiers": [
+            "RAGService"
+          ]
+        },
+        {
+          "source": "src.services.notifications",
+          "specifiers": [
+            "NotificationService"
+          ]
+        }
+      ],
+      "exports": [
+        "get_rag_service",
+        "_extract_metadata_filter",
+        "retrieve_and_generate",
+        "guardrail_node",
+        "handle_out_of_domain"
+      ],
+      "totalLines": 129,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/router.py": {
+      "filePath": "src/agent/router.py",
+      "contentHash": "1993f98c3b05676b556b134787a5f89642309e54d3cfda0031956401c49e8fb6",
+      "functions": [
+        {
+          "name": "_get_structured_llm",
+          "params": [],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "semantic_router",
+          "params": [
+            "state"
+          ],
+          "exported": true,
+          "lineCount": 54
+        }
+      ],
+      "classes": [
+        {
+          "name": "IntentClassification",
+          "methods": [],
+          "properties": [
+            "intent",
+            "hardware_lookup_attempted",
+            "escalation_required",
+            "api_action_required",
+            "extracted_entities"
+          ],
+          "exported": true,
+          "lineCount": 27
+        }
+      ],
+      "imports": [
+        {
+          "source": "pydantic",
+          "specifiers": [
+            "BaseModel",
+            "Field"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Dict",
+            "Any",
+            "Optional"
+          ]
+        },
+        {
+          "source": "langchain_core.messages",
+          "specifiers": [
+            "AIMessage"
+          ]
+        },
+        {
+          "source": "langchain_openai",
+          "specifiers": [
+            "ChatOpenAI"
+          ]
+        },
+        {
+          "source": "src.agent.state",
+          "specifiers": [
+            "AgentState"
+          ]
+        }
+      ],
+      "exports": [
+        "IntentClassification",
+        "_get_structured_llm",
+        "semantic_router"
+      ],
+      "totalLines": 197,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/state.py": {
+      "filePath": "src/agent/state.py",
+      "contentHash": "093f336c291934ea83a0cbd7d643a3eb72bb69cefdd0f1c7febabe7d9d2040ba",
+      "functions": [],
+      "classes": [
+        {
+          "name": "AgentState",
+          "methods": [],
+          "properties": [
+            "messages",
+            "context",
+            "current_intent",
+            "hardware_lookup_attempted",
+            "escalation_required",
+            "api_action_required",
+            "extracted_entities"
+          ],
+          "exported": true,
+          "lineCount": 12
+        }
+      ],
+      "imports": [
+        {
+          "source": "typing",
+          "specifiers": [
+            "TypedDict",
+            "Annotated",
+            "Sequence",
+            "Optional"
+          ]
+        },
+        {
+          "source": "langchain_core.messages",
+          "specifiers": [
+            "BaseMessage"
+          ]
+        },
+        {
+          "source": "langgraph.graph.message",
+          "specifiers": [
+            "add_messages"
+          ]
+        }
+      ],
+      "exports": [
+        "AgentState"
+      ],
+      "totalLines": 17,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/tools.py": {
+      "filePath": "src/agent/tools.py",
+      "contentHash": "84506b8e242161e07e8fa866313693e94a4a63e4b907c3de7cbda10766f5181a",
+      "functions": [
+        {
+          "name": "get_loyalty_balance",
+          "params": [
+            "card_number"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 79
+        },
+        {
+          "name": "get_transaction_history",
+          "params": [
+            "card_number"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 103
+        },
+        {
+          "name": "check_global_system_status",
+          "params": [],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 165
+        },
+        {
+          "name": "check_refund_eligibility",
+          "params": [
+            "transaction_detail_id"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 77
+        },
+        {
+          "name": "execute_refund",
+          "params": [
+            "transaction_detail_id"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 67
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "httpx",
+          "specifiers": [
+            "httpx"
+          ]
+        },
+        {
+          "source": "requests",
+          "specifiers": [
+            "requests"
+          ]
+        },
+        {
+          "source": "bs4",
+          "specifiers": [
+            "BeautifulSoup"
+          ]
+        },
+        {
+          "source": "langchain_core.tools",
+          "specifiers": [
+            "tool"
+          ]
+        },
+        {
+          "source": "src.config",
+          "specifiers": [
+            "MOCK_BASE_URL",
+            "SETOMATIC_BASE_URL",
+            "USE_MOCK_REFUNDS"
+          ]
+        }
+      ],
+      "exports": [
+        "get_loyalty_balance",
+        "get_transaction_history",
+        "check_global_system_status",
+        "check_refund_eligibility",
+        "execute_refund"
+      ],
+      "totalLines": 577,
+      "hasStructuralAnalysis": true
+    },
+    "src/api/mock_server.py": {
+      "filePath": "src/api/mock_server.py",
+      "contentHash": "2b53e30e2e1b6fa9afa3e2f8c11cb64b8985472f62cd163b58205bfa7cd9e450",
+      "functions": [
+        {
+          "name": "_random_tx",
+          "params": [
+            "i",
+            "card_ending"
+          ],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 13
+        },
+        {
+          "name": "get_loyalty_balance",
+          "params": [
+            "request"
+          ],
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "get_transaction_history",
+          "params": [
+            "request"
+          ],
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "check_refund_eligibility",
+          "params": [
+            "transactionDetailId",
+            "OperatorId"
+          ],
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "process_refund",
+          "params": [
+            "transactionDetailId",
+            "OperatorId"
+          ],
+          "exported": true,
+          "lineCount": 12
+        }
+      ],
+      "classes": [
+        {
+          "name": "LoyaltyBalanceRequest",
+          "methods": [],
+          "properties": [
+            "card_number"
+          ],
+          "exported": true,
+          "lineCount": 2
+        },
+        {
+          "name": "TransactionLookupRequest",
+          "methods": [],
+          "properties": [
+            "card_ending"
+          ],
+          "exported": true,
+          "lineCount": 2
+        }
+      ],
+      "imports": [
+        {
+          "source": "random",
+          "specifiers": [
+            "random"
+          ]
+        },
+        {
+          "source": "string",
+          "specifiers": [
+            "string"
+          ]
+        },
+        {
+          "source": "datetime",
+          "specifiers": [
+            "datetime",
+            "timedelta"
+          ]
+        },
+        {
+          "source": "fastapi",
+          "specifiers": [
+            "FastAPI"
+          ]
+        },
+        {
+          "source": "pydantic",
+          "specifiers": [
+            "BaseModel"
+          ]
+        }
+      ],
+      "exports": [
+        "LoyaltyBalanceRequest",
+        "TransactionLookupRequest",
+        "_random_tx",
+        "get_loyalty_balance",
+        "get_transaction_history",
+        "check_refund_eligibility",
+        "process_refund"
+      ],
+      "totalLines": 103,
+      "hasStructuralAnalysis": true
+    },
+    "src/api/routes.py": {
+      "filePath": "src/api/routes.py",
+      "contentHash": "5311d8ad35bc731ffa7c4e63eb55b59ed104f604afda3e131eaef09cc8c9f062",
+      "functions": [
+        {
+          "name": "health_check",
+          "params": [],
+          "exported": true,
+          "lineCount": 2
+        },
+        {
+          "name": "query_agent",
+          "params": [
+            "request"
+          ],
+          "exported": true,
+          "lineCount": 24
+        },
+        {
+          "name": "notify_sms",
+          "params": [
+            "request"
+          ],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "notify_email",
+          "params": [
+            "request"
+          ],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "fastapi",
+          "specifiers": [
+            "APIRouter",
+            "HTTPException"
+          ]
+        },
+        {
+          "source": "langchain_core.messages",
+          "specifiers": [
+            "HumanMessage"
+          ]
+        },
+        {
+          "source": "src.api.schemas",
+          "specifiers": [
+            "QueryRequest",
+            "QueryResponse",
+            "NotificationRequest"
+          ]
+        },
+        {
+          "source": "src.agent.graph",
+          "specifiers": [
+            "agent_app"
+          ]
+        },
+        {
+          "source": "src.services.notifications",
+          "specifiers": [
+            "NotificationService"
+          ]
+        }
+      ],
+      "exports": [
+        "health_check",
+        "query_agent",
+        "notify_sms",
+        "notify_email"
+      ],
+      "totalLines": 48,
+      "hasStructuralAnalysis": true
+    },
+    "src/api/schemas.py": {
+      "filePath": "src/api/schemas.py",
+      "contentHash": "0c493786d9f4f9b6904597cae69bfe973fbcf0862449c007744b2f0f1824ca96",
+      "functions": [],
+      "classes": [
+        {
+          "name": "QueryRequest",
+          "methods": [],
+          "properties": [
+            "query",
+            "session_id"
+          ],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "QueryResponse",
+          "methods": [],
+          "properties": [
+            "answer",
+            "sources"
+          ],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "NotificationRequest",
+          "methods": [],
+          "properties": [
+            "to",
+            "message"
+          ],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "imports": [
+        {
+          "source": "pydantic",
+          "specifiers": [
+            "BaseModel"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "List",
+            "Optional"
+          ]
+        }
+      ],
+      "exports": [
+        "QueryRequest",
+        "QueryResponse",
+        "NotificationRequest"
+      ],
+      "totalLines": 15,
+      "hasStructuralAnalysis": true
+    },
+    "src/api/server.py": {
+      "filePath": "src/api/server.py",
+      "contentHash": "47565623a2bad38b3f141cbb12ed4e08e519f29bdd96fba8167e9766dd28f6f1",
+      "functions": [
+        {
+          "name": "telemetry_middleware",
+          "params": [
+            "request",
+            "call_next"
+          ],
+          "returnType": "Response",
+          "exported": true,
+          "lineCount": 93
+        },
+        {
+          "name": "_extract_reply",
+          "params": [
+            "graph_state"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "chat",
+          "params": [
+            "request"
+          ],
+          "returnType": "ChatResponse",
+          "exported": true,
+          "lineCount": 42
+        },
+        {
+          "name": "health",
+          "params": [],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [
+        {
+          "name": "ChatRequest",
+          "methods": [],
+          "properties": [
+            "operator_id",
+            "session_id",
+            "message"
+          ],
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "ChatResponse",
+          "methods": [],
+          "properties": [
+            "reply",
+            "detected_intent",
+            "requires_escalation"
+          ],
+          "exported": true,
+          "lineCount": 7
+        }
+      ],
+      "imports": [
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "uuid",
+          "specifiers": [
+            "uuid"
+          ]
+        },
+        {
+          "source": "datetime",
+          "specifiers": [
+            "datetime",
+            "timezone"
+          ]
+        },
+        {
+          "source": "fastapi",
+          "specifiers": [
+            "FastAPI",
+            "HTTPException",
+            "Request"
+          ]
+        },
+        {
+          "source": "fastapi.middleware.cors",
+          "specifiers": [
+            "CORSMiddleware"
+          ]
+        },
+        {
+          "source": "fastapi.responses",
+          "specifiers": [
+            "Response"
+          ]
+        },
+        {
+          "source": "pydantic",
+          "specifiers": [
+            "BaseModel",
+            "Field"
+          ]
+        },
+        {
+          "source": "langchain_core.messages",
+          "specifiers": [
+            "AIMessage"
+          ]
+        },
+        {
+          "source": "dotenv",
+          "specifiers": [
+            "load_dotenv"
+          ]
+        },
+        {
+          "source": "src.agent.graph",
+          "specifiers": [
+            "compiled_graph"
+          ]
+        }
+      ],
+      "exports": [
+        "ChatRequest",
+        "ChatResponse",
+        "telemetry_middleware",
+        "_extract_reply",
+        "chat",
+        "health"
+      ],
+      "totalLines": 267,
+      "hasStructuralAnalysis": true
+    },
+    "src/config.py": {
+      "filePath": "src/config.py",
+      "contentHash": "6fdfd6fb5778c197ff30132d642d721889497e30cff66a61805e11367159fafc",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "dotenv",
+          "specifiers": [
+            "load_dotenv"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 30,
+      "hasStructuralAnalysis": true
+    },
+    "src/services/notifications.py": {
+      "filePath": "src/services/notifications.py",
+      "contentHash": "e360c0e3ec01bf7f615cf0d7e16720c9f3f7e0288d9b5406e59aa9495eb2de2b",
+      "functions": [],
+      "classes": [
+        {
+          "name": "NotificationService",
+          "methods": [
+            "send_sms",
+            "send_email"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 18
+        }
+      ],
+      "imports": [
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        }
+      ],
+      "exports": [
+        "NotificationService"
+      ],
+      "totalLines": 23,
+      "hasStructuralAnalysis": true
+    },
+    "src/services/rag_service.py": {
+      "filePath": "src/services/rag_service.py",
+      "contentHash": "c0b30ed53d533cf1cd23e3faf510d8fa7e0d63c2544977a79eb03ac0bffb9608",
+      "functions": [
+        {
+          "name": "_infer_doc_type",
+          "params": [
+            "filename"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "_infer_brand",
+          "params": [
+            "filename"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "_enrich_metadata",
+          "params": [
+            "doc",
+            "file_path"
+          ],
+          "exported": true,
+          "lineCount": 12
+        }
+      ],
+      "classes": [
+        {
+          "name": "RAGService",
+          "methods": [
+            "__init__",
+            "load_and_process_documents",
+            "initialize_vectorstore",
+            "_build_retriever",
+            "query"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 166
+        }
+      ],
+      "imports": [
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "re",
+          "specifiers": [
+            "re"
+          ]
+        },
+        {
+          "source": "langchain_community.document_loaders",
+          "specifiers": [
+            "PyPDFLoader",
+            "Docx2txtLoader"
+          ]
+        },
+        {
+          "source": "langchain_text_splitters",
+          "specifiers": [
+            "RecursiveCharacterTextSplitter"
+          ]
+        },
+        {
+          "source": "langchain_huggingface",
+          "specifiers": [
+            "HuggingFaceEmbeddings"
+          ]
+        },
+        {
+          "source": "langchain_chroma",
+          "specifiers": [
+            "Chroma"
+          ]
+        },
+        {
+          "source": "langchain_groq",
+          "specifiers": [
+            "ChatGroq"
+          ]
+        },
+        {
+          "source": "langchain_core.prompts",
+          "specifiers": [
+            "ChatPromptTemplate"
+          ]
+        },
+        {
+          "source": "langchain_classic.chains.combine_documents",
+          "specifiers": [
+            "create_stuff_documents_chain"
+          ]
+        },
+        {
+          "source": "langchain_classic.chains",
+          "specifiers": [
+            "create_retrieval_chain"
+          ]
+        }
+      ],
+      "exports": [
+        "_infer_doc_type",
+        "_infer_brand",
+        "_enrich_metadata",
+        "RAGService"
+      ],
+      "totalLines": 225,
+      "hasStructuralAnalysis": true
+    },
+    "src/utils/__init__.py": {
+      "filePath": "src/utils/__init__.py",
+      "contentHash": "741ac686b5edb9e58b30afb920f6733b52321a30261bfdba6a24e05a88809fc8",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 4,
+      "hasStructuralAnalysis": true
+    },
+    "test_graph.py": {
+      "filePath": "test_graph.py",
+      "contentHash": "ed421565fe831cb0ce5a4507b4b2e12f8bc315e9beb8b8b41a20cd10aeef5e91",
+      "functions": [
+        {
+          "name": "test_graph",
+          "params": [
+            "query"
+          ],
+          "exported": true,
+          "lineCount": 27
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "src.agent.graph",
+          "specifiers": [
+            "agent_app"
+          ]
+        },
+        {
+          "source": "langchain_core.messages",
+          "specifiers": [
+            "HumanMessage"
+          ]
+        },
+        {
+          "source": "dotenv",
+          "specifiers": [
+            "load_dotenv"
+          ]
+        }
+      ],
+      "exports": [
+        "test_graph"
+      ],
+      "totalLines": 42,
+      "hasStructuralAnalysis": true
+    },
+    "test_rag.py": {
+      "filePath": "test_rag.py",
+      "contentHash": "ab40ab84ab33c02eeb3dee88b6bbb4bae63a1b83550bc5c522d3c049ff7b6fa3",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "dotenv",
+          "specifiers": [
+            "load_dotenv"
+          ]
+        },
+        {
+          "source": "src.services.rag_service",
+          "specifiers": [
+            "RAGService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 72,
+      "hasStructuralAnalysis": true
+    },
+    "test_router_context.py": {
+      "filePath": "test_router_context.py",
+      "contentHash": "a0eb44e228a14d29b8991f818bf710a7b80fab730483c5a28e79c76a338ed72a",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "sys",
+          "specifiers": [
+            "sys"
+          ]
+        },
+        {
+          "source": "io",
+          "specifiers": [
+            "io"
+          ]
+        },
+        {
+          "source": "dotenv",
+          "specifiers": [
+            "load_dotenv"
+          ]
+        },
+        {
+          "source": "src.agent.router",
+          "specifiers": [
+            "semantic_router",
+            "SYSTEM_PROMPT",
+            "IntentClassification",
+            "_get_structured_llm"
+          ]
+        },
+        {
+          "source": "src.agent.graph",
+          "specifiers": [
+            "agent_app"
+          ]
+        },
+        {
+          "source": "src.agent.tools",
+          "specifiers": [
+            "SETOMATIC_TOOLS"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 63,
+      "hasStructuralAnalysis": true
+    },
+    "test_server.py": {
+      "filePath": "test_server.py",
+      "contentHash": "d6f485678d149773c2436a4075e978598bbc6f686c21eb9b80eb81fd23e99f30",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "sys",
+          "specifiers": [
+            "sys"
+          ]
+        },
+        {
+          "source": "io",
+          "specifiers": [
+            "io"
+          ]
+        },
+        {
+          "source": "types",
+          "specifiers": [
+            "types"
+          ]
+        },
+        {
+          "source": "unittest.mock",
+          "specifiers": [
+            "unittest.mock"
+          ]
+        },
+        {
+          "source": "importlib",
+          "specifiers": [
+            "importlib"
+          ]
+        },
+        {
+          "source": "sys",
+          "specifiers": [
+            "sys"
+          ]
+        },
+        {
+          "source": "importlib.util",
+          "specifiers": [
+            "importlib.util"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "pathlib"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 66,
+      "hasStructuralAnalysis": true
+    },
+    "test.py": {
+      "filePath": "test.py",
+      "contentHash": "e4092194fa19cee9e3d507ec60b9bb0ef9690a3550b2e919d583946e44a7a9ff",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "requests",
+          "specifiers": [
+            "requests"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 5,
+      "hasStructuralAnalysis": true
+    }
+  }
+}

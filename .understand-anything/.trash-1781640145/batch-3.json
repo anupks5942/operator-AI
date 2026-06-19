@@ -1,0 +1,1834 @@
+{
+  "nodes": [
+    {
+      "id": "config:.antigravitycli/524bfffd-250e-4652-bc99-c31f281296ed.json",
+      "type": "config",
+      "name": "524bfffd-250e-4652-bc99-c31f281296ed.json",
+      "filePath": ".antigravitycli/524bfffd-250e-4652-bc99-c31f281296ed.json",
+      "summary": "524bfffd-250e-4652-bc99-c31f281296ed.json participates in the Setomatic/SpyderWash Operator AI codebase.",
+      "tags": [
+        "json",
+        "config"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as json."
+    },
+    {
+      "id": "config:.python-version",
+      "type": "config",
+      "name": ".python-version",
+      "filePath": ".python-version",
+      "summary": ".python-version participates in the Setomatic/SpyderWash Operator AI codebase.",
+      "tags": [
+        "unknown",
+        "code"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as unknown."
+    },
+    {
+      "id": "config:.understand-anything/.understandignore",
+      "type": "config",
+      "name": ".understandignore",
+      "filePath": ".understand-anything/.understandignore",
+      "summary": ".understandignore participates in the Setomatic/SpyderWash Operator AI codebase.",
+      "tags": [
+        "unknown",
+        "code"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as unknown."
+    },
+    {
+      "id": "config:.understand-anything/config.json",
+      "type": "config",
+      "name": "config.json",
+      "filePath": ".understand-anything/config.json",
+      "summary": "config.json participates in the Setomatic/SpyderWash Operator AI codebase.",
+      "tags": [
+        "json",
+        "config",
+        "configuration"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as json."
+    },
+    {
+      "id": "document:API_Requirements.docx",
+      "type": "document",
+      "name": "API_Requirements.docx",
+      "filePath": "API_Requirements.docx",
+      "summary": "Business, API, or source knowledge document retained in the repository for requirements or RAG ingestion.",
+      "tags": [
+        "docx",
+        "code"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Detected as docx."
+    },
+    {
+      "id": "file:app.py",
+      "type": "file",
+      "name": "app.py",
+      "filePath": "app.py",
+      "summary": "Streamlit chat interface that streams LangGraph node updates, renders chat history, and shows routing diagnostics in the sidebar.",
+      "tags": [
+        "python",
+        "code"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "function:app.py:_now_ts",
+      "type": "function",
+      "name": "_now_ts",
+      "filePath": "app.py",
+      "summary": "_now_ts is a function defined in app.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:app.py:_render_ts",
+      "type": "function",
+      "name": "_render_ts",
+      "filePath": "app.py",
+      "summary": "_render_ts is a function defined in app.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:app.py:_node_label",
+      "type": "function",
+      "name": "_node_label",
+      "filePath": "app.py",
+      "summary": "_node_label is a function defined in app.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:app.py:_extract_final_response",
+      "type": "function",
+      "name": "_extract_final_response",
+      "filePath": "app.py",
+      "summary": "_extract_final_response is a function defined in app.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "resource:chroma_db/chroma.sqlite3",
+      "type": "resource",
+      "name": "chroma.sqlite3",
+      "filePath": "chroma_db/chroma.sqlite3",
+      "summary": "Persisted Chroma vector database artifact used by the RAG service.",
+      "tags": [
+        "sqlite3",
+        "code",
+        "rag"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Detected as sqlite3."
+    },
+    {
+      "id": "document:KB/Condensed Troubleshooting Guide.docx",
+      "type": "document",
+      "name": "Condensed Troubleshooting Guide.docx",
+      "filePath": "KB/Condensed Troubleshooting Guide.docx",
+      "summary": "Knowledge-base source material used by the RAG pipeline for SpyderWash troubleshooting and operator support answers.",
+      "tags": [
+        "docx",
+        "code",
+        "rag"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Detected as docx."
+    },
+    {
+      "id": "document:KB/Voiceover SpyderWash Troubleshooting Guide.docx",
+      "type": "document",
+      "name": "Voiceover SpyderWash Troubleshooting Guide.docx",
+      "filePath": "KB/Voiceover SpyderWash Troubleshooting Guide.docx",
+      "summary": "Knowledge-base source material used by the RAG pipeline for SpyderWash troubleshooting and operator support answers.",
+      "tags": [
+        "docx",
+        "code",
+        "rag"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as docx."
+    },
+    {
+      "id": "file:main.py",
+      "type": "file",
+      "name": "main.py",
+      "filePath": "main.py",
+      "summary": "FastAPI entry module plus a console multi-turn simulation harness for testing LangGraph memory and tool routing.",
+      "tags": [
+        "python",
+        "code"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "function:main.py:stream_turn",
+      "type": "function",
+      "name": "stream_turn",
+      "filePath": "main.py",
+      "summary": "stream_turn is a function defined in main.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:main.py:run_multi_turn_test",
+      "type": "function",
+      "name": "run_multi_turn_test",
+      "filePath": "main.py",
+      "summary": "run_multi_turn_test is a function defined in main.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:Requirement understading.docx",
+      "type": "document",
+      "name": "Requirement understading.docx",
+      "filePath": "Requirement understading.docx",
+      "summary": "Business, API, or source knowledge document retained in the repository for requirements or RAG ingestion.",
+      "tags": [
+        "docx",
+        "code"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Detected as docx."
+    },
+    {
+      "id": "document:Setomatic Summary Document.docx",
+      "type": "document",
+      "name": "Setomatic Summary Document.docx",
+      "filePath": "Setomatic Summary Document.docx",
+      "summary": "Business, API, or source knowledge document retained in the repository for requirements or RAG ingestion.",
+      "tags": [
+        "docx",
+        "code"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Detected as docx."
+    },
+    {
+      "id": "file:src/agent/graph.py",
+      "type": "file",
+      "name": "graph.py",
+      "filePath": "src/agent/graph.py",
+      "summary": "Builds the LangGraph state machine, connects router decisions to RAG, tool, guardrail, escalation, and out-of-domain nodes, and configures MemorySaver.",
+      "tags": [
+        "python",
+        "code",
+        "langgraph"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "function:src/agent/graph.py:escalation_node",
+      "type": "function",
+      "name": "escalation_node",
+      "filePath": "src/agent/graph.py",
+      "summary": "escalation_node is a function defined in src/agent/graph.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/agent/graph.py:_get_tool_llm",
+      "type": "function",
+      "name": "_get_tool_llm",
+      "filePath": "src/agent/graph.py",
+      "summary": "_get_tool_llm is a function defined in src/agent/graph.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/agent/graph.py:tool_node",
+      "type": "function",
+      "name": "tool_node",
+      "filePath": "src/agent/graph.py",
+      "summary": "tool_node is a function defined in src/agent/graph.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/agent/graph.py:route_after_classifier",
+      "type": "function",
+      "name": "route_after_classifier",
+      "filePath": "src/agent/graph.py",
+      "summary": "route_after_classifier is a function defined in src/agent/graph.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/agent/graph.py:create_agent_graph",
+      "type": "function",
+      "name": "create_agent_graph",
+      "filePath": "src/agent/graph.py",
+      "summary": "create_agent_graph is a function defined in src/agent/graph.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:src/agent/nodes.py",
+      "type": "file",
+      "name": "nodes.py",
+      "filePath": "src/agent/nodes.py",
+      "summary": "Implements RAG response generation, metadata filtering, hardware-status refusal, and static out-of-domain refusal nodes.",
+      "tags": [
+        "python",
+        "code",
+        "langgraph"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "function:src/agent/nodes.py:get_rag_service",
+      "type": "function",
+      "name": "get_rag_service",
+      "filePath": "src/agent/nodes.py",
+      "summary": "get_rag_service is a function defined in src/agent/nodes.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/agent/nodes.py:_extract_metadata_filter",
+      "type": "function",
+      "name": "_extract_metadata_filter",
+      "filePath": "src/agent/nodes.py",
+      "summary": "_extract_metadata_filter is a function defined in src/agent/nodes.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/agent/nodes.py:retrieve_and_generate",
+      "type": "function",
+      "name": "retrieve_and_generate",
+      "filePath": "src/agent/nodes.py",
+      "summary": "retrieve_and_generate is a function defined in src/agent/nodes.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/agent/nodes.py:guardrail_node",
+      "type": "function",
+      "name": "guardrail_node",
+      "filePath": "src/agent/nodes.py",
+      "summary": "guardrail_node is a function defined in src/agent/nodes.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/agent/nodes.py:handle_out_of_domain",
+      "type": "function",
+      "name": "handle_out_of_domain",
+      "filePath": "src/agent/nodes.py",
+      "summary": "handle_out_of_domain is a function defined in src/agent/nodes.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/agent/router.py",
+      "type": "file",
+      "name": "router.py",
+      "filePath": "src/agent/router.py",
+      "summary": "Defines the structured OpenAI semantic router prompt, intent schema, continuation rules, and extracted entity handling.",
+      "tags": [
+        "python",
+        "code",
+        "langgraph",
+        "routing"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "class:src/agent/router.py:IntentClassification",
+      "type": "class",
+      "name": "IntentClassification",
+      "filePath": "src/agent/router.py",
+      "summary": "IntentClassification is a class defined in src/agent/router.py.",
+      "tags": [
+        "python",
+        "class"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/agent/router.py:_get_structured_llm",
+      "type": "function",
+      "name": "_get_structured_llm",
+      "filePath": "src/agent/router.py",
+      "summary": "_get_structured_llm is a function defined in src/agent/router.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/agent/router.py:semantic_router",
+      "type": "function",
+      "name": "semantic_router",
+      "filePath": "src/agent/router.py",
+      "summary": "semantic_router is a function defined in src/agent/router.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/agent/state.py",
+      "type": "file",
+      "name": "state.py",
+      "filePath": "src/agent/state.py",
+      "summary": "Typed LangGraph state contract for messages, intent, routing flags, escalation status, and extracted entities.",
+      "tags": [
+        "python",
+        "code",
+        "langgraph"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "class:src/agent/state.py:AgentState",
+      "type": "class",
+      "name": "AgentState",
+      "filePath": "src/agent/state.py",
+      "summary": "AgentState is a class defined in src/agent/state.py.",
+      "tags": [
+        "python",
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/agent/tools.py",
+      "type": "file",
+      "name": "tools.py",
+      "filePath": "src/agent/tools.py",
+      "summary": "LangChain tool definitions for live loyalty balance, transaction history, refund eligibility, refund execution, and global system-status checks.",
+      "tags": [
+        "python",
+        "code",
+        "langgraph",
+        "tools"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "function:src/agent/tools.py:get_loyalty_balance",
+      "type": "function",
+      "name": "get_loyalty_balance",
+      "filePath": "src/agent/tools.py",
+      "summary": "get_loyalty_balance is a function defined in src/agent/tools.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/agent/tools.py:get_transaction_history",
+      "type": "function",
+      "name": "get_transaction_history",
+      "filePath": "src/agent/tools.py",
+      "summary": "get_transaction_history is a function defined in src/agent/tools.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/agent/tools.py:check_global_system_status",
+      "type": "function",
+      "name": "check_global_system_status",
+      "filePath": "src/agent/tools.py",
+      "summary": "check_global_system_status is a function defined in src/agent/tools.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/agent/tools.py:check_refund_eligibility",
+      "type": "function",
+      "name": "check_refund_eligibility",
+      "filePath": "src/agent/tools.py",
+      "summary": "check_refund_eligibility is a function defined in src/agent/tools.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/agent/tools.py:execute_refund",
+      "type": "function",
+      "name": "execute_refund",
+      "filePath": "src/agent/tools.py",
+      "summary": "execute_refund is a function defined in src/agent/tools.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:src/api/mock_server.py",
+      "type": "file",
+      "name": "mock_server.py",
+      "filePath": "src/api/mock_server.py",
+      "summary": "Mock FastAPI backend for loyalty balance, transaction lookup, and refund workflow endpoints.",
+      "tags": [
+        "python",
+        "code",
+        "api"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "class:src/api/mock_server.py:LoyaltyBalanceRequest",
+      "type": "class",
+      "name": "LoyaltyBalanceRequest",
+      "filePath": "src/api/mock_server.py",
+      "summary": "LoyaltyBalanceRequest is a class defined in src/api/mock_server.py.",
+      "tags": [
+        "python",
+        "class"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:src/api/mock_server.py:TransactionLookupRequest",
+      "type": "class",
+      "name": "TransactionLookupRequest",
+      "filePath": "src/api/mock_server.py",
+      "summary": "TransactionLookupRequest is a class defined in src/api/mock_server.py.",
+      "tags": [
+        "python",
+        "class"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/api/mock_server.py:_random_tx",
+      "type": "function",
+      "name": "_random_tx",
+      "filePath": "src/api/mock_server.py",
+      "summary": "_random_tx is a function defined in src/api/mock_server.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/api/mock_server.py:get_loyalty_balance",
+      "type": "function",
+      "name": "get_loyalty_balance",
+      "filePath": "src/api/mock_server.py",
+      "summary": "get_loyalty_balance is a function defined in src/api/mock_server.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "endpoint:src/api/mock_server.py:POST /api/v1/loyalty/balance",
+      "type": "endpoint",
+      "name": "POST /api/v1/loyalty/balance",
+      "filePath": "src/api/mock_server.py",
+      "summary": "POST /api/v1/loyalty/balance is a FastAPI endpoint handled by get_loyalty_balance.",
+      "tags": [
+        "api",
+        "fastapi",
+        "post"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/api/mock_server.py:get_transaction_history",
+      "type": "function",
+      "name": "get_transaction_history",
+      "filePath": "src/api/mock_server.py",
+      "summary": "get_transaction_history is a function defined in src/api/mock_server.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "endpoint:src/api/mock_server.py:POST /api/v1/transactions/lookup",
+      "type": "endpoint",
+      "name": "POST /api/v1/transactions/lookup",
+      "filePath": "src/api/mock_server.py",
+      "summary": "POST /api/v1/transactions/lookup is a FastAPI endpoint handled by get_transaction_history.",
+      "tags": [
+        "api",
+        "fastapi",
+        "post"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/api/mock_server.py:check_refund_eligibility",
+      "type": "function",
+      "name": "check_refund_eligibility",
+      "filePath": "src/api/mock_server.py",
+      "summary": "check_refund_eligibility is a function defined in src/api/mock_server.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "endpoint:src/api/mock_server.py:GET /api/Transactions/RefundEligibility",
+      "type": "endpoint",
+      "name": "GET /api/Transactions/RefundEligibility",
+      "filePath": "src/api/mock_server.py",
+      "summary": "GET /api/Transactions/RefundEligibility is a FastAPI endpoint handled by check_refund_eligibility.",
+      "tags": [
+        "api",
+        "fastapi",
+        "get"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/api/mock_server.py:process_refund",
+      "type": "function",
+      "name": "process_refund",
+      "filePath": "src/api/mock_server.py",
+      "summary": "process_refund is a function defined in src/api/mock_server.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "endpoint:src/api/mock_server.py:GET /api/Transactions/RefundProcessing",
+      "type": "endpoint",
+      "name": "GET /api/Transactions/RefundProcessing",
+      "filePath": "src/api/mock_server.py",
+      "summary": "GET /api/Transactions/RefundProcessing is a FastAPI endpoint handled by process_refund.",
+      "tags": [
+        "api",
+        "fastapi",
+        "get"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/api/routes.py",
+      "type": "file",
+      "name": "routes.py",
+      "filePath": "src/api/routes.py",
+      "summary": "Legacy API router exposing health, query, and notification endpoints.",
+      "tags": [
+        "python",
+        "code",
+        "api"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "function:src/api/routes.py:health_check",
+      "type": "function",
+      "name": "health_check",
+      "filePath": "src/api/routes.py",
+      "summary": "health_check is a function defined in src/api/routes.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "endpoint:src/api/routes.py:GET /health",
+      "type": "endpoint",
+      "name": "GET /health",
+      "filePath": "src/api/routes.py",
+      "summary": "GET /health is a FastAPI endpoint handled by health_check.",
+      "tags": [
+        "api",
+        "fastapi",
+        "get"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/api/routes.py:query_agent",
+      "type": "function",
+      "name": "query_agent",
+      "filePath": "src/api/routes.py",
+      "summary": "query_agent is a function defined in src/api/routes.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "endpoint:src/api/routes.py:POST /query",
+      "type": "endpoint",
+      "name": "POST /query",
+      "filePath": "src/api/routes.py",
+      "summary": "POST /query is a FastAPI endpoint handled by query_agent.",
+      "tags": [
+        "api",
+        "fastapi",
+        "post"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/api/routes.py:notify_sms",
+      "type": "function",
+      "name": "notify_sms",
+      "filePath": "src/api/routes.py",
+      "summary": "notify_sms is a function defined in src/api/routes.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "endpoint:src/api/routes.py:POST /notify/sms",
+      "type": "endpoint",
+      "name": "POST /notify/sms",
+      "filePath": "src/api/routes.py",
+      "summary": "POST /notify/sms is a FastAPI endpoint handled by notify_sms.",
+      "tags": [
+        "api",
+        "fastapi",
+        "post"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/api/routes.py:notify_email",
+      "type": "function",
+      "name": "notify_email",
+      "filePath": "src/api/routes.py",
+      "summary": "notify_email is a function defined in src/api/routes.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "endpoint:src/api/routes.py:POST /notify/email",
+      "type": "endpoint",
+      "name": "POST /notify/email",
+      "filePath": "src/api/routes.py",
+      "summary": "POST /notify/email is a FastAPI endpoint handled by notify_email.",
+      "tags": [
+        "api",
+        "fastapi",
+        "post"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/api/schemas.py",
+      "type": "file",
+      "name": "schemas.py",
+      "filePath": "src/api/schemas.py",
+      "summary": "Pydantic request and response schemas for query and notification endpoints.",
+      "tags": [
+        "python",
+        "code",
+        "api"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "class:src/api/schemas.py:QueryRequest",
+      "type": "class",
+      "name": "QueryRequest",
+      "filePath": "src/api/schemas.py",
+      "summary": "QueryRequest is a class defined in src/api/schemas.py.",
+      "tags": [
+        "python",
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:src/api/schemas.py:QueryResponse",
+      "type": "class",
+      "name": "QueryResponse",
+      "filePath": "src/api/schemas.py",
+      "summary": "QueryResponse is a class defined in src/api/schemas.py.",
+      "tags": [
+        "python",
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:src/api/schemas.py:NotificationRequest",
+      "type": "class",
+      "name": "NotificationRequest",
+      "filePath": "src/api/schemas.py",
+      "summary": "NotificationRequest is a class defined in src/api/schemas.py.",
+      "tags": [
+        "python",
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/api/server.py",
+      "type": "file",
+      "name": "server.py",
+      "filePath": "src/api/server.py",
+      "summary": "Production FastAPI chat endpoint with CORS, telemetry middleware, response extraction, and LangGraph invocation.",
+      "tags": [
+        "python",
+        "code",
+        "api"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "class:src/api/server.py:ChatRequest",
+      "type": "class",
+      "name": "ChatRequest",
+      "filePath": "src/api/server.py",
+      "summary": "ChatRequest is a class defined in src/api/server.py.",
+      "tags": [
+        "python",
+        "class"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:src/api/server.py:ChatResponse",
+      "type": "class",
+      "name": "ChatResponse",
+      "filePath": "src/api/server.py",
+      "summary": "ChatResponse is a class defined in src/api/server.py.",
+      "tags": [
+        "python",
+        "class"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/api/server.py:telemetry_middleware",
+      "type": "function",
+      "name": "telemetry_middleware",
+      "filePath": "src/api/server.py",
+      "summary": "telemetry_middleware is a function defined in src/api/server.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/api/server.py:_extract_reply",
+      "type": "function",
+      "name": "_extract_reply",
+      "filePath": "src/api/server.py",
+      "summary": "_extract_reply is a function defined in src/api/server.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/api/server.py:chat",
+      "type": "function",
+      "name": "chat",
+      "filePath": "src/api/server.py",
+      "summary": "chat is a function defined in src/api/server.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "endpoint:src/api/server.py:POST /api/v1/agent/chat",
+      "type": "endpoint",
+      "name": "POST /api/v1/agent/chat",
+      "filePath": "src/api/server.py",
+      "summary": "POST /api/v1/agent/chat is a FastAPI endpoint handled by chat.",
+      "tags": [
+        "api",
+        "fastapi",
+        "post"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/api/server.py:health",
+      "type": "function",
+      "name": "health",
+      "filePath": "src/api/server.py",
+      "summary": "health is a function defined in src/api/server.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "endpoint:src/api/server.py:GET /health",
+      "type": "endpoint",
+      "name": "GET /health",
+      "filePath": "src/api/server.py",
+      "summary": "GET /health is a FastAPI endpoint handled by health.",
+      "tags": [
+        "api",
+        "fastapi",
+        "get"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/config.py",
+      "type": "file",
+      "name": "config.py",
+      "filePath": "src/config.py",
+      "summary": "Centralized environment-backed URL and feature-flag configuration for production and mock Setomatic APIs.",
+      "tags": [
+        "python",
+        "code",
+        "configuration"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "file:src/services/notifications.py",
+      "type": "file",
+      "name": "notifications.py",
+      "filePath": "src/services/notifications.py",
+      "summary": "Mock notification service for SMS and email escalation side effects.",
+      "tags": [
+        "python",
+        "code",
+        "service"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "class:src/services/notifications.py:NotificationService",
+      "type": "class",
+      "name": "NotificationService",
+      "filePath": "src/services/notifications.py",
+      "summary": "NotificationService is a class defined in src/services/notifications.py.",
+      "tags": [
+        "python",
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/services/rag_service.py",
+      "type": "file",
+      "name": "rag_service.py",
+      "filePath": "src/services/rag_service.py",
+      "summary": "Loads KB PDF/DOCX manuals, enriches metadata, builds or opens ChromaDB, and runs Groq-backed retrieval-augmented generation.",
+      "tags": [
+        "python",
+        "code",
+        "service",
+        "rag"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "function:src/services/rag_service.py:_infer_doc_type",
+      "type": "function",
+      "name": "_infer_doc_type",
+      "filePath": "src/services/rag_service.py",
+      "summary": "_infer_doc_type is a function defined in src/services/rag_service.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/services/rag_service.py:_infer_brand",
+      "type": "function",
+      "name": "_infer_brand",
+      "filePath": "src/services/rag_service.py",
+      "summary": "_infer_brand is a function defined in src/services/rag_service.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/services/rag_service.py:_enrich_metadata",
+      "type": "function",
+      "name": "_enrich_metadata",
+      "filePath": "src/services/rag_service.py",
+      "summary": "_enrich_metadata is a function defined in src/services/rag_service.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:src/services/rag_service.py:RAGService",
+      "type": "class",
+      "name": "RAGService",
+      "filePath": "src/services/rag_service.py",
+      "summary": "RAGService is a class defined in src/services/rag_service.py.",
+      "tags": [
+        "python",
+        "class"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:src/utils/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "src/utils/__init__.py",
+      "summary": "__init__.py participates in the Setomatic/SpyderWash Operator AI codebase.",
+      "tags": [
+        "python",
+        "code"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as python."
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:app.py",
+      "target": "function:app.py:_now_ts",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app.py",
+      "target": "function:app.py:_render_ts",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app.py",
+      "target": "function:app.py:_node_label",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app.py",
+      "target": "function:app.py:_extract_final_response",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app.py",
+      "target": "file:src/agent/graph.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:main.py",
+      "target": "function:main.py:stream_turn",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:main.py",
+      "target": "function:main.py:run_multi_turn_test",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:main.py",
+      "target": "file:src/api/routes.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:main.py",
+      "target": "file:src/agent/graph.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/graph.py",
+      "target": "function:src/agent/graph.py:escalation_node",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/graph.py",
+      "target": "function:src/agent/graph.py:_get_tool_llm",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/graph.py",
+      "target": "function:src/agent/graph.py:tool_node",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/graph.py",
+      "target": "function:src/agent/graph.py:route_after_classifier",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/graph.py",
+      "target": "function:src/agent/graph.py:create_agent_graph",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/graph.py",
+      "target": "file:src/agent/state.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/graph.py",
+      "target": "file:src/agent/nodes.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/graph.py",
+      "target": "file:src/agent/router.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/graph.py",
+      "target": "file:src/agent/tools.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/nodes.py",
+      "target": "function:src/agent/nodes.py:get_rag_service",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/nodes.py",
+      "target": "function:src/agent/nodes.py:_extract_metadata_filter",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/nodes.py",
+      "target": "function:src/agent/nodes.py:retrieve_and_generate",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/nodes.py",
+      "target": "function:src/agent/nodes.py:guardrail_node",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/nodes.py",
+      "target": "function:src/agent/nodes.py:handle_out_of_domain",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/nodes.py",
+      "target": "file:src/agent/state.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/nodes.py",
+      "target": "file:src/services/rag_service.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/nodes.py",
+      "target": "file:src/services/notifications.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/router.py",
+      "target": "class:src/agent/router.py:IntentClassification",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/router.py",
+      "target": "function:src/agent/router.py:_get_structured_llm",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/router.py",
+      "target": "function:src/agent/router.py:semantic_router",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/router.py",
+      "target": "file:src/agent/state.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/state.py",
+      "target": "class:src/agent/state.py:AgentState",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/tools.py",
+      "target": "function:src/agent/tools.py:get_loyalty_balance",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/tools.py",
+      "target": "function:src/agent/tools.py:get_transaction_history",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/tools.py",
+      "target": "function:src/agent/tools.py:check_global_system_status",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/tools.py",
+      "target": "function:src/agent/tools.py:check_refund_eligibility",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/tools.py",
+      "target": "function:src/agent/tools.py:execute_refund",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/agent/tools.py",
+      "target": "file:src/config.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/mock_server.py",
+      "target": "class:src/api/mock_server.py:LoyaltyBalanceRequest",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/mock_server.py",
+      "target": "class:src/api/mock_server.py:TransactionLookupRequest",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/mock_server.py",
+      "target": "function:src/api/mock_server.py:_random_tx",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/mock_server.py",
+      "target": "function:src/api/mock_server.py:get_loyalty_balance",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/mock_server.py",
+      "target": "endpoint:src/api/mock_server.py:POST /api/v1/loyalty/balance",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "endpoint:src/api/mock_server.py:POST /api/v1/loyalty/balance",
+      "target": "function:src/api/mock_server.py:get_loyalty_balance",
+      "type": "routes",
+      "weight": 0.5,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/mock_server.py",
+      "target": "function:src/api/mock_server.py:get_transaction_history",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/mock_server.py",
+      "target": "endpoint:src/api/mock_server.py:POST /api/v1/transactions/lookup",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "endpoint:src/api/mock_server.py:POST /api/v1/transactions/lookup",
+      "target": "function:src/api/mock_server.py:get_transaction_history",
+      "type": "routes",
+      "weight": 0.5,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/mock_server.py",
+      "target": "function:src/api/mock_server.py:check_refund_eligibility",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/mock_server.py",
+      "target": "endpoint:src/api/mock_server.py:GET /api/Transactions/RefundEligibility",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "endpoint:src/api/mock_server.py:GET /api/Transactions/RefundEligibility",
+      "target": "function:src/api/mock_server.py:check_refund_eligibility",
+      "type": "routes",
+      "weight": 0.5,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/mock_server.py",
+      "target": "function:src/api/mock_server.py:process_refund",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/mock_server.py",
+      "target": "endpoint:src/api/mock_server.py:GET /api/Transactions/RefundProcessing",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "endpoint:src/api/mock_server.py:GET /api/Transactions/RefundProcessing",
+      "target": "function:src/api/mock_server.py:process_refund",
+      "type": "routes",
+      "weight": 0.5,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/routes.py",
+      "target": "function:src/api/routes.py:health_check",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/routes.py",
+      "target": "endpoint:src/api/routes.py:GET /health",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "endpoint:src/api/routes.py:GET /health",
+      "target": "function:src/api/routes.py:health_check",
+      "type": "routes",
+      "weight": 0.5,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/routes.py",
+      "target": "function:src/api/routes.py:query_agent",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/routes.py",
+      "target": "endpoint:src/api/routes.py:POST /query",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "endpoint:src/api/routes.py:POST /query",
+      "target": "function:src/api/routes.py:query_agent",
+      "type": "routes",
+      "weight": 0.5,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/routes.py",
+      "target": "function:src/api/routes.py:notify_sms",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/routes.py",
+      "target": "endpoint:src/api/routes.py:POST /notify/sms",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "endpoint:src/api/routes.py:POST /notify/sms",
+      "target": "function:src/api/routes.py:notify_sms",
+      "type": "routes",
+      "weight": 0.5,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/routes.py",
+      "target": "function:src/api/routes.py:notify_email",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/routes.py",
+      "target": "endpoint:src/api/routes.py:POST /notify/email",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "endpoint:src/api/routes.py:POST /notify/email",
+      "target": "function:src/api/routes.py:notify_email",
+      "type": "routes",
+      "weight": 0.5,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/routes.py",
+      "target": "file:src/api/schemas.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/routes.py",
+      "target": "file:src/agent/graph.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/routes.py",
+      "target": "file:src/services/notifications.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/schemas.py",
+      "target": "class:src/api/schemas.py:QueryRequest",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/schemas.py",
+      "target": "class:src/api/schemas.py:QueryResponse",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/schemas.py",
+      "target": "class:src/api/schemas.py:NotificationRequest",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/server.py",
+      "target": "class:src/api/server.py:ChatRequest",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/server.py",
+      "target": "class:src/api/server.py:ChatResponse",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/server.py",
+      "target": "function:src/api/server.py:telemetry_middleware",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/server.py",
+      "target": "function:src/api/server.py:_extract_reply",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/server.py",
+      "target": "function:src/api/server.py:chat",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/server.py",
+      "target": "endpoint:src/api/server.py:POST /api/v1/agent/chat",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "endpoint:src/api/server.py:POST /api/v1/agent/chat",
+      "target": "function:src/api/server.py:chat",
+      "type": "routes",
+      "weight": 0.5,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/server.py",
+      "target": "function:src/api/server.py:health",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/server.py",
+      "target": "endpoint:src/api/server.py:GET /health",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "endpoint:src/api/server.py:GET /health",
+      "target": "function:src/api/server.py:health",
+      "type": "routes",
+      "weight": 0.5,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/api/server.py",
+      "target": "file:src/agent/graph.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/services/notifications.py",
+      "target": "class:src/services/notifications.py:NotificationService",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/services/rag_service.py",
+      "target": "function:src/services/rag_service.py:_infer_doc_type",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/services/rag_service.py",
+      "target": "function:src/services/rag_service.py:_infer_brand",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/services/rag_service.py",
+      "target": "function:src/services/rag_service.py:_enrich_metadata",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:src/services/rag_service.py",
+      "target": "class:src/services/rag_service.py:RAGService",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    }
+  ],
+  "batchFiles": [
+    {
+      "path": ".antigravitycli/524bfffd-250e-4652-bc99-c31f281296ed.json",
+      "language": "json",
+      "sizeLines": 13,
+      "fileCategory": "config"
+    },
+    {
+      "path": ".python-version",
+      "language": "unknown",
+      "sizeLines": 1,
+      "fileCategory": "code"
+    },
+    {
+      "path": ".understand-anything/.understandignore",
+      "language": "unknown",
+      "sizeLines": 22,
+      "fileCategory": "code"
+    },
+    {
+      "path": ".understand-anything/config.json",
+      "language": "json",
+      "sizeLines": 3,
+      "fileCategory": "config"
+    },
+    {
+      "path": "API_Requirements.docx",
+      "language": "docx",
+      "sizeLines": 71,
+      "fileCategory": "code"
+    },
+    {
+      "path": "app.py",
+      "language": "python",
+      "sizeLines": 175,
+      "fileCategory": "code"
+    },
+    {
+      "path": "chroma_db/chroma.sqlite3",
+      "language": "sqlite3",
+      "sizeLines": 10177,
+      "fileCategory": "code"
+    },
+    {
+      "path": "KB/Condensed Troubleshooting Guide.docx",
+      "language": "docx",
+      "sizeLines": 28258,
+      "fileCategory": "code"
+    },
+    {
+      "path": "KB/Voiceover SpyderWash Troubleshooting Guide.docx",
+      "language": "docx",
+      "sizeLines": 63,
+      "fileCategory": "code"
+    },
+    {
+      "path": "main.py",
+      "language": "python",
+      "sizeLines": 98,
+      "fileCategory": "code"
+    },
+    {
+      "path": "Requirement understading.docx",
+      "language": "docx",
+      "sizeLines": 102,
+      "fileCategory": "code"
+    },
+    {
+      "path": "Setomatic Summary Document.docx",
+      "language": "docx",
+      "sizeLines": 31044,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/agent/graph.py",
+      "language": "python",
+      "sizeLines": 260,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/agent/nodes.py",
+      "language": "python",
+      "sizeLines": 128,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/agent/router.py",
+      "language": "python",
+      "sizeLines": 196,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/agent/state.py",
+      "language": "python",
+      "sizeLines": 16,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/agent/tools.py",
+      "language": "python",
+      "sizeLines": 576,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/api/mock_server.py",
+      "language": "python",
+      "sizeLines": 102,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/api/routes.py",
+      "language": "python",
+      "sizeLines": 47,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/api/schemas.py",
+      "language": "python",
+      "sizeLines": 14,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/api/server.py",
+      "language": "python",
+      "sizeLines": 266,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/config.py",
+      "language": "python",
+      "sizeLines": 29,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/services/notifications.py",
+      "language": "python",
+      "sizeLines": 22,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/services/rag_service.py",
+      "language": "python",
+      "sizeLines": 224,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/utils/__init__.py",
+      "language": "python",
+      "sizeLines": 3,
+      "fileCategory": "code"
+    }
+  ]
+}

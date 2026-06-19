@@ -14,6 +14,7 @@ import httpx
 import requests
 from bs4 import BeautifulSoup
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field, field_validator
 
 # Import centralized URL config — all base URLs are defined in src/config.py
 from src.config import MOCK_BASE_URL, SETOMATIC_BASE_URL, USE_MOCK_REFUNDS
@@ -38,6 +39,68 @@ _BROWSER_HEADERS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Pydantic args_schema definitions
+# Each schema validates the tool's input at the LangChain layer, before the
+# underlying HTTP call is made — acting as a typed contract between the LLM
+# output and the production API.
+# ---------------------------------------------------------------------------
+
+# Card number pattern: alphanumeric characters and hyphens only (e.g. 'LC-5555', '00000212').
+_CARD_NUMBER_PATTERN = r"^[A-Za-z0-9\-]+$"
+
+# Transaction ID pattern: same character set, accommodating IDs like 'TX-12345ABC'.
+_TX_ID_PATTERN = r"^[A-Za-z0-9\-]+$"
+
+
+class LoyaltyBalanceSchema(BaseModel):
+    # card_number must be 4–15 chars, alphanumeric + hyphens; rejects empty or injected strings.
+    card_number: str = Field(
+        ...,
+        min_length=4,
+        max_length=15,
+        pattern=_CARD_NUMBER_PATTERN,
+        description="Loyalty card number (alphanumeric and hyphens, 4-15 characters).",
+    )
+
+
+class TransactionHistorySchema(BaseModel):
+    # Shares identical card number constraints with LoyaltyBalanceSchema.
+    card_number: str = Field(
+        ...,
+        min_length=4,
+        max_length=15,
+        pattern=_CARD_NUMBER_PATTERN,
+        description="Loyalty card number (alphanumeric and hyphens, 4-15 characters).",
+    )
+
+
+class RefundEligibilitySchema(BaseModel):
+    # transaction_detail_id supports alphanumeric IDs and hyphenated formats like 'TX-12345ABC'.
+    transaction_detail_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        pattern=_TX_ID_PATTERN,
+        description="Transaction detail ID (alphanumeric and hyphens, 1-50 characters).",
+    )
+
+
+class RefundExecuteSchema(BaseModel):
+    # Mirrors RefundEligibilitySchema — the same ID validated in step 2 is reused in step 3.
+    transaction_detail_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        pattern=_TX_ID_PATTERN,
+        description="Transaction detail ID confirmed eligible in step 2 (alphanumeric and hyphens).",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Loyalty balance tool
+# ---------------------------------------------------------------------------
+
 # Loyalty balance always routes to the live production API, never the mock server
 _LOYALTY_BALANCE_URL = (
     SETOMATIC_BASE_URL
@@ -45,7 +108,8 @@ _LOYALTY_BALANCE_URL = (
 )
 _LOYALTY_OPERATOR_ID = 4
 
-@tool
+# args_schema enforces card number length and character constraints before the API is called.
+@tool(args_schema=LoyaltyBalanceSchema)
 def get_loyalty_balance(card_number: str) -> str:
     """
     Use this tool when the user asks about a loyalty card balance, current dollar
@@ -137,7 +201,12 @@ _TRANSACTION_LOGGED_IN_USER_ID = 4
 _TRANSACTION_PAGE_NO   = 1
 _TRANSACTION_PAGE_SIZE = 5   # Keep small to avoid context window overflow
 
-@tool
+# ---------------------------------------------------------------------------
+# Transaction history tool
+# ---------------------------------------------------------------------------
+
+# args_schema enforces identical card number constraints as the balance tool.
+@tool(args_schema=TransactionHistorySchema)
 def get_transaction_history(card_number: str) -> str:
     """
     Use this tool when the user asks to look up recent transactions, payment history,
@@ -416,7 +485,12 @@ _REFUND_BASE = MOCK_BASE_URL if USE_MOCK_REFUNDS else SETOMATIC_BASE_URL
 _REFUND_OPERATOR_ID = 4
 
 
-@tool
+# ---------------------------------------------------------------------------
+# Refund tools
+# ---------------------------------------------------------------------------
+
+# args_schema rejects transaction IDs that contain disallowed characters or exceed length bounds.
+@tool(args_schema=RefundEligibilitySchema)
 def check_refund_eligibility(transaction_detail_id: str) -> str:
     """
     Use this tool AFTER calling get_transaction_history to check whether a specific
@@ -496,7 +570,8 @@ def check_refund_eligibility(transaction_detail_id: str) -> str:
         return f"Unexpected error during refund eligibility check for '{transaction_detail_id}': {e}"
 
 
-@tool
+# args_schema mirrors RefundEligibilitySchema — the same validated ID flows from step 2 into step 3.
+@tool(args_schema=RefundExecuteSchema)
 def execute_refund(transaction_detail_id: str) -> str:
     """
     Use this tool ONLY after check_refund_eligibility confirms isEligible=True.

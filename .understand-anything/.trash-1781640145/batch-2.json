@@ -1,0 +1,67 @@
+{
+  "nodes": [
+    {
+      "id": "document:KB/Condensed Troubleshooting Guide.docx.txt",
+      "type": "document",
+      "name": "Condensed Troubleshooting Guide.docx.txt",
+      "filePath": "KB/Condensed Troubleshooting Guide.docx.txt",
+      "summary": "Knowledge-base source material used by the RAG pipeline for SpyderWash troubleshooting and operator support answers.",
+      "tags": [
+        "txt",
+        "docs",
+        "rag"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Detected as txt."
+    },
+    {
+      "id": "document:KB/SpyderWash Manual.txt",
+      "type": "document",
+      "name": "SpyderWash Manual.txt",
+      "filePath": "KB/SpyderWash Manual.txt",
+      "summary": "Knowledge-base source material used by the RAG pipeline for SpyderWash troubleshooting and operator support answers.",
+      "tags": [
+        "txt",
+        "docs",
+        "rag"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Detected as txt."
+    },
+    {
+      "id": "document:KB/Voiceover SpyderWash Troubleshooting Guide.docx.txt",
+      "type": "document",
+      "name": "Voiceover SpyderWash Troubleshooting Guide.docx.txt",
+      "filePath": "KB/Voiceover SpyderWash Troubleshooting Guide.docx.txt",
+      "summary": "Knowledge-base source material used by the RAG pipeline for SpyderWash troubleshooting and operator support answers.",
+      "tags": [
+        "txt",
+        "docs",
+        "rag"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Detected as txt."
+    }
+  ],
+  "edges": [],
+  "batchFiles": [
+    {
+      "path": "KB/Condensed Troubleshooting Guide.docx.txt",
+      "language": "txt",
+      "sizeLines": 257,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "KB/SpyderWash Manual.txt",
+      "language": "txt",
+      "sizeLines": 558,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "KB/Voiceover SpyderWash Troubleshooting Guide.docx.txt",
+      "language": "txt",
+      "sizeLines": 422,
+      "fileCategory": "docs"
+    }
+  ]
+}

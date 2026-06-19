@@ -1,0 +1,46 @@
+{
+  "issues": [],
+  "warnings": [
+    "Node 'config:.env' has no edges",
+    "Node 'document:KB_VERIFICATION_QA.md' has no edges",
+    "Node 'document:README.md' has no edges",
+    "Node 'config:pyproject.toml' has no edges",
+    "Node 'document:rag_test_results.md' has no edges",
+    "Node 'document:KB/Condensed Troubleshooting Guide.docx.txt' has no edges",
+    "Node 'document:KB/SpyderWash Manual.txt' has no edges",
+    "Node 'document:KB/Voiceover SpyderWash Troubleshooting Guide.docx.txt' has no edges",
+    "Node 'config:.antigravitycli/524bfffd-250e-4652-bc99-c31f281296ed.json' has no edges",
+    "Node 'config:.python-version' has no edges",
+    "Node 'config:.understand-anything/.understandignore' has no edges",
+    "Node 'config:.understand-anything/config.json' has no edges",
+    "Node 'document:API_Requirements.docx' has no edges",
+    "Node 'resource:chroma_db/chroma.sqlite3' has no edges",
+    "Node 'document:KB/Condensed Troubleshooting Guide.docx' has no edges",
+    "Node 'document:KB/Voiceover SpyderWash Troubleshooting Guide.docx' has no edges",
+    "Node 'document:Requirement understading.docx' has no edges",
+    "Node 'document:Setomatic Summary Document.docx' has no edges",
+    "Node 'file:src/utils/__init__.py' has no edges",
+    "Node 'file:test_server.py' has no edges",
+    "Node 'file:test.py' has no edges"
+  ],
+  "stats": {
+    "totalNodes": 99,
+    "totalEdges": 92,
+    "totalLayers": 5,
+    "tourSteps": 6,
+    "nodeTypes": {
+      "config": 6,
+      "document": 11,
+      "file": 20,
+      "function": 40,
+      "resource": 1,
+      "class": 11,
+      "endpoint": 10
+    },
+    "edgeTypes": {
+      "contains": 61,
+      "imports": 21,
+      "routes": 10
+    }
+  }
+}

@@ -1,0 +1,255 @@
+{
+  "scriptCompleted": true,
+  "files": [
+    {
+      "path": ".antigravitycli/524bfffd-250e-4652-bc99-c31f281296ed.json",
+      "language": "json",
+      "sizeLines": 13,
+      "fileCategory": "config"
+    },
+    {
+      "path": ".env",
+      "language": "config",
+      "sizeLines": 10,
+      "fileCategory": "config"
+    },
+    {
+      "path": ".python-version",
+      "language": "unknown",
+      "sizeLines": 1,
+      "fileCategory": "code"
+    },
+    {
+      "path": ".understand-anything/.understandignore",
+      "language": "unknown",
+      "sizeLines": 22,
+      "fileCategory": "code"
+    },
+    {
+      "path": ".understand-anything/config.json",
+      "language": "json",
+      "sizeLines": 3,
+      "fileCategory": "config"
+    },
+    {
+      "path": "API_Requirements.docx",
+      "language": "docx",
+      "sizeLines": 71,
+      "fileCategory": "code"
+    },
+    {
+      "path": "app.py",
+      "language": "python",
+      "sizeLines": 175,
+      "fileCategory": "code"
+    },
+    {
+      "path": "chroma_db/chroma.sqlite3",
+      "language": "sqlite3",
+      "sizeLines": 10177,
+      "fileCategory": "code"
+    },
+    {
+      "path": "KB_VERIFICATION_QA.md",
+      "language": "markdown",
+      "sizeLines": 70,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "KB/Condensed Troubleshooting Guide.docx",
+      "language": "docx",
+      "sizeLines": 28258,
+      "fileCategory": "code"
+    },
+    {
+      "path": "KB/Condensed Troubleshooting Guide.docx.txt",
+      "language": "txt",
+      "sizeLines": 257,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "KB/SpyderWash Manual.txt",
+      "language": "txt",
+      "sizeLines": 558,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "KB/Voiceover SpyderWash Troubleshooting Guide.docx",
+      "language": "docx",
+      "sizeLines": 63,
+      "fileCategory": "code"
+    },
+    {
+      "path": "KB/Voiceover SpyderWash Troubleshooting Guide.docx.txt",
+      "language": "txt",
+      "sizeLines": 422,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "main.py",
+      "language": "python",
+      "sizeLines": 98,
+      "fileCategory": "code"
+    },
+    {
+      "path": "pyproject.toml",
+      "language": "toml",
+      "sizeLines": 31,
+      "fileCategory": "config"
+    },
+    {
+      "path": "rag_test_results.md",
+      "language": "markdown",
+      "sizeLines": 213,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "README.md",
+      "language": "markdown",
+      "sizeLines": 88,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "Requirement understading.docx",
+      "language": "docx",
+      "sizeLines": 102,
+      "fileCategory": "code"
+    },
+    {
+      "path": "Setomatic Summary Document.docx",
+      "language": "docx",
+      "sizeLines": 31044,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/agent/graph.py",
+      "language": "python",
+      "sizeLines": 260,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/agent/nodes.py",
+      "language": "python",
+      "sizeLines": 128,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/agent/router.py",
+      "language": "python",
+      "sizeLines": 196,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/agent/state.py",
+      "language": "python",
+      "sizeLines": 16,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/agent/tools.py",
+      "language": "python",
+      "sizeLines": 576,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/api/mock_server.py",
+      "language": "python",
+      "sizeLines": 102,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/api/routes.py",
+      "language": "python",
+      "sizeLines": 47,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/api/schemas.py",
+      "language": "python",
+      "sizeLines": 14,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/api/server.py",
+      "language": "python",
+      "sizeLines": 266,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/config.py",
+      "language": "python",
+      "sizeLines": 29,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/services/notifications.py",
+      "language": "python",
+      "sizeLines": 22,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/services/rag_service.py",
+      "language": "python",
+      "sizeLines": 224,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/utils/__init__.py",
+      "language": "python",
+      "sizeLines": 3,
+      "fileCategory": "code"
+    },
+    {
+      "path": "test_graph.py",
+      "language": "python",
+      "sizeLines": 41,
+      "fileCategory": "code"
+    },
+    {
+      "path": "test_rag.py",
+      "language": "python",
+      "sizeLines": 71,
+      "fileCategory": "code"
+    },
+    {
+      "path": "test_router_context.py",
+      "language": "python",
+      "sizeLines": 62,
+      "fileCategory": "code"
+    },
+    {
+      "path": "test_server.py",
+      "language": "python",
+      "sizeLines": 65,
+      "fileCategory": "code"
+    },
+    {
+      "path": "test.py",
+      "language": "python",
+      "sizeLines": 4,
+      "fileCategory": "code"
+    }
+  ],
+  "totalFiles": 38,
+  "filteredByIgnore": 0,
+  "estimatedComplexity": "moderate",
+  "stats": {
+    "filesScanned": 38,
+    "byCategory": {
+      "config": 4,
+      "code": 28,
+      "docs": 6
+    },
+    "byLanguage": {
+      "json": 2,
+      "config": 1,
+      "unknown": 2,
+      "docx": 5,
+      "python": 20,
+      "sqlite3": 1,
+      "markdown": 3,
+      "txt": 3,
+      "toml": 1
+    }
+  }
+}

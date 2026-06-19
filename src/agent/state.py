@@ -2,6 +2,15 @@ from typing import TypedDict, Annotated, Sequence, Optional
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
+
+# merge_dicts is used as a LangGraph reducer so that each router turn ADDS new
+# entities on top of previously extracted ones instead of replacing the whole dict.
+# Without this, a turn-2 update of {confirmation: True} would silently wipe the
+# card_number extracted in turn 1, breaking multi-step workflows like refunds.
+def merge_dicts(old: dict | None, new: dict | None) -> dict:
+    return {**(old or {}), **(new or {})}
+
+
 class AgentState(TypedDict):
     # add_messages ensures messages are APPENDED (not overwritten) across turns.
     # This is what allows MemorySaver to accumulate the full conversation history.
@@ -13,4 +22,6 @@ class AgentState(TypedDict):
     hardware_lookup_attempted: Optional[bool]
     escalation_required:       Optional[bool]
     api_action_required:       Optional[bool]
-    extracted_entities:        Optional[dict]
+    # merge_dicts reducer merges partial entity updates across turns instead of
+    # overwriting the entire dict, preserving entities from earlier workflow steps.
+    extracted_entities: Annotated[dict, merge_dicts]

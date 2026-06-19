@@ -1,0 +1,105 @@
+{
+  "nodes": [
+    {
+      "id": "config:.env",
+      "type": "config",
+      "name": ".env",
+      "filePath": ".env",
+      "summary": ".env participates in the Setomatic/SpyderWash Operator AI codebase.",
+      "tags": [
+        "config",
+        "configuration"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as config."
+    },
+    {
+      "id": "document:KB_VERIFICATION_QA.md",
+      "type": "document",
+      "name": "KB_VERIFICATION_QA.md",
+      "filePath": "KB_VERIFICATION_QA.md",
+      "summary": "Project documentation or verification notes related to Setomatic/SpyderWash operator support workflows.",
+      "tags": [
+        "markdown",
+        "docs"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Detected as markdown."
+    },
+    {
+      "id": "document:README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": "README.md",
+      "summary": "Project overview and operating guide for the Setomatic/SpyderWash Operator AI, including architecture, setup, and runtime commands.",
+      "tags": [
+        "markdown",
+        "docs"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Detected as markdown."
+    },
+    {
+      "id": "config:pyproject.toml",
+      "type": "config",
+      "name": "pyproject.toml",
+      "filePath": "pyproject.toml",
+      "summary": "Python project manifest declaring runtime dependencies for FastAPI, Streamlit, LangGraph, LangChain, Chroma, Groq, OpenAI, and document loaders.",
+      "tags": [
+        "toml",
+        "config",
+        "configuration"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as toml."
+    },
+    {
+      "id": "document:rag_test_results.md",
+      "type": "document",
+      "name": "rag_test_results.md",
+      "filePath": "rag_test_results.md",
+      "summary": "Project documentation or verification notes related to Setomatic/SpyderWash operator support workflows.",
+      "tags": [
+        "markdown",
+        "docs",
+        "rag",
+        "test"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Detected as markdown."
+    }
+  ],
+  "edges": [],
+  "batchFiles": [
+    {
+      "path": ".env",
+      "language": "config",
+      "sizeLines": 10,
+      "fileCategory": "config"
+    },
+    {
+      "path": "KB_VERIFICATION_QA.md",
+      "language": "markdown",
+      "sizeLines": 70,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "README.md",
+      "language": "markdown",
+      "sizeLines": 88,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "pyproject.toml",
+      "language": "toml",
+      "sizeLines": 31,
+      "fileCategory": "config"
+    },
+    {
+      "path": "rag_test_results.md",
+      "language": "markdown",
+      "sizeLines": 213,
+      "fileCategory": "docs"
+    }
+  ]
+}

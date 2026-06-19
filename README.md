@@ -68,6 +68,11 @@ The system requires multiple processes for the full experience (UI, Main API, an
     uv run streamlit run app.py
     ```
 
+4. **Launch Agent Server**:
+    ```bash
+    uv run uvicorn src.api.server:app --host 0.0.0.0 --port 8000 --reload
+    ```
+
 ## 🛠️ Developer Workflow & Testing
 
 *   **Knowledge Base Management**: Add new troubleshooting guides, manuals, or release notes (PDF/DOCX) to the `KB/` directory. The `RAGService` will automatically parse, semantically chunk, enrich metadata, and ingest them into ChromaDB on the next initialization (if `chroma_db` is empty or if forced).

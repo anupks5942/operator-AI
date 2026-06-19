@@ -1,0 +1,164 @@
+{
+  "nodes": [
+    {
+      "id": "file:test_graph.py",
+      "type": "file",
+      "name": "test_graph.py",
+      "filePath": "test_graph.py",
+      "summary": "Test or verification script covering agent behavior, API behavior, RAG behavior, or router context handling.",
+      "tags": [
+        "python",
+        "code",
+        "test"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "function:test_graph.py:test_graph",
+      "type": "function",
+      "name": "test_graph",
+      "filePath": "test_graph.py",
+      "summary": "test_graph is a function defined in test_graph.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:test_rag.py",
+      "type": "file",
+      "name": "test_rag.py",
+      "filePath": "test_rag.py",
+      "summary": "Test or verification script covering agent behavior, API behavior, RAG behavior, or router context handling.",
+      "tags": [
+        "python",
+        "code",
+        "rag",
+        "test"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "file:test_router_context.py",
+      "type": "file",
+      "name": "test_router_context.py",
+      "filePath": "test_router_context.py",
+      "summary": "Test or verification script covering agent behavior, API behavior, RAG behavior, or router context handling.",
+      "tags": [
+        "python",
+        "code",
+        "test",
+        "routing"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "file:test_server.py",
+      "type": "file",
+      "name": "test_server.py",
+      "filePath": "test_server.py",
+      "summary": "Test or verification script covering agent behavior, API behavior, RAG behavior, or router context handling.",
+      "tags": [
+        "python",
+        "code",
+        "test"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as python."
+    },
+    {
+      "id": "file:test.py",
+      "type": "file",
+      "name": "test.py",
+      "filePath": "test.py",
+      "summary": "test.py participates in the Setomatic/SpyderWash Operator AI codebase.",
+      "tags": [
+        "python",
+        "code",
+        "test"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Detected as python."
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:test_graph.py",
+      "target": "function:test_graph.py:test_graph",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:test_graph.py",
+      "target": "file:src/agent/graph.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:test_rag.py",
+      "target": "file:src/services/rag_service.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:test_router_context.py",
+      "target": "file:src/agent/router.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:test_router_context.py",
+      "target": "file:src/agent/graph.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:test_router_context.py",
+      "target": "file:src/agent/tools.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    }
+  ],
+  "batchFiles": [
+    {
+      "path": "test_graph.py",
+      "language": "python",
+      "sizeLines": 41,
+      "fileCategory": "code"
+    },
+    {
+      "path": "test_rag.py",
+      "language": "python",
+      "sizeLines": 71,
+      "fileCategory": "code"
+    },
+    {
+      "path": "test_router_context.py",
+      "language": "python",
+      "sizeLines": 62,
+      "fileCategory": "code"
+    },
+    {
+      "path": "test_server.py",
+      "language": "python",
+      "sizeLines": 65,
+      "fileCategory": "code"
+    },
+    {
+      "path": "test.py",
+      "language": "python",
+      "sizeLines": 4,
+      "fileCategory": "code"
+    }
+  ]
+}

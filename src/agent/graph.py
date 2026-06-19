@@ -3,7 +3,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import AIMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from src.agent.state import AgentState
-from src.agent.nodes import retrieve_and_generate, guardrail_node
+from src.agent.nodes import retrieve_and_generate, guardrail_node, handle_out_of_domain
 from src.agent.router import semantic_router
 from src.agent.tools import SETOMATIC_TOOLS
 
@@ -166,18 +166,46 @@ def tool_node(state: AgentState):
 
 def route_after_classifier(state: AgentState) -> str:
     """
-    Priority-ordered conditional routing after the Intent Classifier:
-      1. hardware_lookup_attempted -> Guardrail_Node  (hard block)
-      2. escalation_required       -> Escalation_Node (emergency path)
-      3. api_action_required       -> Tool_Node       (live API call)
-      4. default                   -> RAG_Node
+    Priority-ordered conditional routing after the Intent Classifier.
+
+    Priority order:
+      1. Hardware exception intents  -> RAG_Node   (hardcoded; API tools forbidden)
+      2. hardware_lookup_attempted   -> Guardrail_Node  (hard block on live status queries)
+      3. escalation_required         -> Escalation_Node (emergency path)
+      4. api_action_required         -> Tool_Node       (live API / web call)
+      5. default                     -> RAG_Node
     """
+    intent = state.get("current_intent", "")
+
+    # Out-of-domain and prompt injection: route directly to the static refusal node.
+    if intent == "out_of_domain":
+        return "out_of_domain"
+
+    # Kiosk frozen/unresponsive: always surface KB manual guidance, never call API tools.
+    if intent == "kiosk_not_responding":
+        return "rag"
+
+    # Machines not starting: always surface KB manual guidance, never call API tools.
+    if intent == "machines_not_starting":
+        return "rag"
+
+    # Multiple machines offline simultaneously: surface hub/network KB steps, not API tools.
+    if intent == "multiple_machines_offline":
+        return "rag"
+
+    # Hard block: live hardware status requests are refused by the guardrail node.
     if state.get("hardware_lookup_attempted"):
         return "guardrail"
+
+    # Emergency escalation: whole store down or operator explicitly requests a human.
     if state.get("escalation_required"):
         return "escalation"
+
+    # API workflows: loyalty balance, transaction lookup, refund, system status check.
     if state.get("api_action_required"):
         return "tool"
+
+    # All remaining intents (general_query, technical_support, etc.) go to RAG.
     return "rag"
 
 
@@ -192,32 +220,36 @@ def create_agent_graph():
     workflow = StateGraph(AgentState)
 
     # Register nodes
-    workflow.add_node("router",          semantic_router)
-    workflow.add_node("guardrail_node",  guardrail_node)
-    workflow.add_node("escalation_node", escalation_node)
-    workflow.add_node("tool_node",       tool_node)
-    workflow.add_node("rag_agent",       retrieve_and_generate)
+    workflow.add_node("router",            semantic_router)
+    workflow.add_node("guardrail_node",    guardrail_node)
+    workflow.add_node("escalation_node",   escalation_node)
+    workflow.add_node("tool_node",         tool_node)
+    workflow.add_node("rag_agent",         retrieve_and_generate)
+    # Static refusal node: no LLM, no API — hardcoded response for off-topic or adversarial input.
+    workflow.add_node("out_of_domain_node", handle_out_of_domain)
 
     # Entry point
     workflow.set_entry_point("router")
 
-    # 4-way conditional routing
+    # 5-way conditional routing (out_of_domain checked first)
     workflow.add_conditional_edges(
         "router",
         route_after_classifier,
         {
-            "guardrail":  "guardrail_node",
-            "escalation": "escalation_node",
-            "tool":       "tool_node",
-            "rag":        "rag_agent",
+            "out_of_domain": "out_of_domain_node",
+            "guardrail":     "guardrail_node",
+            "escalation":    "escalation_node",
+            "tool":          "tool_node",
+            "rag":           "rag_agent",
         }
     )
 
     # Terminal edges
-    workflow.add_edge("guardrail_node",  END)
-    workflow.add_edge("escalation_node", END)
-    workflow.add_edge("tool_node",       END)
-    workflow.add_edge("rag_agent",       END)
+    workflow.add_edge("out_of_domain_node", END)
+    workflow.add_edge("guardrail_node",     END)
+    workflow.add_edge("escalation_node",    END)
+    workflow.add_edge("tool_node",          END)
+    workflow.add_edge("rag_agent",          END)
 
     # Attach in-memory checkpointer for multi-turn persistence
     checkpointer = MemorySaver()

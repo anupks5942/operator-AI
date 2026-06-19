@@ -110,3 +110,19 @@ def guardrail_node(state: AgentState):
         "Please check the SpyderWash operator portal for live machine status."
     )
     return {"messages": [AIMessage(content=refusal_message)]}
+
+
+def handle_out_of_domain(state: AgentState):
+    """
+    Static out-of-domain guardrail: rejects any query unrelated to Setomatic /
+    SpyderWash operations, including prompt injection attempts.
+
+    No LLM or API is called — the response is hardcoded to prevent the model
+    from being manipulated by adversarial inputs that sneak past the classifier.
+    """
+    # Hardcoded refusal: never delegate this response to an LLM.
+    refusal_message = (
+        "I am a Setomatic technical support agent. "
+        "I can only assist with SpyderWash hardware, portal troubleshooting, and operator actions."
+    )
+    return {"messages": [AIMessage(content=refusal_message)]}
