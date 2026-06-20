@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage as _AIMsg
+from src.utils.security import mask_credit_cards
 
 load_dotenv()
 
@@ -90,13 +91,16 @@ for msg in st.session_state.messages:
 if prompt := st.chat_input("Ask a troubleshooting question, check balance, or report an outage..."):
     user_ts = _now_ts()
 
+    # Scrub input to prevent visual UI leaks and backend PCI violations.
+    safe_input = mask_credit_cards(prompt)
+
     # Persist and immediately render the user message
-    st.session_state.messages.append({"role": "user", "content": prompt, "timestamp": user_ts})
+    st.session_state.messages.append({"role": "user", "content": safe_input, "timestamp": user_ts})
     with st.chat_message("user"):
-        st.markdown(prompt)
+        st.markdown(safe_input)
         _render_ts(user_ts, align="right")
 
-    initial_state = {"messages": [("user", prompt)]}
+    initial_state = {"messages": [("user", safe_input)]}
     config        = {"configurable": {"thread_id": st.session_state.thread_id}}
 
     # Accumulate the full state across all streamed node updates so we can

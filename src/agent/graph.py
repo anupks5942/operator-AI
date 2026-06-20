@@ -1,3 +1,4 @@
+import uuid
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import AIMessage, ToolMessage
@@ -6,6 +7,7 @@ from src.agent.state import AgentState
 from src.agent.nodes import retrieve_and_generate, guardrail_node, handle_out_of_domain
 from src.agent.router import semantic_router
 from src.agent.tools import SETOMATIC_TOOLS
+from src.services.notifications import NotificationService
 
 # ── Inline node definitions ───────────────────────────────────────────────────
 
@@ -14,11 +16,24 @@ def escalation_node(state: AgentState):
     Triggered when an emergency is detected (e.g., entire store down).
     Appends a system-level emergency alert to the state.
     """
-    alert = (
-        "[SYSTEM] Emergency detected. Generating SMS payload with ticket number "
-        "for on-call technician."
+    # Safety check: ensure conversation context exists before attempting to escalate.
+    messages = state.get("messages", [])
+    if not messages:
+        return {"messages": [AIMessage(content="Escalation failed: No conversation context found.")]}
+
+    user_message = messages[-1].content
+    ticket_number = f"TKT-{uuid.uuid4().hex[:8].upper()}"
+    payload = f"Ticket: {ticket_number}\nUser Message: {user_message}"
+
+    # Dispatch logic: send a critical operator escalation email to on-call technician.
+    NotificationService.send_email(
+        to_email='oncall@spyderwash.com',
+        subject=f'CRITICAL: Operator Escalation {ticket_number}',
+        body=payload
     )
-    return {"messages": [AIMessage(content=alert)]}
+
+    response_content = f'A critical escalation ticket ({ticket_number}) has been created and dispatched to the on-call technician. They will contact you shortly regarding: "{user_message}"'
+    return {"messages": [AIMessage(content=response_content)]}
 
 
 _TOOL_SYSTEM_PROMPT = (

@@ -10,7 +10,7 @@ Tools:
 
 URL routing is controlled by src/config.py — set environment variables in .env to override defaults.
 """
-import httpx
+# httpx replaced by requests across all tool HTTP calls for a unified error boundary interface.
 import requests
 from bs4 import BeautifulSoup
 from langchain_core.tools import tool
@@ -128,25 +128,28 @@ def get_loyalty_balance(card_number: str) -> str:
         API is unreachable, the card is not found, or the response is malformed.
     """
     try:
-        response = httpx.get(
+        # Network call: requests.get with explicit connect + read timeout pair.
+        response = requests.get(
             _LOYALTY_BALANCE_URL,
             params={
                 "OperatorId":    _LOYALTY_OPERATOR_ID,
                 "LoyaltyCardNo": card_number,
             },
-            timeout=12.0,
+            timeout=(10.0, 12.0),
         )
 
-        # Surface HTTP-level errors (4xx / 5xx) as graceful messages
-        if response.status_code == 500:
+        # Server-side failure: instruct the LLM to tell the user the system is temporarily down.
+        if response.status_code >= 500:
             return (
-                f"The SpyderWash API returned a server error (500) for card '{card_number}'. "
-                "The card may not exist in this operator's system, or the backend is temporarily unavailable."
+                f"System Error: Backend server failure ({response.status_code}). "
+                "Instruct the user that the system is temporarily down."
             )
-        if response.status_code != 200:
+
+        # Business logic rejection: surface raw API text so the LLM sees the actual reason
+        # (e.g. 'Card not found', 'Invalid operator') instead of a generic HTTP code.
+        if 400 <= response.status_code < 500:
             return (
-                f"Unexpected API response (HTTP {response.status_code}) "
-                f"while looking up loyalty card '{card_number}'. Please try again shortly."
+                f"API Error: The request was rejected. Details: {response.text}"
             )
 
         payload = response.json()
@@ -172,15 +175,11 @@ def get_loyalty_balance(card_number: str) -> str:
             f"Loyalty card '{card_number}' has a current balance of {balance_str}."
         )
 
-    except httpx.TimeoutException:
+    # Network-level failure: the host is physically unreachable (DNS, TCP, or timeout).
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
         return (
-            f"The loyalty balance request for card '{card_number}' timed out after 12 seconds. "
-            "The SpyderWash API may be temporarily slow — please try again in a moment."
-        )
-    except httpx.ConnectError:
-        return (
-            f"Could not connect to the SpyderWash API to look up card '{card_number}'. "
-            "Check network connectivity or contact Setomatic support."
+            "System Error: Unable to connect to the backend API. "
+            "Instruct the user to try again in five minutes."
         )
     except (KeyError, IndexError, ValueError, TypeError) as e:
         return (
@@ -235,7 +234,8 @@ def get_transaction_history(card_number: str) -> str:
     start_date = (now - timedelta(days=182)).strftime("%Y-%m-%d")
 
     try:
-        response = httpx.get(
+        # Network call: requests.get with explicit connect + read timeout pair.
+        response = requests.get(
             _TRANSACTION_SEARCH_URL,
             params={
                 "LoggedInUserId": _TRANSACTION_LOGGED_IN_USER_ID,
@@ -245,18 +245,20 @@ def get_transaction_history(card_number: str) -> str:
                 "PageNo":         _TRANSACTION_PAGE_NO,
                 "PageSize":       _TRANSACTION_PAGE_SIZE,
             },
-            timeout=12.0,
+            timeout=(10.0, 12.0),
         )
 
-        if response.status_code == 500:
+        # Server-side failure: instruct the LLM to tell the user the system is temporarily down.
+        if response.status_code >= 500:
             return (
-                f"The SpyderWash API returned a server error (500) for card '{card_number}'. "
-                "The card may not exist under this operator, or the backend is temporarily unavailable."
+                f"System Error: Backend server failure ({response.status_code}). "
+                "Instruct the user that the system is temporarily down."
             )
-        if response.status_code != 200:
+
+        # Business logic rejection: surface raw API text so the LLM sees the actual reason.
+        if 400 <= response.status_code < 500:
             return (
-                f"Unexpected API response (HTTP {response.status_code}) while fetching "
-                f"transactions for card '{card_number}'. Please try again shortly."
+                f"API Error: The request was rejected. Details: {response.text}"
             )
 
         # Parse: response['data'] is the transaction array
@@ -272,7 +274,7 @@ def get_transaction_history(card_number: str) -> str:
         # Format a clean, LLM-friendly summary
         lines = [
             f"Last {len(transactions)} transaction(s) for loyalty card '{card_number}' "
-            f"({start_date} → {end_date}):\n"
+            f"({start_date} -> {end_date}):\n"
         ]
         for i, tx in enumerate(transactions, start=1):
             tx_id  = tx.get("transactionDetailId", "N/A")  # required for refund flow
@@ -293,15 +295,11 @@ def get_transaction_history(card_number: str) -> str:
 
         return "\n".join(lines)
 
-    except httpx.TimeoutException:
+    # Network-level failure: the host is physically unreachable (DNS, TCP, or timeout).
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
         return (
-            f"The transaction history request for card '{card_number}' timed out after 12 seconds. "
-            "The SpyderWash API may be temporarily slow — please try again in a moment."
-        )
-    except httpx.ConnectError:
-        return (
-            f"Could not connect to the SpyderWash API to retrieve transactions for card '{card_number}'. "
-            "Check network connectivity or contact Setomatic support."
+            "System Error: Unable to connect to the backend API. "
+            "Instruct the user to try again in five minutes."
         )
     except (KeyError, IndexError, ValueError, TypeError) as e:
         return (
@@ -512,29 +510,32 @@ def check_refund_eligibility(transaction_detail_id: str) -> str:
         refund and the reason provided by the API, or a graceful error string.
     """
     try:
-        response = httpx.get(
+        # Network call: requests.get with explicit connect + read timeout pair.
+        response = requests.get(
             f"{_REFUND_BASE}/api/Transactions/RefundEligibility",
             params={
                 "transactionDetailId": transaction_detail_id,
                 "OperatorId":          _REFUND_OPERATOR_ID,
             },
-            timeout=10.0,
+            timeout=(8.0, 10.0),
         )
 
-        if response.status_code == 500:
+        # Server-side failure: instruct the LLM to tell the user the system is temporarily down.
+        if response.status_code >= 500:
             return (
-                f"The API returned a server error (500) while checking refund eligibility "
-                f"for transaction ID '{transaction_detail_id}'. Please try again shortly."
-            )
-        if response.status_code != 200:
-            return (
-                f"Unexpected API response (HTTP {response.status_code}) while checking "
-                f"refund eligibility for transaction ID '{transaction_detail_id}'."
+                f"System Error: Backend server failure ({response.status_code}). "
+                "Instruct the user that the system is temporarily down."
             )
 
-        data       = response.json().get("data", {})
+        # Business logic rejection: surface raw API text so the LLM sees the actual reason.
+        if 400 <= response.status_code < 500:
+            return (
+                f"API Error: The request was rejected. Details: {response.text}"
+            )
+
+        data        = response.json().get("data", {})
         is_eligible = data.get("isEligible")
-        reason     = data.get("reason", "No reason provided.")
+        reason      = data.get("reason", "No reason provided.")
 
         if is_eligible is None:
             return (
@@ -553,16 +554,11 @@ def check_refund_eligibility(transaction_detail_id: str) -> str:
                 f"Reason: {reason}. No refund can be issued."
             )
 
-    except httpx.TimeoutException:
+    # Network-level failure: the host is physically unreachable (DNS, TCP, or timeout).
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
         return (
-            f"Refund eligibility check for transaction '{transaction_detail_id}' timed out. "
-            "The mock API server may not be running. Start it with: "
-            "uv run uvicorn src.api.mock_server:mock_app --port 8001"
-        )
-    except httpx.ConnectError:
-        return (
-            "Could not connect to the mock API server for refund eligibility. "
-            "Ensure it is running: uv run uvicorn src.api.mock_server:mock_app --port 8001"
+            "System Error: Unable to connect to the backend API. "
+            "Instruct the user to try again in five minutes."
         )
     except (KeyError, ValueError, TypeError) as e:
         return f"Failed to parse refund eligibility response for transaction '{transaction_detail_id}': {e}."
@@ -595,24 +591,27 @@ def execute_refund(transaction_detail_id: str) -> str:
         or a graceful error string if the API fails.
     """
     try:
-        response = httpx.get(
+        # Network call: requests.get with explicit connect + read timeout pair.
+        response = requests.get(
             f"{_REFUND_BASE}/api/Transactions/RefundProcessing",
             params={
                 "transactionDetailId": transaction_detail_id,
                 "OperatorId":          _REFUND_OPERATOR_ID,
             },
-            timeout=10.0,
+            timeout=(8.0, 10.0),
         )
 
-        if response.status_code == 500:
+        # Server-side failure: instruct the LLM to tell the user the system is temporarily down.
+        if response.status_code >= 500:
             return (
-                f"The API returned a server error (500) while processing the refund "
-                f"for transaction ID '{transaction_detail_id}'. Please try again shortly."
+                f"System Error: Backend server failure ({response.status_code}). "
+                "Instruct the user that the system is temporarily down."
             )
-        if response.status_code != 200:
+
+        # Business logic rejection: surface raw API text so the LLM sees the actual reason.
+        if 400 <= response.status_code < 500:
             return (
-                f"Unexpected API response (HTTP {response.status_code}) while processing "
-                f"refund for transaction ID '{transaction_detail_id}'."
+                f"API Error: The request was rejected. Details: {response.text}"
             )
 
         payload = response.json()
@@ -624,16 +623,11 @@ def execute_refund(transaction_detail_id: str) -> str:
             f"{message} Receipt number: {receipt}."
         )
 
-    except httpx.TimeoutException:
+    # Network-level failure: the host is physically unreachable (DNS, TCP, or timeout).
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
         return (
-            f"Refund processing for transaction '{transaction_detail_id}' timed out. "
-            "The mock API server may not be running. Start it with: "
-            "uv run uvicorn src.api.mock_server:mock_app --port 8001"
-        )
-    except httpx.ConnectError:
-        return (
-            "Could not connect to the mock API server for refund processing. "
-            "Ensure it is running: uv run uvicorn src.api.mock_server:mock_app --port 8001"
+            "System Error: Unable to connect to the backend API. "
+            "Instruct the user to try again in five minutes."
         )
     except (KeyError, ValueError, TypeError) as e:
         return f"Failed to parse refund processing response for transaction '{transaction_detail_id}': {e}."
