@@ -12,6 +12,8 @@ URL routing is controlled by src/config.py — set environment variables in .env
 """
 # httpx replaced by requests across all tool HTTP calls for a unified error boundary interface.
 import requests
+import datetime
+from datetime import datetime
 from bs4 import BeautifulSoup
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field, field_validator
@@ -226,24 +228,22 @@ def get_transaction_history(card_number: str) -> str:
         amount, type, and location — or a graceful error string if the API
         is unreachable, returns no data, or the response is malformed.
     """
-    from datetime import datetime, timedelta, timezone
-
-    # Auto-compute date range: last 6 months → today
-    now       = datetime.now(timezone.utc)
-    end_date  = now.strftime("%Y-%m-%d")
-    start_date = (now - timedelta(days=182)).strftime("%Y-%m-%d")
+    # This date window is temporarily locked to April 2026 to ensure the staging data renders correctly for the client demo, alongside the PageSize=5 limitation.
+    start_date = '2026-04-01'
+    end_date = '2026-04-30'
 
     try:
-        # Network call: requests.get with explicit connect + read timeout pair.
+        # Request the transaction history matching the locked staging demo date range.
         response = requests.get(
             _TRANSACTION_SEARCH_URL,
             params={
-                "LoggedInUserId": _TRANSACTION_LOGGED_IN_USER_ID,
-                "LoyaltyCardNo":  card_number,
-                "StartDate":      start_date,
-                "EndDate":        end_date,
-                "PageNo":         _TRANSACTION_PAGE_NO,
-                "PageSize":       _TRANSACTION_PAGE_SIZE,
+                'LoggedInUserId': 4,
+                'IsFundAmountUsed': 'true',
+                'StartDate': start_date,
+                'EndDate': end_date,
+                'LoyaltyCardNo': card_number,
+                'PageNo': 1,
+                'PageSize': 5
             },
             timeout=(10.0, 12.0),
         )
