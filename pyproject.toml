@@ -14,7 +14,6 @@ dependencies = [
     "langchain-chroma>=1.1.0",
     "langchain-classic>=1.0.7",
     "langchain-community>=0.4.1",
-    "langchain-groq>=1.1.2",
     "langchain-huggingface>=1.2.2",
     "langchain-openai>=0.1.0",
     "langchain-text-splitters>=1.1.2",

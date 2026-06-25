@@ -4,10 +4,12 @@ from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import AIMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from src.agent.state import AgentState
-from src.agent.nodes import retrieve_and_generate, guardrail_node, handle_out_of_domain
+from src.agent.nodes import retrieve_and_generate, guardrail_node, handle_out_of_domain, _extract_metadata_filter
 from src.agent.router import semantic_router
 from src.agent.tools import SETOMATIC_TOOLS
 from src.services.notifications import NotificationService
+from src.services.rag_service import RAGService
+from src.config import TOOL_OPENAI_MODEL
 
 # ── Inline node definitions ───────────────────────────────────────────────────
 
@@ -34,6 +36,68 @@ def escalation_node(state: AgentState):
 
     response_content = f'A critical escalation ticket ({ticket_number}) has been created and dispatched to the on-call technician. They will contact you shortly regarding: "{user_message}"'
     return {"messages": [AIMessage(content=response_content)]}
+
+
+def blast_radius_check_node(state: AgentState):
+    # Ask the operator if the downtime affects a single machine or the entire location to decide RAG vs escalation.
+    msg = AIMessage(content="To help me get you the right fix, is this affecting just one specific machine, or is your entire laundromat offline?")
+    return {"messages": [msg]}
+
+
+def troubleshoot_first_node(state: AgentState):
+    # Route location-wide system outage reports to retrieve troubleshooting manuals.
+    messages = state.get("messages", [])
+
+    # Walk backwards through messages to find the original hardware issue, skipping short
+    # conversational replies (blast-radius answers, yes/no) that would pollute the RAG query.
+    query = "system outage troubleshooting"
+    _skip_phrases = frozenset((
+        "entire location", "one machine", "yes", "no", "it did not",
+        "still down", "entire laundromat offline", "just one", "specific machine",
+    ))
+    for msg in reversed(messages):
+        if msg.type == "human":
+            content = msg.content.strip()
+            if len(content) > 5 and content.lower() not in _skip_phrases:
+                query = content
+                break
+
+    entities = state.get("extracted_entities") or {}
+    blast_radius = entities.get("blast_radius", "entire_location")
+    # Combine original hardware issue with blast-radius context so ChromaDB targets troubleshooting
+    # guides rather than unrelated promotional or configuration documents.
+    blast_radius_str = str(blast_radius).replace("_", " ")
+    combined_query = f"{query} affecting {blast_radius_str}"
+
+    metadata_filter = _extract_metadata_filter(state)
+    rag_service = RAGService()
+    response = rag_service.query(combined_query, metadata_filter=metadata_filter)
+    answer = response.get("answer", "Please verify local network connections and power cycle your devices.")
+
+    context_docs = response.get("context", [])
+    if context_docs:
+        source_tags = sorted({
+            f"{doc.metadata.get('source_file', 'Unknown')} [p.{doc.metadata.get('page', '?')}]"
+            for doc in context_docs
+        })
+        sources_note = "\n\n**Sources:** " + " | ".join(source_tags)
+        answer += sources_note
+
+    # Explicitly concatenate the resolution prompt so the router can detect the next turn as a confirmation.
+    full_response = answer + "\n\nDid this resolve the issue? (Yes/No)"
+
+    entities["troubleshooting_done"] = True
+
+    return {
+        "messages": [AIMessage(content=full_response)],
+        "extracted_entities": entities,
+    }
+
+
+def escalation_resolved_node(state: AgentState):
+    # Route to resolution response since initial troubleshooting resolved the system issue.
+    msg = AIMessage(content="Glad to hear the issue is resolved! Let me know if there is anything else I can help you with.")
+    return {"messages": [msg]}
 
 
 _TOOL_SYSTEM_PROMPT = (
@@ -82,7 +146,7 @@ _tool_llm = None
 def _get_tool_llm():
     global _tool_llm
     if _tool_llm is None:
-        _tool_llm = ChatOpenAI(model="gpt-4o", temperature=0).bind_tools(SETOMATIC_TOOLS)
+        _tool_llm = ChatOpenAI(model=TOOL_OPENAI_MODEL, temperature=0).bind_tools(SETOMATIC_TOOLS)
     return _tool_llm
 
 def tool_node(state: AgentState):
@@ -182,13 +246,6 @@ def tool_node(state: AgentState):
 def route_after_classifier(state: AgentState) -> str:
     """
     Priority-ordered conditional routing after the Intent Classifier.
-
-    Priority order:
-      1. Hardware exception intents  -> RAG_Node   (hardcoded; API tools forbidden)
-      2. hardware_lookup_attempted   -> Guardrail_Node  (hard block on live status queries)
-      3. escalation_required         -> Escalation_Node (emergency path)
-      4. api_action_required         -> Tool_Node       (live API / web call)
-      5. default                     -> RAG_Node
     """
     intent = state.get("current_intent", "")
 
@@ -212,9 +269,37 @@ def route_after_classifier(state: AgentState) -> str:
     if state.get("hardware_lookup_attempted"):
         return "guardrail"
 
-    # Emergency escalation: whole store down or operator explicitly requests a human.
-    if state.get("escalation_required"):
-        return "escalation"
+    # Enforce multi-turn escalation checks when an emergency store down, machine down, or supervisor is requested.
+    if intent in ("emergency_store_down", "machine_down", "escalation_request") or state.get("escalation_required"):
+        entities = state.get("extracted_entities") or {}
+        blast_radius = entities.get("blast_radius")
+
+        # Skip blast-radius check if troubleshooting is already underway to prevent routing loop.
+        if not blast_radius and not entities.get("troubleshooting_done"):
+            return "blast_radius_check"
+
+        # Map single-machine downtime scenarios to RAG node for immediate remediation.
+        if blast_radius == "single_machine" and not entities.get("troubleshooting_done"):
+            return "rag"
+
+        # Retrieve troubleshooting documentation before letting control proceed to escalation.
+        if not entities.get("troubleshooting_done"):
+            return "troubleshoot_first"
+
+        # Route to escalation when the router extracted troubleshooting_failed=True.
+        if entities.get("troubleshooting_failed") is True:
+            return "escalation"
+
+        # Route to escalation when the user's reply contains unambiguous negative whole-words.
+        messages = state.get("messages", [])
+        user_words = set(messages[-1].content.lower().split()) if messages else set()
+        _negative_words = {"no", "nope", "nah", "not", "still", "broken", "failed", "offline", "down", "unresolved"}
+        if user_words & _negative_words:
+            return "escalation"
+
+        # Route to the resolved node when troubleshooting successfully fixed the outage.
+        if entities.get("troubleshooting_failed") is False:
+            return "escalation_resolved"
 
     # API workflows: loyalty balance, transaction lookup, refund, system status check.
     if state.get("api_action_required"):
@@ -242,20 +327,27 @@ def create_agent_graph():
     workflow.add_node("rag_agent",         retrieve_and_generate)
     # Static refusal node: no LLM, no API — hardcoded response for off-topic or adversarial input.
     workflow.add_node("out_of_domain_node", handle_out_of_domain)
+    # Register the multi-turn conversational escalation guardrail nodes.
+    workflow.add_node("blast_radius_check",  blast_radius_check_node)
+    workflow.add_node("troubleshoot_first",  troubleshoot_first_node)
+    workflow.add_node("escalation_resolved", escalation_resolved_node)
 
     # Entry point
     workflow.set_entry_point("router")
 
-    # 5-way conditional routing (out_of_domain checked first)
+    # Multi-turn conditional routing after intent classification.
     workflow.add_conditional_edges(
         "router",
         route_after_classifier,
         {
-            "out_of_domain": "out_of_domain_node",
-            "guardrail":     "guardrail_node",
-            "escalation":    "escalation_node",
-            "tool":          "tool_node",
-            "rag":           "rag_agent",
+            "out_of_domain":        "out_of_domain_node",
+            "guardrail":            "guardrail_node",
+            "escalation":           "escalation_node",
+            "tool":                 "tool_node",
+            "rag":                  "rag_agent",
+            "blast_radius_check":   "blast_radius_check",
+            "troubleshoot_first":   "troubleshoot_first",
+            "escalation_resolved":  "escalation_resolved",
         }
     )
 
@@ -265,6 +357,9 @@ def create_agent_graph():
     workflow.add_edge("escalation_node",    END)
     workflow.add_edge("tool_node",          END)
     workflow.add_edge("rag_agent",          END)
+    workflow.add_edge("blast_radius_check",  END)
+    workflow.add_edge("troubleshoot_first",  END)
+    workflow.add_edge("escalation_resolved", END)
 
     # Attach in-memory checkpointer for multi-turn persistence
     checkpointer = MemorySaver()
