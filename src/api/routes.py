@@ -43,5 +43,9 @@ def notify_sms(request: NotificationRequest):
 
 @router.post("/notify/email")
 def notify_email(request: NotificationRequest):
-    success = NotificationService.send_email(to_email=request.to, subject="Notification", body=request.message)
+    success = NotificationService.send_email(
+        to_email=request.to,
+        subject="SpyderWash Notification",
+        body=request.message,
+    )
     return {"success": success}

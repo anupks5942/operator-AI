@@ -18,6 +18,14 @@ def _env_str(name: str, default: str) -> str:
     value = os.getenv(name, default).strip()
     return value or default
 
+
+def _env_bool(name: str, default: bool) -> bool:
+    """Read a boolean env var (true/1/yes vs false/0/no)."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() not in ("false", "0", "no")
+
 # Base URL for the live SpyderWash/Setomatic production API
 SETOMATIC_BASE_URL: str = os.getenv(
     "SETOMATIC_BASE_URL",
@@ -40,3 +48,20 @@ DEFAULT_OPENAI_MODEL: str = _env_str("OPENAI_MODEL", "gpt-4o-mini")
 ROUTER_OPENAI_MODEL: str = _env_str("ROUTER_OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
 TOOL_OPENAI_MODEL: str = _env_str("TOOL_OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
 RAG_OPENAI_MODEL: str = _env_str("RAG_OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
+
+# Escalation notifications — when False, NotificationService logs only (local dev).
+USE_LIVE_NOTIFICATIONS: bool = _env_bool("USE_LIVE_NOTIFICATIONS", False)
+
+# Twilio SMS (emergency store-down alerts)
+TWILIO_ACCOUNT_SID: str = _env_str("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN: str = _env_str("TWILIO_AUTH_TOKEN", "")
+TWILIO_FROM_NUMBER: str = _env_str("TWILIO_FROM_NUMBER", "")
+ESCALATION_SMS_TO: str = _env_str("ESCALATION_SMS_TO", "")
+
+# Mandrill SMTP (escalation email)
+SMTP_HOST: str = _env_str("SMTP_HOST", "smtp.mandrillapp.com")
+SMTP_PORT: int = int(_env_str("SMTP_PORT", "587"))
+SMTP_USERNAME: str = _env_str("SMTP_USERNAME", "")
+SMTP_PASSWORD: str = _env_str("SMTP_PASSWORD", "")
+FROM_EMAIL: str = _env_str("FROM_EMAIL", "support@spyderwash.com")
+ESCALATION_EMAIL: str = _env_str("ESCALATION_EMAIL", "support@setomaticsystems.com")

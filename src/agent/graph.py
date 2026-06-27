@@ -5,37 +5,149 @@ from langchain_core.messages import AIMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from src.agent.state import AgentState
 from src.agent.nodes import retrieve_and_generate, guardrail_node, handle_out_of_domain, _extract_metadata_filter
-from src.agent.router import semantic_router
+from src.agent.router import semantic_router, infer_blast_radius
 from src.agent.tools import SETOMATIC_TOOLS
 from src.services.notifications import NotificationService
 from src.services.rag_service import RAGService
-from src.config import TOOL_OPENAI_MODEL
+from src.utils.security import mask_credit_cards
+
+# Hardware/outage intents that must follow Gregg's multi-turn workflow:
+# blast-radius question → KB troubleshooting → confirmation → escalation (if failed).
+_ESCALATION_WORKFLOW_INTENTS = frozenset({
+    "emergency_store_down",
+    "machine_down",
+    "escalation_request",
+    "machines_not_starting",
+    "kiosk_not_responding",
+    "multiple_machines_offline",
+})
+
+# Short operator replies that must not be used as the RAG search query.
+_BLAST_RADIUS_REPLY_PHRASES = frozenset({
+    "entire location", "one machine", "yes", "no", "it did not",
+    "still down", "entire laundromat offline", "just one", "specific machine",
+    "just one machine", "yes, that fixed it", "yes that fixed it",
+})
+
+
+def _is_conversational_workflow_reply(text: str) -> bool:
+    """Return True when the message is a blast-radius or yes/no workflow answer."""
+    normalized = text.strip().lower().rstrip(".")
+    if normalized in _BLAST_RADIUS_REPLY_PHRASES:
+        return True
+    if len(normalized) <= 30 and any(
+        token in normalized
+        for token in ("one machine", "just one", "entire", "whole store", "all machines")
+    ):
+        return True
+    if normalized.startswith(("yes", "no", "nope", "nah")) and len(normalized) <= 20:
+        return True
+    return False
+
+
+def _extract_escalation_context(messages) -> str:
+    """Build ticket summary from the current incident only (not earlier resolved issues)."""
+    trivial = frozenset({"no", "yes", "nope", "nah", "wait yes", "wait, yes"})
+    boundary_markers = (
+        "glad to hear the issue is resolved",
+        "critical escalation ticket",
+    )
+    start_after = 0
+    for i, msg in enumerate(messages):
+        if msg.type == "ai" and msg.content:
+            lower = msg.content.lower()
+            if any(marker in lower for marker in boundary_markers):
+                start_after = i + 1
+
+    human_texts = [
+        m.content.strip() for m in messages[start_after:] if m.type == "human"
+    ]
+    substantive = [
+        text for text in human_texts
+        if text.lower().rstrip(".,") not in trivial and len(text) > 3
+    ]
+    if not substantive:
+        return human_texts[-1] if human_texts else "Unknown issue"
+    if len(substantive) >= 2:
+        return f"{substantive[-2]} | Latest update: {substantive[-1]}"
+    return substantive[-1]
+
+
+def _get_prior_assistant_content(messages) -> str | None:
+    for msg in reversed(messages[:-1]):
+        if msg.type == "ai" and msg.content:
+            return msg.content
+    return None
+
+
+def _user_indicates_resolved(text: str) -> bool:
+    lower = text.lower()
+    return any(
+        marker in lower
+        for marker in ("resolved", "fixed it", "fixed", "all good", "working now", "issue is fixed")
+    )
+
+
+def _format_conversation_for_email(messages) -> str:
+    """Format the full session transcript for the escalation email body."""
+    lines: list[str] = []
+    for msg in messages:
+        if not msg.content or not str(msg.content).strip():
+            continue
+        text = mask_credit_cards(str(msg.content).strip())
+        if msg.type == "human":
+            lines.append(f"Operator: {text}")
+        elif msg.type == "ai":
+            lines.append(f"Agent: {text}")
+    return "\n\n".join(lines) if lines else "No conversation history available."
+
+
+def _resolve_operator_contact(state: AgentState) -> tuple[str, str, str]:
+    entities = state.get("extracted_entities") or {}
+    operator_id = state.get("operator_id")
+
+    name = (
+        state.get("operator_name")
+        or entities.get("operator_name")
+        or (f"Operator #{operator_id}" if operator_id is not None else "Unknown Operator")
+    )
+    email = state.get("operator_email") or entities.get("operator_email") or "unknown@operator.local"
+    phone = state.get("operator_phone") or entities.get("operator_phone") or "N/A"
+    return str(name), str(email), str(phone)
 
 # ── Inline node definitions ───────────────────────────────────────────────────
 
 def escalation_node(state: AgentState):
     """
-    Triggered when an emergency is detected (e.g., entire store down).
-    Appends a system-level emergency alert to the state.
+    Triggered when troubleshooting fails after a store-down or hardware outage workflow.
+    Dispatches Brandon's HTML email and an emergency SMS alert.
     """
-    # Safety check: ensure conversation context exists before attempting to escalate.
     messages = state.get("messages", [])
     if not messages:
         return {"messages": [AIMessage(content="Escalation failed: No conversation context found.")]}
 
-    user_message = messages[-1].content
+    summary = _extract_escalation_context(messages)
+    conversation = _format_conversation_for_email(messages)
+    name, email, phone = _resolve_operator_contact(state)
     ticket_number = f"TKT-{uuid.uuid4().hex[:8].upper()}"
-    payload = f"Ticket: {ticket_number}\nUser Message: {user_message}"
 
-    # Dispatch logic: send a critical operator escalation email to on-call technician.
-    NotificationService.send_email(
-        to_email='oncall@spyderwash.com',
-        subject=f'CRITICAL: Operator Escalation {ticket_number}',
-        body=payload
+    NotificationService.send_escalation(
+        ticket_id=ticket_number,
+        name=name,
+        email=email,
+        phone=phone,
+        conversation=conversation,
+        summary=summary,
     )
 
-    response_content = f'A critical escalation ticket ({ticket_number}) has been created and dispatched to the on-call technician. They will contact you shortly regarding: "{user_message}"'
-    return {"messages": [AIMessage(content=response_content)]}
+    response_content = (
+        f'A critical escalation ticket ({ticket_number}) has been created and dispatched '
+        f'to the on-call technician. They will contact you shortly regarding: "{summary}"'
+    )
+    return {
+        "messages": [AIMessage(content=response_content)],
+        "escalation_dispatched": True,
+    }
 
 
 def blast_radius_check_node(state: AgentState):
@@ -51,26 +163,38 @@ def troubleshoot_first_node(state: AgentState):
     # Walk backwards through messages to find the original hardware issue, skipping short
     # conversational replies (blast-radius answers, yes/no) that would pollute the RAG query.
     query = "system outage troubleshooting"
-    _skip_phrases = frozenset((
-        "entire location", "one machine", "yes", "no", "it did not",
-        "still down", "entire laundromat offline", "just one", "specific machine",
-    ))
     for msg in reversed(messages):
         if msg.type == "human":
             content = msg.content.strip()
-            if len(content) > 5 and content.lower() not in _skip_phrases:
+            if len(content) > 5 and not _is_conversational_workflow_reply(content):
                 query = content
                 break
 
-    entities = state.get("extracted_entities") or {}
+    entities = dict(state.get("extracted_entities") or {})
+    intent = state.get("current_intent") or ""
     # Read blast_radius from top-level state first, fall back to extracted_entities for compatibility.
     blast_radius = state.get("blast_radius") or entities.get("blast_radius", "entire_location")
-    # Combine original hardware issue with blast-radius context so ChromaDB targets troubleshooting
-    # guides rather than unrelated promotional or configuration documents.
     blast_radius_str = str(blast_radius).replace("_", " ")
-    combined_query = f"{query} affecting {blast_radius_str}"
 
-    metadata_filter = _extract_metadata_filter(state)
+    is_entire_location = (
+        str(blast_radius) in ("entire_location", "entire location")
+        or intent in ("emergency_store_down", "multiple_machines_offline")
+    )
+    if is_entire_location and not entities.get("doc_type"):
+        entities["doc_type"] = "troubleshooting_guide"
+    if intent in ("machines_not_starting", "machine_down", "kiosk_not_responding") and not entities.get("doc_type"):
+        entities["doc_type"] = "troubleshooting_guide"
+
+    # Bias location-wide outages toward hub/gateway/network KB chunks, not single-machine power steps.
+    if is_entire_location:
+        combined_query = (
+            f"hub bluetooth gateway internet network connectivity system outage "
+            f"troubleshooting {query} affecting {blast_radius_str}"
+        )
+    else:
+        combined_query = f"{query} affecting {blast_radius_str}"
+
+    metadata_filter = _extract_metadata_filter({**state, "extracted_entities": entities})
     rag_service = RAGService()
     response = rag_service.query(combined_query, metadata_filter=metadata_filter)
     answer = response.get("answer", "Please verify local network connections and power cycle your devices.")
@@ -100,6 +224,16 @@ def troubleshoot_first_node(state: AgentState):
 def escalation_resolved_node(state: AgentState):
     # Route to resolution response since initial troubleshooting resolved the system issue.
     msg = AIMessage(content="Glad to hear the issue is resolved! Let me know if there is anything else I can help you with.")
+    return {"messages": [msg]}
+
+
+def post_escalation_ack_node(state: AgentState):
+    # After a ticket is dispatched, avoid restarting the outage workflow on follow-up noise.
+    msg = AIMessage(content=(
+        "Your escalation ticket has already been dispatched to the on-call technician, "
+        "and they will follow up with you shortly. If the issue is resolved before they "
+        "reach out, no further action is needed."
+    ))
     return {"messages": [msg]}
 
 
@@ -256,41 +390,40 @@ def route_after_classifier(state: AgentState) -> str:
     if intent == "out_of_domain":
         return "out_of_domain"
 
-    # Kiosk frozen/unresponsive: always surface KB manual guidance, never call API tools.
-    if intent == "kiosk_not_responding":
-        return "rag"
-
-    # Machines not starting: always surface KB manual guidance, never call API tools.
-    if intent == "machines_not_starting":
-        return "rag"
-
-    # Multiple machines offline simultaneously: surface hub/network KB steps, not API tools.
-    if intent == "multiple_machines_offline":
-        return "rag"
-
     # Hard block: live hardware status requests are refused by the guardrail node.
     if state.get("hardware_lookup_attempted"):
         return "guardrail"
+
+    messages = state.get("messages", [])
+    prior_ai = _get_prior_assistant_content(messages)
+    if prior_ai and any(
+        marker in prior_ai.lower()
+        for marker in ("critical escalation ticket", "already been dispatched")
+    ):
+        latest = messages[-1].content if messages else ""
+        if _user_indicates_resolved(latest):
+            return "escalation_resolved"
+        return "post_escalation_ack"
 
     # Critical outage is a confirmed production failure — skip troubleshooting and dispatch immediately.
     if intent == "critical_outage":
         return "escalation"
 
-    # Enforce multi-turn escalation checks when an emergency store down, machine down, or supervisor is requested.
-    if intent in ("emergency_store_down", "machine_down", "escalation_request") or state.get("escalation_required"):
+    # Multi-turn outage workflow: confirm blast radius, troubleshoot, then escalate only on failure.
+    if intent in _ESCALATION_WORKFLOW_INTENTS or state.get("escalation_required"):
         entities = state.get("extracted_entities") or {}
         # Read blast_radius from top-level state first, then fall back to extracted_entities.
         blast_radius = state.get("blast_radius") or entities.get("blast_radius")
+        if not blast_radius:
+            messages = state.get("messages", [])
+            if messages and messages[-1].type == "human":
+                blast_radius = infer_blast_radius(messages[-1].content)
 
-        # Skip blast-radius check if troubleshooting is already underway to prevent routing loop.
+        # Pause and ask scope before any KB retrieval when blast radius is still unknown.
         if not blast_radius and not entities.get("troubleshooting_done"):
             return "blast_radius_check"
 
-        # Map single-machine downtime scenarios to RAG node for immediate remediation.
-        if blast_radius == "single_machine" and not entities.get("troubleshooting_done"):
-            return "rag"
-
-        # Retrieve troubleshooting documentation before letting control proceed to escalation.
+        # Retrieve troubleshooting documentation before any escalation dispatch.
         if not entities.get("troubleshooting_done"):
             return "troubleshoot_first"
 
@@ -298,12 +431,16 @@ def route_after_classifier(state: AgentState) -> str:
         if state.get("troubleshooting_failed") is True or entities.get("troubleshooting_failed") is True:
             return "escalation"
 
-        # Route to escalation when the user's reply contains unambiguous negative whole-words.
-        messages = state.get("messages", [])
-        user_words = set(messages[-1].content.lower().split()) if messages else set()
-        _negative_words = {"no", "nope", "nah", "not", "still", "broken", "failed", "offline", "down", "unresolved"}
-        if user_words & _negative_words:
-            return "escalation"
+        # Only treat negative confirmation language as escalation after KB steps were offered.
+        if entities.get("troubleshooting_done"):
+            messages = state.get("messages", [])
+            user_words = set(messages[-1].content.lower().split()) if messages else set()
+            _negative_words = {
+                "no", "nope", "nah", "not", "still", "broken", "failed",
+                "offline", "unresolved", "didn't", "didnt", "doesn't", "doesnt",
+            }
+            if user_words & _negative_words:
+                return "escalation"
 
         # Route to the resolved node when troubleshooting successfully fixed the outage.
         if state.get("troubleshooting_failed") is False or entities.get("troubleshooting_failed") is False:
@@ -359,6 +496,7 @@ def create_agent_graph():
     workflow.add_node("blast_radius_check",  blast_radius_check_node)
     workflow.add_node("troubleshoot_first",  troubleshoot_first_node)
     workflow.add_node("escalation_resolved", escalation_resolved_node)
+    workflow.add_node("post_escalation_ack", post_escalation_ack_node)
 
     # Entry point
     workflow.set_entry_point("router")
@@ -376,6 +514,7 @@ def create_agent_graph():
             "blast_radius_check":   "blast_radius_check",
             "troubleshoot_first":   "troubleshoot_first",
             "escalation_resolved":  "escalation_resolved",
+            "post_escalation_ack":  "post_escalation_ack",
         }
     )
 
@@ -397,6 +536,7 @@ def create_agent_graph():
     workflow.add_edge("blast_radius_check",  END)
     workflow.add_edge("troubleshoot_first",  END)
     workflow.add_edge("escalation_resolved", END)
+    workflow.add_edge("post_escalation_ack", END)
 
     # Attach in-memory checkpointer for multi-turn persistence
     checkpointer = MemorySaver()

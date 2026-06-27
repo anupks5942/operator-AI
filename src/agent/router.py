@@ -5,6 +5,72 @@ from langchain_openai import ChatOpenAI
 from src.agent.state import AgentState
 from src.config import ROUTER_OPENAI_MODEL
 
+# Outage intents that share the blast-radius → troubleshoot → confirm → escalate workflow.
+_OUTAGE_WORKFLOW_INTENTS = frozenset({
+    "emergency_store_down",
+    "machine_down",
+    "escalation_request",
+    "machines_not_starting",
+    "kiosk_not_responding",
+    "multiple_machines_offline",
+})
+
+# Assistant prompts that mean the operator is mid-outage workflow (do not reset state).
+_WORKFLOW_PROMPT_MARKERS = (
+    "did this resolve the issue",
+    "is this affecting just one specific machine",
+    "is your entire laundromat offline",
+)
+
+
+def _assistant_in_active_outage_workflow(prior_assistant_msg: Optional[str]) -> bool:
+    if not prior_assistant_msg:
+        return False
+    lower = prior_assistant_msg.lower()
+    return any(marker in lower for marker in _WORKFLOW_PROMPT_MARKERS)
+
+
+def _is_fresh_outage_turn(intent: str, prior_assistant_msg: Optional[str]) -> bool:
+    """True when the operator is reporting a new issue, not answering a workflow prompt."""
+    if intent not in _OUTAGE_WORKFLOW_INTENTS:
+        return False
+    return not _assistant_in_active_outage_workflow(prior_assistant_msg)
+
+
+def _prior_is_blast_radius_question(prior_assistant_msg: Optional[str]) -> bool:
+    if not prior_assistant_msg:
+        return False
+    lower = prior_assistant_msg.lower()
+    return (
+        "is this affecting just one specific machine" in lower
+        or "is your entire laundromat offline" in lower
+    )
+
+
+def infer_blast_radius(user_msg: str) -> Optional[str]:
+    """Heuristic fallback when the LLM router omits blast_radius extraction."""
+    lower = user_msg.lower()
+    entire_markers = (
+        "everything is down", "everything down", "whole store", "entire store",
+        "entire laundromat", "whole laundromat", "all machines", "every machine",
+        "entire location", "whole location", "store is down", "laundromat offline",
+        "laundromat is down", "everything offline", "all my machines",
+    )
+    single_markers = (
+        "just one machine", "one machine", "single machine", "specific machine",
+        "only one machine", "just one washer", "just one dryer",
+    )
+    if any(marker in lower for marker in entire_markers):
+        return "entire_location"
+    if any(marker in lower for marker in single_markers):
+        return "single_machine"
+    # Hub/gateway outages usually affect the whole site, not one washer.
+    if any(token in lower for token in ("gateway", "main network", "hub is down")) and (
+        "offline" in lower or "down" in lower
+    ):
+        return "entire_location"
+    return None
+
 # ── System prompt ─────────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = """You are a strict semantic router for a Setomatic/SpyderWash technical support agent.
@@ -81,8 +147,10 @@ explicitly asked the user for a missing piece of information, or a confirmation,
      - If the assistant was checking a card balance   -> intent = `loyalty_balance_query`
      - If the assistant was checking system status    -> intent = `system_status_check`
      - If the assistant was asking 'Is this affecting one machine or the entire location?' -> intent = `emergency_store_down`
-     - If the assistant was asking 'Did this resolve the issue?' or 'Did this resolve the issue? (Yes/No)' -> intent = `emergency_store_down`
-     - If the assistant was asking 'To help me get you the right fix, is this affecting just one specific machine, or is your entire laundromat offline?' -> intent = `machine_down`
+     - If the assistant was asking 'Did this resolve the issue?' or 'Did this resolve the issue? (Yes/No)' -> keep the active hardware/outage intent (`machine_down`, `machines_not_starting`, `kiosk_not_responding`, `multiple_machines_offline`, or `emergency_store_down`)
+     - If the assistant was asking 'To help me get you the right fix, is this affecting just one specific machine, or is your entire laundromat offline?' -> keep the active hardware/outage intent (`machine_down`, `machines_not_starting`, `kiosk_not_responding`, `multiple_machines_offline`, or `emergency_store_down`)
+
+     - If the assistant confirmed an escalation ticket was dispatched -> intent = `general_query` and do NOT restart the outage workflow.
 
   b. Set the flags correctly:
      - For API workflows: `api_action_required` = true
@@ -204,16 +272,35 @@ def semantic_router(state: AgentState):
         {"role": "user",    "content": classification_input},
     ])
 
+    entities = dict(result.extracted_entities)
+
+    # Clear stale workflow flags when the operator starts a new outage in the same session.
+    if _is_fresh_outage_turn(result.intent, prior_assistant_msg):
+        entities["troubleshooting_done"] = False
+        if "troubleshooting_failed" not in entities:
+            entities["troubleshooting_failed"] = False
+        if entities.get("blast_radius") is None:
+            entities["blast_radius"] = None
+
+    # Leading "No" on a long gateway/outage sentence is not a troubleshooting-failure confirmation.
+    if _prior_is_blast_radius_question(prior_assistant_msg):
+        entities["troubleshooting_failed"] = False
+
+    if not entities.get("blast_radius"):
+        inferred = infer_blast_radius(latest_user_msg)
+        if inferred:
+            entities["blast_radius"] = inferred
+
     return {
         "current_intent":            result.intent,
         "hardware_lookup_attempted":  result.hardware_lookup_attempted,
         "escalation_required":        result.escalation_required,
         "api_action_required":        result.api_action_required,
-        "extracted_entities":         result.extracted_entities,
+        "extracted_entities":         entities,
         # Promote blast_radius to top-level state so route_after_classifier can read it
         # without a nested dict lookup, preventing stale-value bugs on re-entry.
-        "blast_radius":               result.extracted_entities.get("blast_radius"),
+        "blast_radius":               entities.get("blast_radius"),
         # Promote troubleshooting_failed to top-level state for reliable escalation routing
         # without coupling the edge function to the extracted_entities merge reducer.
-        "troubleshooting_failed":     result.extracted_entities.get("troubleshooting_failed"),
+        "troubleshooting_failed":     entities.get("troubleshooting_failed"),
     }

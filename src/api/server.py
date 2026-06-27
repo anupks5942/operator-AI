@@ -11,6 +11,8 @@ import time
 import uuid
 from datetime import datetime, timezone
 
+from typing import Optional
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -50,6 +52,9 @@ class ChatRequest(BaseModel):
     # MemorySaver can resume multi-turn conversation context on every call.
     session_id: str  = Field(..., description="Stable session identifier for conversation memory.")
     message: str     = Field(..., description="The operator's plain-text message.")
+    operator_name: Optional[str] = Field(None, description="Operator display name for escalation emails.")
+    operator_email: Optional[str] = Field(None, description="Operator email for escalation emails.")
+    operator_phone: Optional[str] = Field(None, description="Operator phone for escalation emails.")
 
 
 class ChatResponse(BaseModel):
@@ -230,7 +235,16 @@ def chat(request: ChatRequest) -> ChatResponse:
     safe_message = mask_credit_cards(request.message)
 
     # Wrap the message in the tuple format LangGraph's add_messages reducer expects.
-    initial_state = {"messages": [("user", safe_message)]}
+    initial_state: dict = {
+        "messages": [("user", safe_message)],
+        "operator_id": request.operator_id,
+    }
+    if request.operator_name:
+        initial_state["operator_name"] = request.operator_name
+    if request.operator_email:
+        initial_state["operator_email"] = request.operator_email
+    if request.operator_phone:
+        initial_state["operator_phone"] = request.operator_phone
 
     try:
         # invoke() blocks until the full graph has executed and returns the
@@ -249,9 +263,8 @@ def chat(request: ChatRequest) -> ChatResponse:
     # "unknown" if the router did not execute (should not happen in practice).
     detected_intent: str = final_state.get("current_intent") or "unknown"
 
-    # escalation_required is set to True by the escalation node when the whole
-    # store is reported down or the operator explicitly requests a human agent.
-    requires_escalation: bool = bool(final_state.get("escalation_required", False))
+    # True when escalation_node dispatched email/SMS this turn.
+    requires_escalation: bool = bool(final_state.get("escalation_dispatched", False))
 
     return ChatResponse(
         reply=reply,

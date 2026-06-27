@@ -35,6 +35,10 @@ _NODE_LABELS: dict[str, str] = {
     "rag_agent":         "Querying SpyderWash Knowledge Base...",
     "guardrail_node":    "Applying hardware status guardrail...",
     "escalation_node":   "Triggering escalation workflow...",
+    "blast_radius_check": "Confirming outage scope...",
+    "troubleshoot_first": "Querying SpyderWash Knowledge Base...",
+    "escalation_resolved": "Closing resolved support request...",
+    "post_escalation_ack": "Confirming escalation handoff...",
     # Static refusal node fires for off-topic queries and prompt injection attempts.
     "out_of_domain_node": "Applying domain guardrail...",
 }

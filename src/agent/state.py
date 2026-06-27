@@ -26,6 +26,13 @@ class AgentState(TypedDict):
     blast_radius:              Optional[str]
     # Explicitly persists whether the operator confirmed troubleshooting failed, decoupled from extracted_entities.
     troubleshooting_failed:    Optional[bool]
+    # Set True when escalation_node dispatches email/SMS for this session turn.
+    escalation_dispatched:     Optional[bool]
+    # Operator contact info passed from the frontend API (optional).
+    operator_id:               Optional[int]
+    operator_name:             Optional[str]
+    operator_email:            Optional[str]
+    operator_phone:            Optional[str]
     # merge_dicts reducer merges partial entity updates across turns instead of
     # overwriting the entire dict, preserving entities from earlier workflow steps.
     extracted_entities: Annotated[dict, merge_dicts]
