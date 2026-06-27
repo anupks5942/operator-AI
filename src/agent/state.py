@@ -17,11 +17,15 @@ class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
     # Scalar fields — Optional so partial state updates don't wipe earlier values
-    context:                  Optional[str]
-    current_intent:           Optional[str]
+    context:                   Optional[str]
+    current_intent:            Optional[str]
     hardware_lookup_attempted: Optional[bool]
     escalation_required:       Optional[bool]
     api_action_required:       Optional[bool]
+    # Tracks whether the downtime is a single machine or location-wide — drives RAG vs escalation routing.
+    blast_radius:              Optional[str]
+    # Explicitly persists whether the operator confirmed troubleshooting failed, decoupled from extracted_entities.
+    troubleshooting_failed:    Optional[bool]
     # merge_dicts reducer merges partial entity updates across turns instead of
     # overwriting the entire dict, preserving entities from earlier workflow steps.
     extracted_entities: Annotated[dict, merge_dicts]

@@ -63,7 +63,8 @@ def troubleshoot_first_node(state: AgentState):
                 break
 
     entities = state.get("extracted_entities") or {}
-    blast_radius = entities.get("blast_radius", "entire_location")
+    # Read blast_radius from top-level state first, fall back to extracted_entities for compatibility.
+    blast_radius = state.get("blast_radius") or entities.get("blast_radius", "entire_location")
     # Combine original hardware issue with blast-radius context so ChromaDB targets troubleshooting
     # guides rather than unrelated promotional or configuration documents.
     blast_radius_str = str(blast_radius).replace("_", " ")
@@ -83,14 +84,16 @@ def troubleshoot_first_node(state: AgentState):
         sources_note = "\n\n**Sources:** " + " | ".join(source_tags)
         answer += sources_note
 
-    # Explicitly concatenate the resolution prompt so the router can detect the next turn as a confirmation.
+    # Explicitly concatenate the resolution prompt so the router detects the next turn as a confirmation.
     full_response = answer + "\n\nDid this resolve the issue? (Yes/No)"
 
     entities["troubleshooting_done"] = True
 
     return {
-        "messages": [AIMessage(content=full_response)],
+        "messages":          [AIMessage(content=full_response)],
         "extracted_entities": entities,
+        # Persist blast_radius to top-level state so subsequent turns can read it without dict lookup.
+        "blast_radius":       blast_radius,
     }
 
 
@@ -269,10 +272,15 @@ def route_after_classifier(state: AgentState) -> str:
     if state.get("hardware_lookup_attempted"):
         return "guardrail"
 
+    # Critical outage is a confirmed production failure — skip troubleshooting and dispatch immediately.
+    if intent == "critical_outage":
+        return "escalation"
+
     # Enforce multi-turn escalation checks when an emergency store down, machine down, or supervisor is requested.
     if intent in ("emergency_store_down", "machine_down", "escalation_request") or state.get("escalation_required"):
         entities = state.get("extracted_entities") or {}
-        blast_radius = entities.get("blast_radius")
+        # Read blast_radius from top-level state first, then fall back to extracted_entities.
+        blast_radius = state.get("blast_radius") or entities.get("blast_radius")
 
         # Skip blast-radius check if troubleshooting is already underway to prevent routing loop.
         if not blast_radius and not entities.get("troubleshooting_done"):
@@ -286,8 +294,8 @@ def route_after_classifier(state: AgentState) -> str:
         if not entities.get("troubleshooting_done"):
             return "troubleshoot_first"
 
-        # Route to escalation when the router extracted troubleshooting_failed=True.
-        if entities.get("troubleshooting_failed") is True:
+        # Route to escalation when the router extracted troubleshooting_failed from top-level state.
+        if state.get("troubleshooting_failed") is True or entities.get("troubleshooting_failed") is True:
             return "escalation"
 
         # Route to escalation when the user's reply contains unambiguous negative whole-words.
@@ -298,7 +306,7 @@ def route_after_classifier(state: AgentState) -> str:
             return "escalation"
 
         # Route to the resolved node when troubleshooting successfully fixed the outage.
-        if entities.get("troubleshooting_failed") is False:
+        if state.get("troubleshooting_failed") is False or entities.get("troubleshooting_failed") is False:
             return "escalation_resolved"
 
     # API workflows: loyalty balance, transaction lookup, refund, system status check.
@@ -307,6 +315,26 @@ def route_after_classifier(state: AgentState) -> str:
 
     # All remaining intents (general_query, technical_support, etc.) go to RAG.
     return "rag"
+
+
+
+def route_after_rag(state: AgentState) -> str:
+    # Walk backwards through messages to find the last human turn, skipping the AI response
+    # that was just appended by rag_agent so we never inspect the bot's own text for negatives.
+    messages = state.get("messages", [])
+    last_human_text = ""
+    for msg in reversed(messages):
+        if msg.type == "human":
+            last_human_text = msg.content.lower()
+            break
+
+    user_words = set(last_human_text.split())
+    # Trigger escalation when the user confirms troubleshooting did not resolve the issue.
+    _negative_words = {"no", "nope", "nah", "not", "still", "broken", "failed", "offline", "down", "unresolved", "didn't", "didnt", "doesn't", "doesnt"}
+    if user_words & _negative_words:
+        return "escalation"
+    # Positive or neutral replies end the graph gracefully without dispatching a ticket.
+    return "__end__"
 
 
 # ── Graph compilation ─────────────────────────────────────────────────────────
@@ -351,12 +379,21 @@ def create_agent_graph():
         }
     )
 
+    # After the standard RAG node, evaluate whether the user's reply needs escalation.
+    workflow.add_conditional_edges(
+        "rag_agent",
+        route_after_rag,
+        {
+            "escalation": "escalation_node",
+            "__end__":    END,
+        }
+    )
+
     # Terminal edges
     workflow.add_edge("out_of_domain_node", END)
     workflow.add_edge("guardrail_node",     END)
     workflow.add_edge("escalation_node",    END)
     workflow.add_edge("tool_node",          END)
-    workflow.add_edge("rag_agent",          END)
     workflow.add_edge("blast_radius_check",  END)
     workflow.add_edge("troubleshoot_first",  END)
     workflow.add_edge("escalation_resolved", END)

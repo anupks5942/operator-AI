@@ -77,7 +77,8 @@ def retrieve_and_generate(state: AgentState):
     """
     messages = state.get("messages", [])
     if not messages:
-        return {"messages": []}
+        # Return a safe fallback so downstream conditional edges never see an empty message list.
+        return {"messages": [AIMessage(content="I could not find any messages to process. Please try again.")]}
 
     latest_message = messages[-1].content
 

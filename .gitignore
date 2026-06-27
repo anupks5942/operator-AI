@@ -5,7 +5,26 @@ build/
 dist/
 wheels/
 *.egg-info
+
 # Virtual environments
 .venv
+
+# Environment variables / secrets
 .env
+.env.*
+
+# Local databases
 chroma_db/
+*.db
+*.sqlite3
+
+# Project-specific tools
+.antigravitycli/
+.understand-anything/
+
+# IDE / Editors
+.vscode/
+.idea/
+
+# Logs
+*.log
