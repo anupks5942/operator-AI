@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+from src.utils.security import sanitize_outbound_text
 from src.config import (
     ESCALATION_EMAIL,
     ESCALATION_SMS_TO,
@@ -133,16 +134,18 @@ class NotificationService:
         conversation: str,
         summary: str,
     ) -> EscalationResult:
+        safe_conversation = sanitize_outbound_text(conversation)
+        safe_summary = sanitize_outbound_text(summary)
         subject = f"SpyderWash Operator Escalation - {name}"
         html_body = NotificationService._build_escalation_html(
             name=name,
             email=email,
             phone=phone,
-            conversation=conversation,
+            conversation=safe_conversation,
         )
         email_sent = NotificationService.send_email_html(ESCALATION_EMAIL, subject, html_body)
 
-        sms_body = f"SpyderWash ESCALATION {ticket_id}: {summary[:140]}"
+        sms_body = f"SpyderWash ESCALATION {ticket_id}: {safe_summary[:140]}"
         sms_sent = NotificationService.send_sms(ESCALATION_SMS_TO, sms_body)
 
         if not email_sent:

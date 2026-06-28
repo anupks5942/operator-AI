@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, ToolMessage
 from src.api.routes import router
 from src.agent.graph import agent_app as compiled_graph
+from src.utils.security import sanitize_user_text
 
 load_dotenv()
 
@@ -28,7 +29,7 @@ def stream_turn(query: str, thread_id: str, turn_label: str):
         turn_label: Human-readable label for console output.
     """
     config = {"configurable": {"thread_id": thread_id}}
-    state_input = {"messages": [("user", query)]}
+    state_input = {"messages": [("user", sanitize_user_text(query))]}
 
     print(f"\n{'='*65}")
     print(f"[{turn_label}] {query}")

@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage as _AIMsg
-from src.utils.security import mask_credit_cards
+from src.utils.security import sanitize_user_text
 
 load_dotenv()
 
@@ -39,8 +39,8 @@ _NODE_LABELS: dict[str, str] = {
     "troubleshoot_first": "Querying SpyderWash Knowledge Base...",
     "escalation_resolved": "Closing resolved support request...",
     "post_escalation_ack": "Confirming escalation handoff...",
-    # Static refusal node fires for off-topic queries and prompt injection attempts.
     "out_of_domain_node": "Applying domain guardrail...",
+    "pci_guardrail_node": "Applying PCI compliance guardrail...",
 }
 
 def _node_label(node_name: str) -> str:
@@ -96,7 +96,7 @@ if prompt := st.chat_input("Ask a troubleshooting question, check balance, or re
     user_ts = _now_ts()
 
     # Scrub input to prevent visual UI leaks and backend PCI violations.
-    safe_input = mask_credit_cards(prompt)
+    safe_input = sanitize_user_text(prompt)
 
     # Persist and immediately render the user message
     st.session_state.messages.append({"role": "user", "content": safe_input, "timestamp": user_ts})

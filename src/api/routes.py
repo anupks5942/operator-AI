@@ -3,6 +3,7 @@ from langchain_core.messages import HumanMessage
 from src.api.schemas import QueryRequest, QueryResponse, NotificationRequest
 from src.agent.graph import agent_app
 from src.services.notifications import NotificationService
+from src.utils.security import sanitize_user_text
 
 router = APIRouter()
 
@@ -18,7 +19,7 @@ def query_agent(request: QueryRequest):
     try:
         # Initialize state with the user's message
         initial_state = {
-            "messages": [HumanMessage(content=request.query)],
+            "messages": [HumanMessage(content=sanitize_user_text(request.query))],
             "context": ""
         }
         

@@ -24,7 +24,7 @@ load_dotenv()
 
 # Import the compiled LangGraph state machine (singleton, created at module load).
 from src.agent.graph import agent_app as compiled_graph
-from src.utils.security import mask_credit_cards
+from src.utils.security import sanitize_user_text
 
 # ---------------------------------------------------------------------------
 # Structured logger
@@ -232,7 +232,7 @@ def chat(request: ChatRequest) -> ChatResponse:
     config = {"configurable": {"thread_id": request.session_id}}
 
     # Apply PCI-DSS compliance redactor to mask credit cards before sending to LangGraph.
-    safe_message = mask_credit_cards(request.message)
+    safe_message = sanitize_user_text(request.message)
 
     # Wrap the message in the tuple format LangGraph's add_messages reducer expects.
     initial_state: dict = {

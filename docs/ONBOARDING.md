@@ -1,179 +1,163 @@
-# Setomatic/SpyderWash Operator AI Onboarding Guide
+# Setomatic/SpyderWash Operator AI — Onboarding Guide
 
-## Project Overview
+Orient new developers to the codebase. Product scope and roadmap: [docs/README.md](README.md).
 
-Setomatic/SpyderWash Operator AI is a LangGraph-orchestrated technical support agent for laundry operators. It combines RAG over legacy manuals with live loyalty-card and transaction tools, refund workflow support, global status checks, escalation handling, and guardrails.
+---
 
-- Primary language: Python
-- Key frameworks: FastAPI, Streamlit, LangGraph, LangChain, ChromaDB, OpenAI, Groq
-- Start here: `README.md`
+## Project overview
 
-## Architecture Layers
+Operator AI is a LangGraph technical support agent for laundry operators:
 
-### Operator Interfaces and APIs
+- RAG over legacy manuals (ChromaDB)
+- Live loyalty and transaction tools (Setomatic beta API)
+- Refund tools (mock `:8001` until beta APIs ready)
+- Global system status (web scrape)
+- Gregg's troubleshoot-first escalation (email + SMS)
+- Guardrails (no live hardware status, out-of-domain refusal)
 
-Entry points that receive operator messages and return agent responses.
+| Item | Value |
+|------|-------|
+| Language | Python 3.10+ |
+| Package manager | [uv](https://docs.astral.sh/uv/) |
+| Frameworks | FastAPI, Streamlit, LangGraph, LangChain, ChromaDB, OpenAI |
+| Quick start | [README.md](../README.md), [RUNBOOK.md](RUNBOOK.md) |
+| File map | [CODEBASE.md](CODEBASE.md) |
 
-Key files:
-- `app.py` - Streamlit chat interface with graph streaming and routing diagnostics.
-- `main.py` - FastAPI entry module plus console multi-turn simulation harness.
-- `src/api/server.py` - Production FastAPI chat endpoint with CORS, telemetry, and LangGraph invocation.
-- `src/api/routes.py` - Legacy API router for health, query, and notification endpoints.
-- `src/api/schemas.py` - Pydantic request and response schemas.
-- `src/api/mock_server.py` - Mock backend for loyalty, transaction, and refund endpoints.
+---
 
-### Agent Orchestration
+## UI channels
 
-LangGraph state, routing, nodes, tools, escalation, and guardrails.
+| UI | Environment | Integration |
+|----|-------------|-------------|
+| Streamlit | Local dev only | In-process graph — [app.py](../app.py) |
+| React (dev2) | QA / UAT | HTTP → `:8000/api/v1/agent/chat` |
+| .NET Super Admin | Production (planned) | Same API |
 
-Key files:
-- `src/agent/graph.py` - Builds the LangGraph state machine and connects router decisions to RAG, tools, guardrails, escalation, and refusal nodes.
-- `src/agent/router.py` - Defines the structured OpenAI semantic router prompt, intent schema, continuation rules, and entity extraction.
-- `src/agent/nodes.py` - Implements RAG response generation, metadata filtering, hardware-status refusal, and out-of-domain refusal.
-- `src/agent/tools.py` - LangChain tools for loyalty balance, transaction history, refund workflow, and global status checks.
-- `src/agent/state.py` - Typed LangGraph state contract.
-- `src/services/notifications.py` - Mock SMS and email notification side effects.
+---
 
-### Knowledge Retrieval
+## Architecture layers
 
-RAG service, Chroma persistence, and KB documents used for troubleshooting answers.
+### Interfaces and APIs
 
-Key files:
-- `src/services/rag_service.py` - Loads KB manuals, enriches metadata, builds or opens ChromaDB, and runs Groq-backed retrieval-augmented generation.
-- `KB/SpyderWash Manual.txt` - SpyderWash source manual content.
-- `KB/Condensed Troubleshooting Guide.docx.txt` - Condensed troubleshooting source text.
-- `KB/Voiceover SpyderWash Troubleshooting Guide.docx.txt` - Voiceover troubleshooting source text.
-- `chroma_db/chroma.sqlite3` - Persisted Chroma vector database artifact.
+| File | Role |
+|------|------|
+| [app.py](../app.py) | Streamlit demo — in-process graph streaming |
+| [src/api/server.py](../src/api/server.py) | **Production** REST API |
+| [src/api/mock_server.py](../src/api/mock_server.py) | Mock **refund** endpoints only (`:8001`) |
+| [main.py](../main.py) | Legacy `/query` + console harness — avoid |
+| [src/api/routes.py](../src/api/routes.py) | Legacy router — deprecated |
 
-### Configuration and Documentation
+Contract: [API.md](API.md)
 
-Project setup, environment, requirements, and operational documentation.
+### Agent orchestration
 
-Key files:
-- `pyproject.toml` - Python dependencies and project metadata.
-- `.env` - Runtime secrets and environment configuration.
-- `src/config.py` - Centralized environment-backed URL and feature-flag configuration.
-- `README.md` - Project overview, setup, and runtime commands.
-- `API_Requirements.docx`, `Requirement understading.docx`, `Setomatic Summary Document.docx` - Business and API source documents.
+| File | Role |
+|------|------|
+| [src/agent/graph.py](../src/agent/graph.py) | LangGraph state machine, outage workflow |
+| [src/agent/router.py](../src/agent/router.py) | Semantic router — **15 intents** |
+| [src/agent/nodes.py](../src/agent/nodes.py) | RAG, guardrail, out-of-domain |
+| [src/agent/tools.py](../src/agent/tools.py) | Setomatic APIs + status scrape |
+| [src/agent/state.py](../src/agent/state.py) | Typed agent state |
 
-### Tests and Validation
-
-Verification scripts for graph behavior, routing context, RAG, and API behavior.
-
-Key files:
-- `test_graph.py` - Graph behavior checks.
-- `test_router_context.py` - Router continuation/context checks.
-- `test_rag.py` - RAG behavior checks.
-- `test_server.py` - API/server behavior checks.
-- `KB_VERIFICATION_QA.md` and `rag_test_results.md` - Manual QA and verification notes.
-
-## Key Concepts
-
-### LangGraph as the Control Plane
-
-`src/agent/graph.py` wires the semantic router into RAG, tool execution, guardrail, escalation, and refusal paths. New developers should understand this file before changing behavior because it defines the execution flow.
-
-### Structured Semantic Routing
-
-`src/agent/router.py` classifies operator intent and extracts entities like card numbers, machine IDs, transaction IDs, and confirmations. It also handles short follow-up replies during multi-turn workflows.
-
-### Tool-Driven Workflows
-
-`src/agent/tools.py` contains the operational integrations. It handles:
-- Live loyalty balance lookup
-- Live transaction history lookup
-- Refund eligibility check
-- Refund execution
-- Global system status scraping and fallback logic
-
-Refund behavior is intentionally sequential: transaction lookup, eligibility check, then refund execution only if eligible.
-
-### RAG for Troubleshooting
-
-`src/services/rag_service.py` loads PDF/DOCX manuals from `KB/`, enriches metadata, chunks content, persists embeddings in Chroma, and answers support questions through a Groq-backed chain.
-
-### Guardrails by Route
-
-Hardware status and out-of-domain requests are handled by explicit graph paths rather than free-form model behavior. This keeps the agent from claiming real-time hardware visibility or responding to unrelated and adversarial prompts.
-
-### Session Memory
-
-LangGraph `MemorySaver` is keyed by thread/session so follow-up replies can continue workflows, such as a user providing a card number after the assistant asks for one.
-
-## Guided Tour
-
-1. **Project Overview**
-   Read `README.md` and `pyproject.toml` to understand the product goal, dependencies, and runtime commands.
-
-2. **Operator Entry Points**
-   Review `app.py`, `main.py`, `src/api/server.py`, and `src/api/routes.py` to see how operator messages enter the system.
-
-3. **LangGraph Workflow**
-   Follow `src/agent/graph.py`, `src/agent/router.py`, `src/agent/state.py`, and `src/agent/nodes.py` to understand classification and routing.
-
-4. **Tool and API Workflows**
-   Inspect `src/agent/tools.py`, `src/api/mock_server.py`, `src/config.py`, and `src/services/notifications.py` to understand live API calls, mock refund development, and notifications.
-
-5. **RAG Knowledge Path**
-   Trace `src/services/rag_service.py`, the `KB/` manuals, and `chroma_db/chroma.sqlite3` to understand ingestion, retrieval, metadata filters, and answer generation.
-
-6. **Validation Coverage**
-   Finish with `test_graph.py`, `test_router_context.py`, `test_rag.py`, and `test_server.py`.
-
-## File Map
-
-### Application Entry Points
-
-- `app.py` - Streamlit UI that streams graph node updates, renders chat history, and displays routing diagnostics.
-- `main.py` - API setup plus console simulation for multi-turn graph memory and tool routing.
-- `src/api/server.py` - Production REST API for frontend integration.
-- `src/api/routes.py` - Legacy API router.
-- `src/api/mock_server.py` - Local mock API for development and refund workflow testing.
-
-### Agent Core
-
-- `src/agent/graph.py` - Main graph definition and routing table.
-- `src/agent/router.py` - Intent classification and entity extraction.
-- `src/agent/nodes.py` - RAG node, guardrail node, and out-of-domain handler.
-- `src/agent/tools.py` - External tool implementations and tool exports.
-- `src/agent/state.py` - Shared state schema.
+Outage detail: [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md)
 
 ### Services
 
-- `src/services/rag_service.py` - Document processing, Chroma integration, and RAG query execution.
-- `src/services/notifications.py` - Mock notification delivery.
-- `src/config.py` - Environment-driven configuration.
+| File | Role |
+|------|------|
+| [src/services/rag_service.py](../src/services/rag_service.py) | KB ingest (PDF/DOCX), Chroma, RAG |
+| [src/services/notifications.py](../src/services/notifications.py) | Mandrill + Twilio; mock when `USE_LIVE_NOTIFICATIONS=false` |
+| [src/config.py](../src/config.py) | Environment configuration |
 
-### Knowledge Assets
+### Knowledge base
 
-- `KB/SpyderWash Manual.txt`
-- `KB/Condensed Troubleshooting Guide.docx.txt`
-- `KB/Voiceover SpyderWash Troubleshooting Guide.docx.txt`
-- `chroma_db/chroma.sqlite3`
+| Path | Notes |
+|------|-------|
+| [KB/](../KB/) | Source manuals — **only `.pdf` and `.docx` are ingested** (legacy; interim until SpyderWash Bible ships) |
+| `chroma_db/` | Generated vector store (delete to force re-ingest) |
 
-### Tests and QA
+**Product direction:** “The Bible of SpyderWash” (~500 pages, Brandon mail) replaces legacy multi-manual `KB/`. Structured chunks + KB Admin feedback loop — Phase 5 — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md). Operator videos are separate; not ingested today. Production target: Rackspace + ingest job → shared vector DB — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md).
 
-- `test_graph.py`
-- `test_router_context.py`
-- `test_rag.py`
-- `test_server.py`
-- `test.py`
-- `KB_VERIFICATION_QA.md`
-- `rag_test_results.md`
+`.txt` files in `KB/` are **not** loaded by [rag_service.py](../src/services/rag_service.py). Convert to PDF/DOCX or extend the loader.
 
-## Complexity Hotspots
+---
 
-- `src/agent/tools.py` - Complex live/mock API logic, refund workflow ordering, system-status scraping, and error handling.
-- `src/agent/graph.py` - Core LangGraph routing and ReAct-style tool loop behavior.
-- `src/api/server.py` - Production API surface with telemetry, CORS, session memory, and response extraction.
-- `src/services/rag_service.py` - Document ingestion, metadata enrichment, Chroma setup, retriever construction, and Groq response chain.
-- `KB/` documents and `chroma_db/chroma.sqlite3` - Large knowledge assets that drive RAG answer quality but are not normal application code.
+## Key concepts
 
-## Suggested First Tasks for New Developers
+### LangGraph control plane
 
-1. Run the app locally using the commands in `README.md`.
-2. Send one RAG troubleshooting query through the Streamlit UI.
-3. Send one loyalty-card or refund-related query through the API path.
-4. Read `src/agent/router.py` and map the detected intent to the graph route in `src/agent/graph.py`.
-5. Add or update a small test before changing router, tool, or RAG behavior.
+[graph.py](../src/agent/graph.py) wires router → RAG, tools, guardrails, escalation, refusal. **Read this before changing behavior.**
 
+### Outage workflow (Gregg)
+
+```
+blast_radius_check → troubleshoot_first → confirm → escalate OR resolve
+```
+
+Not a single-shot RAG answer. See [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md).
+
+### Semantic routing
+
+[router.py](../src/agent/router.py) classifies 15 intents and extracts entities (`blast_radius`, `card_number`, `troubleshooting_failed`, etc.).
+
+Full business mapping: [INTENT_MATRIX.md](INTENT_MATRIX.md) (29 Brandon rows).
+
+### Tools
+
+[tools.py](../src/agent/tools.py):
+
+- Loyalty + transactions → **live** Setomatic API (hardcoded `OperatorId=4` — Phase 1 fix)
+- Refunds → mock `:8001` or live per `USE_MOCK_REFUNDS`
+- Sequential refund: history → eligibility → execute
+
+### Session memory
+
+`MemorySaver` keys on `session_id` (API) or Streamlit UUID. **Not durable** — lost on restart. Same ID required across turns.
+
+### Notifications
+
+Escalation sends email + SMS when `USE_LIVE_NOTIFICATIONS=true`. Per-intent routing is Phase 2. Config: [ENVIRONMENT.md](ENVIRONMENT.md).
+
+### PCI masking
+
+[sanitize_user_text](../src/utils/security.py) on ingress (API, Streamlit, legacy routes). [sanitize_outbound_text](../src/utils/security.py) on escalation email/SMS. CVV/track data → `pci_guardrail_node` (no LLM).
+
+---
+
+## Guided tour
+
+1. [CODEBASE.md](CODEBASE.md) + [README.md](../README.md) + [PRD.md](PRD.md)
+2. Entry points — [server.py](../src/api/server.py), [app.py](../app.py)
+3. LangGraph — [graph.py](../src/agent/graph.py), [router.py](../src/agent/router.py), [state.py](../src/agent/state.py)
+4. Escalation — [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md), [notifications.py](../src/services/notifications.py)
+5. Tools — [tools.py](../src/agent/tools.py), [mock_server.py](../src/api/mock_server.py)
+6. RAG — [rag_service.py](../src/services/rag_service.py), [KB/](../KB/), [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md)
+7. Tests — [tests/test_outage_workflow.py](../tests/test_outage_workflow.py)
+
+---
+
+## Complexity hotspots
+
+| File | Why |
+|------|-----|
+| [tools.py](../src/agent/tools.py) | Live/mock APIs, refund ordering, status scrape, hardcoded operator ID |
+| [graph.py](../src/agent/graph.py) | Routing table, outage workflow, ReAct tool loop |
+| [router.py](../src/agent/router.py) | Long system prompt, continuation rules |
+| [server.py](../src/api/server.py) | Production API, telemetry, CORS |
+| [rag_service.py](../src/services/rag_service.py) | Ingestion, metadata, retriever |
+
+---
+
+## Suggested first tasks
+
+1. Run locally — [RUNBOOK.md](RUNBOOK.md)
+2. `uv run python -m unittest tests.test_outage_workflow -v`
+3. One RAG query + one outage query in Streamlit
+4. Trace an intent from [router.py](../src/agent/router.py) → [graph.py](../src/agent/graph.py)
+5. Read [INTENT_MATRIX.md](INTENT_MATRIX.md) before changing escalation
+
+---
+
+## Full documentation set
+
+[docs/README.md](README.md) — index of all docs, reading paths, maintenance rules.

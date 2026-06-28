@@ -4,12 +4,18 @@ from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import AIMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from src.agent.state import AgentState
-from src.agent.nodes import retrieve_and_generate, guardrail_node, handle_out_of_domain, _extract_metadata_filter
+from src.agent.nodes import (
+    retrieve_and_generate,
+    guardrail_node,
+    pci_guardrail_node,
+    handle_out_of_domain,
+    _extract_metadata_filter,
+)
 from src.agent.router import semantic_router, infer_blast_radius
 from src.agent.tools import SETOMATIC_TOOLS
 from src.services.notifications import NotificationService
 from src.services.rag_service import RAGService
-from src.utils.security import mask_credit_cards
+from src.utils.security import mask_credit_cards, sanitize_outbound_text
 
 # Hardware/outage intents that must follow Gregg's multi-turn workflow:
 # blast-radius question → KB troubleshooting → confirmation → escalation (if failed).
@@ -67,10 +73,13 @@ def _extract_escalation_context(messages) -> str:
         if text.lower().rstrip(".,") not in trivial and len(text) > 3
     ]
     if not substantive:
-        return human_texts[-1] if human_texts else "Unknown issue"
+        fallback = human_texts[-1] if human_texts else "Unknown issue"
+        return sanitize_outbound_text(fallback)
     if len(substantive) >= 2:
-        return f"{substantive[-2]} | Latest update: {substantive[-1]}"
-    return substantive[-1]
+        summary = f"{substantive[-2]} | Latest update: {substantive[-1]}"
+    else:
+        summary = substantive[-1]
+    return sanitize_outbound_text(summary)
 
 
 def _get_prior_assistant_content(messages) -> str | None:
@@ -128,6 +137,7 @@ def escalation_node(state: AgentState):
 
     summary = _extract_escalation_context(messages)
     conversation = _format_conversation_for_email(messages)
+    safe_summary = sanitize_outbound_text(summary)
     name, email, phone = _resolve_operator_contact(state)
     ticket_number = f"TKT-{uuid.uuid4().hex[:8].upper()}"
 
@@ -137,12 +147,12 @@ def escalation_node(state: AgentState):
         email=email,
         phone=phone,
         conversation=conversation,
-        summary=summary,
+        summary=safe_summary,
     )
 
     response_content = (
         f'A critical escalation ticket ({ticket_number}) has been created and dispatched '
-        f'to the on-call technician. They will contact you shortly regarding: "{summary}"'
+        f'to the on-call technician. They will contact you shortly regarding: "{safe_summary}"'
     )
     return {
         "messages": [AIMessage(content=response_content)],
@@ -386,6 +396,10 @@ def route_after_classifier(state: AgentState) -> str:
     """
     intent = state.get("current_intent", "")
 
+    # PCI: CVV / track data — static refusal, no LLM or external APIs.
+    if intent == "pci_sensitive_data":
+        return "pci_guardrail"
+
     # Out-of-domain and prompt injection: route directly to the static refusal node.
     if intent == "out_of_domain":
         return "out_of_domain"
@@ -487,6 +501,7 @@ def create_agent_graph():
     # Register nodes
     workflow.add_node("router",            semantic_router)
     workflow.add_node("guardrail_node",    guardrail_node)
+    workflow.add_node("pci_guardrail_node", pci_guardrail_node)
     workflow.add_node("escalation_node",   escalation_node)
     workflow.add_node("tool_node",         tool_node)
     workflow.add_node("rag_agent",         retrieve_and_generate)
@@ -507,6 +522,7 @@ def create_agent_graph():
         route_after_classifier,
         {
             "out_of_domain":        "out_of_domain_node",
+            "pci_guardrail":        "pci_guardrail_node",
             "guardrail":            "guardrail_node",
             "escalation":           "escalation_node",
             "tool":                 "tool_node",
@@ -530,6 +546,7 @@ def create_agent_graph():
 
     # Terminal edges
     workflow.add_edge("out_of_domain_node", END)
+    workflow.add_edge("pci_guardrail_node", END)
     workflow.add_edge("guardrail_node",     END)
     workflow.add_edge("escalation_node",    END)
     workflow.add_edge("tool_node",          END)

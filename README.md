@@ -1,88 +1,124 @@
 # Setomatic/SpyderWash Operator AI
 
-An intelligent, LangGraph-orchestrated Technical Support AI Agent for the Setomatic/SpyderWash ecosystem. The agent provides operators with immediate answers to troubleshooting queries from legacy manuals, looks up loyalty card balances via live production APIs, retrieves transaction histories, checks for global system outages, and handles emergency escalations.
+LangGraph-orchestrated technical support agent for SpyderWash operators: RAG over legacy manuals, live loyalty/transaction tools, refund workflows, global status checks, and Gregg's troubleshoot-first escalation path.
 
-## 🧠 Architecture Overview
+**Full documentation:** [docs/README.md](docs/README.md)
 
-The system utilizes a state machine architecture powered by **LangGraph**, providing robust routing, guardrails, and multi-turn memory.
+---
 
-*   **User Interface**: Streamlit (`app.py`) providing a conversational chat interface with real-time routing diagnostics.
-*   **Orchestration**: LangGraph (`src/agent/graph.py`) with `MemorySaver` for multi-turn SQLite checkpointing.
-*   **Intent Routing**: OpenAI `gpt-4o` powered semantic router with structured output (Pydantic).
-*   **Retrieval-Augmented Generation (RAG)**:
-    *   **LLM**: Groq `llama-3.3-70b-versatile` for fast, accurate generation.
-    *   **Embeddings**: HuggingFace `all-MiniLM-L6-v2`.
-    *   **Vector Store**: ChromaDB (persisted in `chroma_db/`).
-    *   **Document Processing**: Parses `.pdf` and `.docx` from the `KB/` directory using LangChain's RecursiveCharacterTextSplitter. Applies metadata enrichment (inferring brand and document type) and utilizes MMR (Maximal Marginal Relevance) for diverse retrieval.
-*   **APIs**: FastAPI for serving the core agent endpoints (`main.py`) and a mock backend for development (`src/api/mock_server.py`).
+## Architecture (summary)
 
-## 🛤️ LangGraph Workflow
+| Component | Technology |
+|-----------|------------|
+| Orchestration | LangGraph + MemorySaver ([`src/agent/graph.py`](src/agent/graph.py)) — in-process, not durable |
+| Router / tools / RAG LLM | OpenAI (`gpt-4o-mini` default) |
+| Embeddings | HuggingFace `all-MiniLM-L6-v2` |
+| Vector store | ChromaDB (`./chroma_db`) — ingests PDF/DOCX from `KB/`; SpyderWash Bible target — see [docs/KB_AND_PLATFORM.md](docs/KB_AND_PLATFORM.md) |
+| Production API | FastAPI [`src/api/server.py`](src/api/server.py) — `POST /api/v1/agent/chat` |
+| Dev UI | Streamlit [`app.py`](app.py) — local demo only |
+| QA UI | React (dev2) — QA/UAT only, same API |
+| Prod UI | .NET Super Admin portal — planned, same API |
+| Escalation | Mandrill email + Twilio SMS ([`src/services/notifications.py`](src/services/notifications.py)) |
 
-1.  **Semantic Router**: Analyzes user input and categorizes intent into one of 8 distinct categories (e.g., `technical_support`, `loyalty_balance_query`, `emergency_store_down`). Extracts entities like card numbers and machine brands.
-2.  **Guardrail Node**: Blocks attempts to request live hardware/port status, directing the user to the official operator portal.
-3.  **Escalation Node**: Detects critical intents (e.g., "whole store is down") and simulates triggering an SMS alert payload to an on-call technician.
-4.  **Tool Node**: Dynamically executes tools using GPT-4o based on intent:
-    *   **Loyalty Balance**: Calls the live SpyderWash production API (`betasetomaticposwebapplication.spyderwash.com`) dynamically passing the extracted loyalty card number with a hardcoded Operator ID.
-    *   **Transaction Lookup**: Calls a mock local API to retrieve transaction histories.
-    *   **System Status Check**: Scrapes the live Setomatic system status page with WAF bypass headers (and falls back to Cantaloupe with staleness/historical incident checks) to verify global outages.
-5.  **RAG Node**: For general queries and troubleshooting, filters the vector database by brand and answers the query using Groq, citing specific source manuals.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/TECH_STACK.md](docs/TECH_STACK.md).
 
-## 🚀 Setup and Configuration
+---
 
-### Prerequisites
-*   Python >= 3.10
-*   `uv` (Python package manager)
+## Prerequisites
 
-### Environment Variables
-Create a `.env` file in the root directory. You will need API keys for the LLM providers:
-```env
-OPENAI_API_KEY="your_openai_api_key"
-GROQ_API_KEY="your_groq_api_key"
-# Add any other required keys (e.g., LangSmith tracking if applicable)
-```
+- Python >= 3.10
+- [uv](https://docs.astral.sh/uv/) package manager
 
-### Installation
-Install all dependencies as defined in `pyproject.toml`:
+---
+
+## Setup
+
 ```bash
 uv sync
+cp .env.example .env
+# Edit .env — at minimum set OPENAI_API_KEY=
 ```
 
-## 💻 Running the Application
+All variables: [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)
 
-The system requires multiple processes for the full experience (UI, Main API, and Mock API for transactions).
+---
 
-1.  **Start the Mock Backend** (Required for transaction lookups):
-    ```bash
-    uv run uvicorn src.api.mock_server:mock_app --port 8001 --reload
-    ```
+## Running locally
 
-2.  **Start the Main Agent API** (Optional, if you want to query via REST instead of UI):
-    ```bash
-    uv run uvicorn main:app --reload
-    ```
-    *   Health check: `GET http://localhost:8000/health`
-    *   Query endpoint: `POST http://localhost:8000/query`
+### 1. Agent API (required for React / curl integration)
 
-3.  **Launch the Streamlit UI**:
-    ```bash
-    uv run streamlit run app.py
-    ```
+```bash
+uv run uvicorn src.api.server:app --host 0.0.0.0 --port 8000 --reload
+```
 
-4. **Launch Agent Server**:
-    ```bash
-    uv run uvicorn src.api.server:app --host 0.0.0.0 --port 8000 --reload
-    ```
+- Health: `GET http://localhost:8000/health`
+- Chat: `POST http://localhost:8000/api/v1/agent/chat`
+- Swagger: `http://localhost:8000/docs`
 
-## 🛠️ Developer Workflow & Testing
+### 2. Mock refund backend (optional — default ON)
 
-*   **Knowledge Base Management**: Add new troubleshooting guides, manuals, or release notes (PDF/DOCX) to the `KB/` directory. The `RAGService` will automatically parse, semantically chunk, enrich metadata, and ingest them into ChromaDB on the next initialization (if `chroma_db` is empty or if forced).
-*   **Testing Multi-turn Memory**: Run the included simulation script to verify that the `MemorySaver` checkpointer successfully retains context (like card numbers) across consecutive turns and streams tokens:
-    ```bash
-    uv run python main.py
-    ```
+```bash
+uv run uvicorn src.api.mock_server:mock_app --port 8001 --reload
+```
 
-## 🔒 Security & Resilience
+Required when `USE_MOCK_REFUNDS=true` (default). Loyalty/transactions use live Setomatic API regardless.
 
-*   **WAF Bypass**: The `check_global_system_status` tool utilizes `requests.Session()` with spoofed Chrome headers, `Referer`, `Origin`, and `DNT` flags to bypass OpenResty WAF blocks on Setomatic's public status pages. It explicitly disables `Accept-Encoding` to avoid receiving unparseable binary compressed payloads.
-*   **Graceful API Degradation**: The tools include comprehensive `try/except` blocks handling HTTP 500s, timeouts, and missing JSON keys (specifically in the nested SpyderWash payload) to ensure the LLM receives formatted fallback strings rather than raw exceptions.
-*   **Guardrails**: Explicitly prevents LLM hallucination regarding real-time machine hardware states.
+### 3. Streamlit demo UI (optional)
+
+```bash
+uv run streamlit run app.py
+```
+
+Streamlit runs the graph in-process; it does not call `:8000` by default.
+
+Full runbook: [docs/RUNBOOK.md](docs/RUNBOOK.md)
+
+---
+
+## Testing
+
+```bash
+uv run python -m unittest tests.test_outage_workflow tests.test_security -v
+```
+
+Manual TC1/TC2: [docs/TESTING.md](docs/TESTING.md)
+
+---
+
+## Documentation index
+
+| Doc | Purpose |
+|-----|---------|
+| [docs/README.md](docs/README.md) | Documentation hub — start here |
+| [docs/CODEBASE.md](docs/CODEBASE.md) | Repo file map |
+| [docs/PRD.md](docs/PRD.md) | Product requirements |
+| [docs/REQUIREMENTS_MAP.md](docs/REQUIREMENTS_MAP.md) | Vendor requirements traceability |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Phased backlog to production |
+| [docs/INTENT_MATRIX.md](docs/INTENT_MATRIX.md) | Brandon matrix → router intents |
+| [docs/KB_AND_PLATFORM.md](docs/KB_AND_PLATFORM.md) | Bible, images, videos, Rackspace strategy |
+| [docs/BRANDON_KB_ADMIN.md](docs/BRANDON_KB_ADMIN.md) | Brandon mail — KB Admin, chunks, feedback |
+| [docs/API.md](docs/API.md) | REST contract for integrators |
+| [docs/SETOMATIC_BACKEND_APIS.md](docs/SETOMATIC_BACKEND_APIS.md) | Setomatic backend APIs (tools) |
+| [docs/ESCALATION_WORKFLOW.md](docs/ESCALATION_WORKFLOW.md) | Outage workflow (Gregg TC1/TC2) |
+| [docs/ONBOARDING.md](docs/ONBOARDING.md) | Codebase tour |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design |
+| [docs/TESTING.md](docs/TESTING.md) | Test procedures |
+| [docs/RUNBOOK.md](docs/RUNBOOK.md) | Operations |
+| [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) | Env vars |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | ADRs |
+| [docs/TECH_STACK.md](docs/TECH_STACK.md) | Stack choices |
+
+---
+
+## Legacy (do not use for new integrations)
+
+- `uv run uvicorn main:app` — old `/query` API; use `server.py`
+- `POST /query` — replaced by `/api/v1/agent/chat`
+
+---
+
+## Security
+
+- Credit card masking on API and Streamlit input ([`src/utils/security.py`](src/utils/security.py))
+- Hardware status guardrail — no live machine/port telemetry in chat
+- Out-of-domain and prompt-injection refusal path

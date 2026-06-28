@@ -113,6 +113,19 @@ def guardrail_node(state: AgentState):
     return {"messages": [AIMessage(content=refusal_message)]}
 
 
+def pci_guardrail_node(state: AgentState):
+    """
+    Refuse requests involving CVV, CVC, track data, or other prohibited card auth data.
+    PCI-DSS: such data must never be collected, stored, or transmitted.
+    """
+    refusal_message = (
+        "For PCI compliance, I cannot accept or process card verification codes (CVV/CVC), "
+        "PIN blocks, or magnetic-stripe/track data. Please do not share this information in chat. "
+        "Use the SpyderWash operator portal or official payment channels for payment issues."
+    )
+    return {"messages": [AIMessage(content=refusal_message)]}
+
+
 def handle_out_of_domain(state: AgentState):
     """
     Static out-of-domain guardrail: rejects any query unrelated to Setomatic /

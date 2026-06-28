@@ -4,6 +4,10 @@ from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 from src.agent.state import AgentState
 from src.config import ROUTER_OPENAI_MODEL
+from src.utils.security import contains_prohibited_card_auth_data
+
+# Router-only intent: prohibited PCI card auth data (CVV/track) — not in Brandon matrix.
+_PCI_SENSITIVE_INTENT = "pci_sensitive_data"
 
 # Outage intents that share the blast-radius → troubleshoot → confirm → escalate workflow.
 _OUTAGE_WORKFLOW_INTENTS = frozenset({
@@ -244,6 +248,18 @@ def semantic_router(state: AgentState):
 
     # ── Extract the latest user message ──────────────────────────────────────
     latest_user_msg = messages[-1].content
+
+    # PCI: refuse CVV/track data before any LLM call (no storage, no third-party transmission).
+    if contains_prohibited_card_auth_data(latest_user_msg):
+        return {
+            "current_intent": _PCI_SENSITIVE_INTENT,
+            "hardware_lookup_attempted": False,
+            "escalation_required": False,
+            "api_action_required": False,
+            "extracted_entities": {},
+            "blast_radius": None,
+            "troubleshooting_failed": None,
+        }
 
     # ── Find the last assistant (AI) message for context ─────────────────────
     prior_assistant_msg: Optional[str] = None
