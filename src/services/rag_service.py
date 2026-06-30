@@ -4,11 +4,10 @@ from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_classic.chains import create_retrieval_chain
-from src.config import RAG_OPENAI_MODEL
+from src.llm import create_chat_model
 
 # ── Metadata helpers ──────────────────────────────────────────────────────────
 
@@ -83,7 +82,7 @@ class RAGService:
                 search_type="mmr",
                 search_kwargs={"k": 6, "fetch_k": 20, "lambda_mult": 0.6},
             )
-            self.llm = ChatOpenAI(model=RAG_OPENAI_MODEL, temperature=0)
+            self.llm = create_chat_model(temperature=0)
 
             system_prompt = (
                 "You are an expert Technical Support AI Agent for the Setomatic/SpyderWash ecosystem. "

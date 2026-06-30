@@ -2,7 +2,6 @@ import uuid
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import AIMessage, ToolMessage
-from langchain_openai import ChatOpenAI
 from src.agent.state import AgentState
 from src.agent.nodes import (
     retrieve_and_generate,
@@ -16,6 +15,7 @@ from src.agent.tools import SETOMATIC_TOOLS
 from src.services.notifications import NotificationService
 from src.services.rag_service import RAGService
 from src.utils.security import mask_credit_cards, sanitize_outbound_text
+from src.llm import create_chat_model
 
 # Hardware/outage intents that must follow Gregg's multi-turn workflow:
 # blast-radius question → KB troubleshooting → confirmation → escalation (if failed).
@@ -293,7 +293,7 @@ _tool_llm = None
 def _get_tool_llm():
     global _tool_llm
     if _tool_llm is None:
-        _tool_llm = ChatOpenAI(model=TOOL_OPENAI_MODEL, temperature=0).bind_tools(SETOMATIC_TOOLS)
+        _tool_llm = create_chat_model(temperature=0).bind_tools(SETOMATIC_TOOLS)
     return _tool_llm
 
 def tool_node(state: AgentState):

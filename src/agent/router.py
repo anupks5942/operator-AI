@@ -1,9 +1,8 @@
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional
 from langchain_core.messages import AIMessage
-from langchain_openai import ChatOpenAI
 from src.agent.state import AgentState
-from src.config import ROUTER_OPENAI_MODEL
+from src.llm import create_chat_model
 from src.utils.security import contains_prohibited_card_auth_data
 
 # Router-only intent: prohibited PCI card auth data (CVV/track) — not in Brandon matrix.
@@ -223,7 +222,7 @@ _structured_llm = None
 def _get_structured_llm():
     global _structured_llm
     if _structured_llm is None:
-        llm = ChatOpenAI(model=ROUTER_OPENAI_MODEL, temperature=0)
+        llm = create_chat_model(temperature=0)
         _structured_llm = llm.with_structured_output(IntentClassification, method="function_calling")
     return _structured_llm
 

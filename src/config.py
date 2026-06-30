@@ -42,12 +42,10 @@ MOCK_BASE_URL: str = os.getenv(
 _use_mock_raw: str = os.getenv("USE_MOCK_REFUNDS", "true")
 USE_MOCK_REFUNDS: bool = _use_mock_raw.strip().lower() not in ("false", "0", "no")
 
-# OpenAI model configuration. One shared default keeps behavior consistent across
-# routing, tool-calling, and RAG while still allowing per-node overrides later.
-DEFAULT_OPENAI_MODEL: str = _env_str("OPENAI_MODEL", "gpt-4o-mini")
-ROUTER_OPENAI_MODEL: str = _env_str("ROUTER_OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
-TOOL_OPENAI_MODEL: str = _env_str("TOOL_OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
-RAG_OPENAI_MODEL: str = _env_str("RAG_OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
+# LLM provider configuration. Switch providers through .env without code changes.
+LLM_PROVIDER: str = _env_str("LLM_PROVIDER", "groq").lower()
+OPENAI_MODEL: str = _env_str("OPENAI_MODEL", "gpt-4o-mini")
+GROQ_MODEL: str = _env_str("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 # Escalation notifications — when False, NotificationService logs only (local dev).
 USE_LIVE_NOTIFICATIONS: bool = _env_bool("USE_LIVE_NOTIFICATIONS", False)
