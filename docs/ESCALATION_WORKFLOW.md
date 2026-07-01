@@ -14,7 +14,10 @@ sequenceDiagram
   participant R as Router
   participant B as blast_radius_check
   participant T as troubleshoot_first
+  participant W as workflow_reminder
   participant E as escalation_node
+  participant P as post_escalation_ack
+  participant Res as escalation_resolved
   participant N as Notifications
 
   Op->>R: Report issue
@@ -25,12 +28,31 @@ sequenceDiagram
   T->>Op: KB steps + Did this resolve?
   alt Yes fixed
     Op->>R: Yes
-    R->>Op: Glad to hear resolved
+    R->>Res: positive confirmation
+    Res->>Op: Glad to hear resolved (state reset)
+  else Gibberish / off-topic
+    Op->>R: random text
+    R->>W: workflow active + out_of_domain
+    W->>Op: Did the steps resolve it? Yes/No
+    Op->>R: No
+    R->>E: troubleshooting_failed
+    E->>N: Email + SMS
+    E->>Op: Ticket TKT-xxx dispatched
   else Still broken
     Op->>R: No / still offline
     R->>E: troubleshooting_failed
     E->>N: Email + SMS
     E->>Op: Ticket TKT-xxx dispatched
+  end
+  Note over R,E: After escalation_dispatched=true
+  alt Operator says NO again
+    Op->>R: No / still down
+    R->>P: escalation_dispatched guard
+    P->>Op: Ticket already dispatched
+  else Operator confirms resolved
+    Op->>R: Yes / fixed
+    R->>Res: positive confirmation
+    Res->>Op: Glad to hear (state fully reset)
   end
 ```
 
@@ -82,9 +104,10 @@ From `_ESCALATION_WORKFLOW_INTENTS` in [graph.py](../src/agent/graph.py) (same s
 | Operator reply | Route |
 |----------------|-------|
 | yes / fixed / resolved | `escalation_resolved_node` |
-| no / still down / still offline | `escalation_node` |
+| no / still down / still offline / not resolved / didn't work | `escalation_node` |
+| gibberish / off-topic (while workflow active) | `workflow_reminder_node` (re-prompts Yes/No) |
 
-Negative word matching also runs in `route_after_classifier` after `troubleshooting_done` is set.
+Negative word/phrase matching also runs in `route_after_classifier` after `troubleshooting_done` is set. Includes common expressions like "not working", "same issue", "no luck", etc.
 
 ### Step 4 — Escalation dispatch
 
@@ -100,12 +123,22 @@ Negative word matching also runs in `route_after_classifier` after `troubleshoot
 
 **SMS format:** `SpyderWash ESCALATION TKT-xxx: {summary}`
 
-### Step 5 — Post-escalation
+### Step 5 — Post-escalation (deduplication guard)
+
+Once `escalation_node` fires, `escalation_dispatched: true` is set in state. This flag prevents duplicate tickets:
+
+- Any subsequent negative reply ("no", "still down") → `post_escalation_ack_node` (ticket already active)
+- "resolved" / "fixed" → `escalation_resolved_node` (clears all workflow state)
+- Gibberish / ambiguous → `workflow_reminder_node`
 
 If assistant message contains "critical escalation ticket" or "already been dispatched":
 
 - "wait yes" / ambiguous follow-up → `post_escalation_ack_node` (no blast-radius restart)
 - "resolved" / "fixed" → `escalation_resolved_node`
+
+### Step 6 — State reset on resolution
+
+`escalation_resolved_node` clears all workflow flags (`troubleshooting_done`, `blast_radius`, `escalation_dispatched`, `troubleshooting_failed`) so subsequent messages are treated as fresh conversations — not trapped in the completed workflow's state.
 
 ---
 
@@ -147,6 +180,12 @@ Automated tests: [tests/test_outage_workflow.py](../tests/test_outage_workflow.p
 | Ticket summary used wrong incident | `_extract_escalation_context` walks recent messages |
 | Entire-location RAG returned single-machine power steps | Hub/gateway query bias in `troubleshoot_first_node` |
 | Post-escalation "wait yes" restarted blast-radius | `post_escalation_ack_node` |
+| Gibberish mid-workflow broke "Did this resolve?" flow | `workflow_reminder_node` re-prompts; `_is_fresh_outage_turn` respects active state |
+| "No" after interruption restarted blast-radius | `_is_fresh_outage_turn` checks `existing_entities.troubleshooting_done` |
+| Operator keeps saying "NO" to generate infinite tickets | `escalation_dispatched` flag gates re-escalation; routes to `post_escalation_ack` |
+| "MACHINE DONW" after "YES" stuck in workflow_reminder | `escalation_resolved_node` resets all workflow flags so new issues start fresh |
+| "no" after "Glad to hear..." starts new workflow | Post-resolution closure guard detects conversational "no" (≤5 words) and routes to friendly close |
+| Gibberish during blast-radius question advances workflow | `blast_radius_asked` flag + heuristic-only validation; LLM-hallucinated entities ignored |
 
 ---
 

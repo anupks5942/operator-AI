@@ -2,7 +2,7 @@
 
 Brandon's signed-off business intent matrix (June 2026), mapped to LangGraph router intents and escalation channels.
 
-**Router:** [src/agent/router.py](../src/agent/router.py) — 15 intents  
+**Router:** [src/agent/router.py](../src/agent/router.py) — 16 intents  
 **Routing:** [src/agent/graph.py](../src/agent/graph.py) — `route_after_classifier`  
 **Notifications:** [src/services/notifications.py](../src/services/notifications.py)
 
@@ -71,6 +71,7 @@ Source: client Intent Matrix spreadsheet (Brandon), June 2026.
 
 | Brandon subcategory(s) | Router intent(s) | Graph route |
 |------------------------|------------------|-------------|
+| Simple greeting / salutation (hi, hello, hey) | `greeting` | greeting_node |
 | Hub setup, portal how-to, time clock, card registration, free wash, etc. | `general_query` or `technical_support` | RAG |
 | Machine Availability; live machine/port status questions | `hardware_status` | guardrail |
 | Balance Lookup | `loyalty_balance_query` | tool_node |
@@ -96,10 +97,11 @@ Source: client Intent Matrix spreadsheet (Brandon), June 2026.
 
 ---
 
-## Router intent table (15 intents)
+## Router intent table (16 intents)
 
 | Router intent | Graph route | Outage workflow | Escalation today | Target (Brandon) |
 |---------------|-------------|-----------------|------------------|------------------|
+| `greeting` | greeting_node | No | None | None |
 | `general_query` | RAG | No | None | None |
 | `technical_support` | RAG | No | None | None (Conditional Email rows — **not wired**) |
 | `hardware_status` | guardrail | No | None | None |

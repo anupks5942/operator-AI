@@ -239,6 +239,24 @@ def get_transaction_history(card_number: str) -> str:
     end_date = '2026-04-30'
 
     try:
+        # Pre-validate: confirm the card exists before fetching transactions.
+        # The Setomatic ViewAllTransactionSearch API returns unscoped results for
+        # invalid card numbers, so we must verify card existence first.
+        logger.info("[get_transaction_history] Validating card existence: %s", card_number)
+        validation_resp = requests.get(
+            _LOYALTY_BALANCE_URL,
+            params={"OperatorId": _LOYALTY_OPERATOR_ID, "LoyaltyCardNo": card_number},
+            timeout=(10.0, 12.0),
+        )
+        if validation_resp.status_code == 200:
+            validation_data = validation_resp.json().get("data", [])
+            if not validation_data:
+                return (
+                    f"Loyalty card '{card_number}' was not found in the system. "
+                    "Cannot retrieve transactions for an unregistered card. "
+                    "Please verify the card number and try again."
+                )
+
         params = {
             'LoggedInUserId': 4,
             'IsFundAmountUsed': 'true',
@@ -249,7 +267,6 @@ def get_transaction_history(card_number: str) -> str:
             'PageSize': 5
         }
         logger.info("[get_transaction_history] Calling API: GET %s | Params: %s", _TRANSACTION_SEARCH_URL, params)
-        # Request the transaction history matching the locked staging demo date range.
         response = requests.get(
             _TRANSACTION_SEARCH_URL,
             params=params,

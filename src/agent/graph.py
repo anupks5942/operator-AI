@@ -8,6 +8,8 @@ from src.agent.nodes import (
     guardrail_node,
     pci_guardrail_node,
     handle_out_of_domain,
+    handle_greeting,
+    workflow_reminder_node,
     _extract_metadata_filter,
 )
 from src.agent.router import semantic_router, infer_blast_radius
@@ -163,7 +165,10 @@ def escalation_node(state: AgentState):
 def blast_radius_check_node(state: AgentState):
     # Ask the operator if the downtime affects a single machine or the entire location to decide RAG vs escalation.
     msg = AIMessage(content="To help me get you the right fix, is this affecting just one specific machine, or is your entire laundromat offline?")
-    return {"messages": [msg]}
+    return {
+        "messages": [msg],
+        "extracted_entities": {"blast_radius_asked": True},
+    }
 
 
 def troubleshoot_first_node(state: AgentState):
@@ -233,8 +238,22 @@ def troubleshoot_first_node(state: AgentState):
 
 def escalation_resolved_node(state: AgentState):
     # Route to resolution response since initial troubleshooting resolved the system issue.
+    # Reset all workflow flags so subsequent messages are treated as fresh conversations
+    # rather than being trapped in the completed workflow's state.
     msg = AIMessage(content="Glad to hear the issue is resolved! Let me know if there is anything else I can help you with.")
-    return {"messages": [msg]}
+    return {
+        "messages": [msg],
+        "extracted_entities": {
+            "troubleshooting_done": False,
+            "troubleshooting_failed": False,
+            "blast_radius": None,
+            "blast_radius_asked": False,
+        },
+        "blast_radius": None,
+        "escalation_required": None,
+        "troubleshooting_failed": None,
+        "escalation_dispatched": None,
+    }
 
 
 def post_escalation_ack_node(state: AgentState):
@@ -400,6 +419,18 @@ def route_after_classifier(state: AgentState) -> str:
     if intent == "pci_sensitive_data":
         return "pci_guardrail"
 
+    # Mid-workflow interruption guard: if the outage workflow is active (troubleshooting_done
+    # or blast_radius_asked) and the user sends gibberish/greeting/off-topic, re-prompt.
+    entities = state.get("extracted_entities") or {}
+    if intent in ("out_of_domain", "greeting") and (
+        entities.get("troubleshooting_done") or entities.get("blast_radius_asked")
+    ):
+        return "workflow_reminder"
+
+    # Greeting: friendly response without RAG or LLM call.
+    if intent == "greeting":
+        return "greeting"
+
     # Out-of-domain and prompt injection: route directly to the static refusal node.
     if intent == "out_of_domain":
         return "out_of_domain"
@@ -419,18 +450,45 @@ def route_after_classifier(state: AgentState) -> str:
             return "escalation_resolved"
         return "post_escalation_ack"
 
+    # Post-resolution closure: after "Glad to hear..." if the user replies with a simple
+    # negative/closure ("no", "no thanks", "I'm good"), treat it as conversation end.
+    if prior_ai and "glad to hear the issue is resolved" in prior_ai.lower():
+        latest = messages[-1].content.strip().lower() if messages else ""
+        _closure_words = {"no", "nope", "nah", "nothing", "nhi", "nahi", "bye", "thanks", "thank"}
+        _closure_phrases = (
+            "no thanks", "no thank", "i'm good", "im good", "that's all",
+            "thats all", "nothing else", "all good", "bye", "thank you",
+        )
+        if (
+            set(latest.split()) & _closure_words
+            or any(phrase in latest for phrase in _closure_phrases)
+        ) and len(latest.split()) <= 5:
+            return "greeting"
+
     # Critical outage is a confirmed production failure — skip troubleshooting and dispatch immediately.
+    # But respect the deduplication guard: don't re-escalate if already dispatched.
     if intent == "critical_outage":
+        if state.get("escalation_dispatched"):
+            return "post_escalation_ack"
         return "escalation"
 
     # Multi-turn outage workflow: confirm blast radius, troubleshoot, then escalate only on failure.
     if intent in _ESCALATION_WORKFLOW_INTENTS or state.get("escalation_required"):
         entities = state.get("extracted_entities") or {}
-        # Read blast_radius from top-level state first, then fall back to extracted_entities.
-        blast_radius = state.get("blast_radius") or entities.get("blast_radius")
-        if not blast_radius:
-            messages = state.get("messages", [])
-            if messages and messages[-1].type == "human":
+        messages = state.get("messages", [])
+
+        # When the blast-radius question was already asked, only trust the heuristic —
+        # the LLM may hallucinate a blast_radius entity from gibberish input.
+        if entities.get("blast_radius_asked") and not entities.get("troubleshooting_done"):
+            blast_radius = state.get("blast_radius")
+            if not blast_radius and messages and messages[-1].type == "human":
+                blast_radius = infer_blast_radius(messages[-1].content)
+            if not blast_radius:
+                return "blast_radius_check"
+        else:
+            # Read blast_radius from top-level state first, then fall back to extracted_entities.
+            blast_radius = state.get("blast_radius") or entities.get("blast_radius")
+            if not blast_radius and messages and messages[-1].type == "human":
                 blast_radius = infer_blast_radius(messages[-1].content)
 
         # Pause and ask scope before any KB retrieval when blast radius is still unknown.
@@ -441,24 +499,65 @@ def route_after_classifier(state: AgentState) -> str:
         if not entities.get("troubleshooting_done"):
             return "troubleshoot_first"
 
-        # Route to escalation when the router extracted troubleshooting_failed from top-level state.
+        # Negative language sets used for both LLM-extracted and heuristic escalation checks.
+        messages = state.get("messages", [])
+        user_text = messages[-1].content.lower() if messages else ""
+        user_words = set(user_text.split())
+        _negative_words = {
+            "no", "nope", "nah", "not", "still", "broken", "failed",
+            "offline", "unresolved", "didn't", "didnt", "doesn't", "doesnt",
+            "down", "issue", "problem", "worse", "nothing", "same",
+        }
+        _negative_phrases = (
+            "not resolved", "not working", "still down", "didn't work",
+            "did not work", "same issue", "same problem", "not fixed",
+            "still broken", "no luck", "doesn't work", "does not work",
+            "still not", "nahi", "nhi",
+        )
+        _has_negative = (
+            bool(user_words & _negative_words)
+            or any(phrase in user_text for phrase in _negative_phrases)
+        )
+
+        # Deduplication guard: if a ticket was already dispatched in this session,
+        # do NOT create another one — route to the acknowledgment node instead.
+        if state.get("escalation_dispatched"):
+            if _has_negative:
+                return "post_escalation_ack"
+            return "workflow_reminder"
+
+        # Route to escalation when the router extracted troubleshooting_failed —
+        # but ONLY if the user's message actually contains recognizable negative language.
+        # Gibberish classified as failure by the LLM must not auto-escalate.
         if state.get("troubleshooting_failed") is True or entities.get("troubleshooting_failed") is True:
+            if _has_negative:
+                return "escalation"
+            return "workflow_reminder"
+
+        # Heuristic: treat negative confirmation language as escalation after KB steps were offered.
+        if entities.get("troubleshooting_done") and _has_negative:
             return "escalation"
 
-        # Only treat negative confirmation language as escalation after KB steps were offered.
-        if entities.get("troubleshooting_done"):
-            messages = state.get("messages", [])
-            user_words = set(messages[-1].content.lower().split()) if messages else set()
-            _negative_words = {
-                "no", "nope", "nah", "not", "still", "broken", "failed",
-                "offline", "unresolved", "didn't", "didnt", "doesn't", "doesnt",
-            }
-            if user_words & _negative_words:
-                return "escalation"
-
-        # Route to the resolved node when troubleshooting successfully fixed the outage.
+        # Route to the resolved node ONLY when the user explicitly confirms resolution.
+        # Gibberish or ambiguous replies must not be treated as positive confirmation.
         if state.get("troubleshooting_failed") is False or entities.get("troubleshooting_failed") is False:
-            return "escalation_resolved"
+            messages = state.get("messages", [])
+            user_text = messages[-1].content.lower() if messages else ""
+            user_words = set(user_text.split())
+            _positive_words = {
+                "yes", "yeah", "yep", "yup", "ya", "ha", "haan",
+                "fixed", "resolved", "working", "works", "good", "great",
+                "done", "solved", "correct", "okay", "ok", "sure", "absolutely",
+            }
+            _positive_phrases = (
+                "that fixed", "it worked", "all good", "working now",
+                "issue is fixed", "resolved it", "that worked", "problem solved",
+                "yes it did", "it's working", "its working", "fixed it",
+            )
+            if user_words & _positive_words or any(phrase in user_text for phrase in _positive_phrases):
+                return "escalation_resolved"
+            # Ambiguous or gibberish reply — re-prompt for a clear Yes/No.
+            return "workflow_reminder"
 
     # API workflows: loyalty balance, transaction lookup, refund, system status check.
     if state.get("api_action_required"):
@@ -507,6 +606,10 @@ def create_agent_graph():
     workflow.add_node("rag_agent",         retrieve_and_generate)
     # Static refusal node: no LLM, no API — hardcoded response for off-topic or adversarial input.
     workflow.add_node("out_of_domain_node", handle_out_of_domain)
+    # Greeting node: friendly response for simple greetings.
+    workflow.add_node("greeting_node", handle_greeting)
+    # Workflow reminder: re-prompts when user sends gibberish mid-outage-workflow.
+    workflow.add_node("workflow_reminder_node", workflow_reminder_node)
     # Register the multi-turn conversational escalation guardrail nodes.
     workflow.add_node("blast_radius_check",  blast_radius_check_node)
     workflow.add_node("troubleshoot_first",  troubleshoot_first_node)
@@ -521,6 +624,8 @@ def create_agent_graph():
         "router",
         route_after_classifier,
         {
+            "greeting":             "greeting_node",
+            "workflow_reminder":     "workflow_reminder_node",
             "out_of_domain":        "out_of_domain_node",
             "pci_guardrail":        "pci_guardrail_node",
             "guardrail":            "guardrail_node",
@@ -545,7 +650,9 @@ def create_agent_graph():
     )
 
     # Terminal edges
-    workflow.add_edge("out_of_domain_node", END)
+    workflow.add_edge("greeting_node",          END)
+    workflow.add_edge("workflow_reminder_node",  END)
+    workflow.add_edge("out_of_domain_node",     END)
     workflow.add_edge("pci_guardrail_node", END)
     workflow.add_edge("guardrail_node",     END)
     workflow.add_edge("escalation_node",    END)

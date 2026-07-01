@@ -54,7 +54,7 @@ Contract: [API.md](API.md)
 | File | Role |
 |------|------|
 | [src/agent/graph.py](../src/agent/graph.py) | LangGraph state machine, outage workflow |
-| [src/agent/router.py](../src/agent/router.py) | Semantic router — **15 intents** |
+| [src/agent/router.py](../src/agent/router.py) | Semantic router — **16 intents** |
 | [src/agent/nodes.py](../src/agent/nodes.py) | RAG, guardrail, out-of-domain |
 | [src/agent/tools.py](../src/agent/tools.py) | Setomatic APIs + status scrape |
 | [src/agent/state.py](../src/agent/state.py) | Typed agent state |
@@ -98,7 +98,7 @@ Not a single-shot RAG answer. See [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.m
 
 ### Semantic routing
 
-[router.py](../src/agent/router.py) classifies 15 intents and extracts entities (`blast_radius`, `card_number`, `troubleshooting_failed`, etc.).
+[router.py](../src/agent/router.py) classifies 16 intents and extracts entities (`blast_radius`, `card_number`, `troubleshooting_failed`, etc.).
 
 Full business mapping: [INTENT_MATRIX.md](INTENT_MATRIX.md) (29 Brandon rows).
 

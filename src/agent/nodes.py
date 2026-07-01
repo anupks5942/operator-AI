@@ -126,6 +126,32 @@ def pci_guardrail_node(state: AgentState):
     return {"messages": [AIMessage(content=refusal_message)]}
 
 
+def handle_greeting(state: AgentState):
+    """
+    Friendly greeting response for simple salutations like 'hi', 'hello', etc.
+    No LLM or RAG call — hardcoded to avoid pointless KB lookups on greetings.
+    """
+    greeting_message = (
+        "Hello! I'm the SpyderWash technical support agent. "
+        "I can help you with machine troubleshooting, loyalty card balances, "
+        "transaction history, refunds, and system status checks. "
+        "How can I assist you today?"
+    )
+    return {"messages": [AIMessage(content=greeting_message)]}
+
+
+def workflow_reminder_node(state: AgentState):
+    """
+    Re-prompts the user when they send gibberish/off-topic mid-outage-workflow.
+    Preserves the active workflow state and gently asks for a Yes/No answer.
+    """
+    reminder_message = (
+        "I didn't quite catch that. We're still working on your reported issue. "
+        "Did the troubleshooting steps I provided resolve the problem? Please reply **Yes** or **No**."
+    )
+    return {"messages": [AIMessage(content=reminder_message)]}
+
+
 def handle_out_of_domain(state: AgentState):
     """
     Static out-of-domain guardrail: rejects any query unrelated to Setomatic /
@@ -134,7 +160,6 @@ def handle_out_of_domain(state: AgentState):
     No LLM or API is called — the response is hardcoded to prevent the model
     from being manipulated by adversarial inputs that sneak past the classifier.
     """
-    # Hardcoded refusal: never delegate this response to an LLM.
     refusal_message = (
         "I am a Setomatic technical support agent. "
         "I can only assist with SpyderWash hardware, portal troubleshooting, and operator actions."

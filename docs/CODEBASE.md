@@ -23,9 +23,9 @@ operator-AI/
 └── src/
     ├── config.py               # All env-backed settings
     ├── agent/
-    │   ├── graph.py            # LangGraph state machine (start here for behavior)
-    │   ├── router.py           # 15-intent semantic classifier
-    │   ├── nodes.py            # RAG, guardrail, out-of-domain nodes
+    │   ├── graph.py            # LangGraph state machine + workflow guards (start here for behavior)
+    │   ├── router.py           # 16-intent semantic classifier + greeting heuristic
+    │   ├── nodes.py            # RAG, guardrail, greeting, workflow_reminder, out-of-domain nodes
     │   ├── tools.py            # Setomatic API + status scrape tools
     │   └── state.py            # AgentState TypedDict
     ├── api/

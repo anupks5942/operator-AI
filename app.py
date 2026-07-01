@@ -38,17 +38,19 @@ def _render_ts(ts: str, align: str = "left") -> None:
 # Each entry maps the exact LangGraph node name to a display string shown
 # inside the st.status() block while that node is executing.
 _NODE_LABELS: dict[str, str] = {
-    "router":            "Classifying operator intent...",
-    "tool_node":         "Executing system tool...",
-    "rag_agent":         "Querying SpyderWash Knowledge Base...",
-    "guardrail_node":    "Applying hardware status guardrail...",
-    "escalation_node":   "Triggering escalation workflow...",
-    "blast_radius_check": "Confirming outage scope...",
-    "troubleshoot_first": "Querying SpyderWash Knowledge Base...",
-    "escalation_resolved": "Closing resolved support request...",
-    "post_escalation_ack": "Confirming escalation handoff...",
-    "out_of_domain_node": "Applying domain guardrail...",
-    "pci_guardrail_node": "Applying PCI compliance guardrail...",
+    "router":               "Classifying operator intent...",
+    "tool_node":            "Executing system tool...",
+    "rag_agent":            "Querying SpyderWash Knowledge Base...",
+    "guardrail_node":       "Applying hardware status guardrail...",
+    "escalation_node":      "Triggering escalation workflow...",
+    "blast_radius_check":   "Confirming outage scope...",
+    "troubleshoot_first":   "Querying SpyderWash Knowledge Base...",
+    "escalation_resolved":  "Closing resolved support request...",
+    "post_escalation_ack":  "Confirming escalation handoff...",
+    "out_of_domain_node":   "Applying domain guardrail...",
+    "pci_guardrail_node":   "Applying PCI compliance guardrail...",
+    "greeting_node":        "Responding to greeting...",
+    "workflow_reminder_node": "Awaiting confirmation...",
 }
 
 def _node_label(node_name: str) -> str:
@@ -71,6 +73,10 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "thread_id" not in st.session_state:
     st.session_state.thread_id = str(uuid.uuid4())
+if "processing" not in st.session_state:
+    st.session_state.processing = False
+if "pending_input" not in st.session_state:
+    st.session_state.pending_input = None
 
 # ── Sidebar: routing diagnostics ─────────────────────────────────────────────
 with st.sidebar:
@@ -100,13 +106,23 @@ for msg in st.session_state.messages:
         _render_ts(msg.get("timestamp", ""), align=align)
 
 # ── Handle new user input ─────────────────────────────────────────────────────
-if prompt := st.chat_input("Ask a troubleshooting question, check balance, or report an outage..."):
+# Disable input while the agent is processing to prevent duplicate submissions.
+prompt = st.chat_input(
+    "Ask a troubleshooting question, check balance, or report an outage...",
+    disabled=st.session_state.processing,
+)
+
+if prompt and not st.session_state.processing:
+    st.session_state.pending_input = prompt
+    st.session_state.processing = True
+    st.rerun()
+
+# ── Process pending input (runs on the rerun with input disabled) ─────────────
+if st.session_state.processing and st.session_state.pending_input:
+    safe_input = sanitize_user_text(st.session_state.pending_input)
+    st.session_state.pending_input = None
     user_ts = _now_ts()
 
-    # Scrub input to prevent visual UI leaks and backend PCI violations.
-    safe_input = sanitize_user_text(prompt)
-
-    # Persist and immediately render the user message
     st.session_state.messages.append({"role": "user", "content": safe_input, "timestamp": user_ts})
     with st.chat_message("user"):
         st.markdown(safe_input)
@@ -115,33 +131,22 @@ if prompt := st.chat_input("Ask a troubleshooting question, check balance, or re
     initial_state = {"messages": [("user", safe_input)]}
     config        = {"configurable": {"thread_id": st.session_state.thread_id}}
 
-    # Accumulate the full state across all streamed node updates so we can
-    # extract the final response and sidebar diagnostics after streaming ends.
     accumulated_state: dict = {}
     final_response           = ""
 
     try:
-        # st.status() shows a live "Agent is thinking..." block that collapses
-        # to "Task Complete" once the graph finishes streaming.
         with st.status("Agent is thinking...", expanded=True) as status:
 
-            # stream_mode="updates" yields {node_name: state_delta} dicts —
-            # one dict per node that executed, in execution order.
             for chunk in compiled_graph.stream(
                 initial_state,
                 config=config,
                 stream_mode="updates",
             ):
-                # Each chunk is a dict: {node_name: state_delta}
                 for node_name, state_delta in chunk.items():
-                    # Show a live human-readable label for the active node
                     st.write(_node_label(node_name))
 
-                    # Merge the delta into accumulated_state so we always
-                    # have the latest messages, intent, and flags available
                     for key, value in state_delta.items():
                         if key == "messages":
-                            # Messages are a list; extend rather than overwrite
                             existing = accumulated_state.get("messages", [])
                             accumulated_state["messages"] = existing + (
                                 value if isinstance(value, list) else [value]
@@ -149,10 +154,7 @@ if prompt := st.chat_input("Ask a troubleshooting question, check balance, or re
                         else:
                             accumulated_state[key] = value
 
-            # All nodes have finished — extract the final text response
             final_response = _extract_final_response(accumulated_state)
-
-            # Collapse the status widget and mark completion
             status.update(label="Task Complete", state="complete", expanded=False)
 
         # ── Update sidebar diagnostics from final accumulated state ───────────
@@ -180,7 +182,6 @@ if prompt := st.chat_input("Ask a troubleshooting question, check balance, or re
 
     ai_ts = _now_ts()
 
-    # Render the assistant reply with timestamp
     with st.chat_message("assistant"):
         st.markdown(final_response)
         _render_ts(ai_ts, align="left")
@@ -190,3 +191,7 @@ if prompt := st.chat_input("Ask a troubleshooting question, check balance, or re
         "content":   final_response,
         "timestamp": ai_ts,
     })
+
+    # Re-enable input after processing completes
+    st.session_state.processing = False
+    st.rerun()

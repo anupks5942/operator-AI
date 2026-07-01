@@ -145,6 +145,18 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 
 ---
 
+## ADR-016: Escalation deduplication and state reset
+
+**Status:** Accepted  
+**Context:** Operators could repeatedly say "NO" after an escalation ticket was dispatched, generating infinite duplicate tickets with SMS/email each time. Additionally, after saying "YES" (resolved), the workflow flags persisted in state, trapping subsequent messages in the `workflow_reminder` loop instead of treating them as fresh conversations.  
+**Decision:**  
+- `escalation_node` sets `escalation_dispatched: true` in state after dispatch.  
+- `route_after_classifier` checks this flag before routing to escalation — if already dispatched, routes to `post_escalation_ack` instead.  
+- `escalation_resolved_node` performs a full state reset (clears `troubleshooting_done`, `blast_radius`, `troubleshooting_failed`, `escalation_dispatched`) so new issues can start fresh.  
+**Consequences:** Max 1 escalation ticket per unresolved workflow instance. Operator must confirm resolution to start a new workflow. See [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md).
+
+---
+
 When making a significant architectural choice:
 
 1. Add a numbered ADR to this file

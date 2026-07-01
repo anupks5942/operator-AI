@@ -56,6 +56,8 @@ All UIs call **only** `:8000/api/v1/agent/chat`. Mock server replaced by live Se
 ```mermaid
 flowchart TD
   start([User message]) --> router[router]
+  router -->|greeting| greet[greeting_node]
+  router -->|mid-workflow gibberish| remind[workflow_reminder_node]
   router -->|out_of_domain| ood[out_of_domain_node]
   router -->|hardware_status| guard[guardrail_node]
   router -->|critical_outage| esc[escalation_node]
@@ -68,6 +70,8 @@ flowchart TD
   router -->|general or technical| rag[rag_agent]
   rag -->|user says no| esc
   rag -->|resolved| endNode([END])
+  greet --> endNode
+  remind --> endNode
   blast --> endNode
   troubleshoot --> endNode
   esc --> endNode
@@ -80,11 +84,13 @@ flowchart TD
 
 ---
 
-## Graph nodes (11)
+## Graph nodes (13)
 
 | Node | File | Purpose |
 |------|------|---------|
 | `router` | [router.py](../src/agent/router.py) | Classify intent, extract entities, set flags |
+| `greeting_node` | [nodes.py](../src/agent/nodes.py) | Friendly response for simple greetings (no LLM/RAG) |
+| `workflow_reminder_node` | [nodes.py](../src/agent/nodes.py) | Re-prompts Yes/No when user sends gibberish mid-outage-workflow |
 | `guardrail_node` | [nodes.py](../src/agent/nodes.py) | Refuse live hardware status requests |
 | `out_of_domain_node` | [nodes.py](../src/agent/nodes.py) | Static refusal for off-topic / injection |
 | `blast_radius_check` | [graph.py](../src/agent/graph.py) | Ask one machine vs entire laundromat |
@@ -120,13 +126,18 @@ Each turn ends at `END` after one node chain (router → one downstream node →
 
 ## Routing priority (`route_after_classifier`)
 
-1. `out_of_domain` → refusal
-2. `hardware_lookup_attempted` → guardrail
-3. Post-escalation follow-ups → `post_escalation_ack` or `escalation_resolved`
-4. `critical_outage` → immediate escalation (skip troubleshoot)
-5. Outage workflow intents → blast-radius → troubleshoot → escalate on failure
-6. `api_action_required` → tools
-7. Default → RAG
+1. `pci_sensitive_data` → PCI guardrail
+2. **Workflow continuity guard**: if `out_of_domain`/`greeting` BUT `troubleshooting_done` or `blast_radius_asked` is active → `workflow_reminder_node` (re-prompts)
+3. `greeting` → greeting_node (pre-LLM heuristic; no RAG or API call)
+4. `out_of_domain` → refusal
+5. `hardware_lookup_attempted` → guardrail
+6. Post-escalation follow-ups → `post_escalation_ack` or `escalation_resolved`
+7. **Post-resolution closure**: "no" / "no thanks" after "Glad to hear..." → friendly close (not new workflow)
+8. `critical_outage` → immediate escalation (skip troubleshoot; dedup guard prevents re-dispatch)
+9. Outage workflow intents → blast-radius → troubleshoot → escalate on failure
+10. **Escalation dedup**: if `escalation_dispatched` is set, "no" routes to `post_escalation_ack` (no duplicate tickets)
+11. `api_action_required` → tools
+12. Default → RAG
 
 Outage intents (`_ESCALATION_WORKFLOW_INTENTS` in graph; `_OUTAGE_WORKFLOW_INTENTS` in router — same set):
 
