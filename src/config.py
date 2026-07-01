@@ -43,7 +43,7 @@ _use_mock_raw: str = os.getenv("USE_MOCK_REFUNDS", "true")
 USE_MOCK_REFUNDS: bool = _use_mock_raw.strip().lower() not in ("false", "0", "no")
 
 # LLM provider configuration. Switch providers through .env without code changes.
-LLM_PROVIDER: str = _env_str("LLM_PROVIDER", "groq").lower()
+LLM_PROVIDER: str = _env_str("LLM_PROVIDER", "openai").lower()
 OPENAI_MODEL: str = _env_str("OPENAI_MODEL", "gpt-4o-mini")
 GROQ_MODEL: str = _env_str("GROQ_MODEL", "llama-3.3-70b-versatile")
 

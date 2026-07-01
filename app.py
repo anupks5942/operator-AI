@@ -1,11 +1,19 @@
 import streamlit as st
 import uuid
+import logging
 from datetime import datetime
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage as _AIMsg
 from src.utils.security import sanitize_user_text
 
 load_dotenv()
+
+# Configure logging so agent/tool log statements appear in the Streamlit terminal output
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s  %(levelname)-8s  %(name)s  |  %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
 
 from src.agent.graph import agent_app as compiled_graph
 

@@ -12,11 +12,14 @@ URL routing is controlled by src/config.py — set environment variables in .env
 """
 # httpx replaced by requests across all tool HTTP calls for a unified error boundary interface.
 import requests
+import logging
 import datetime
 from datetime import datetime
 from bs4 import BeautifulSoup
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field, field_validator
+
+logger = logging.getLogger("setomatic.tools")
 
 # Import centralized URL config — all base URLs are defined in src/config.py
 from src.config import MOCK_BASE_URL, SETOMATIC_BASE_URL, USE_MOCK_REFUNDS
@@ -130,15 +133,18 @@ def get_loyalty_balance(card_number: str) -> str:
         API is unreachable, the card is not found, or the response is malformed.
     """
     try:
+        params = {
+            "OperatorId":    _LOYALTY_OPERATOR_ID,
+            "LoyaltyCardNo": card_number,
+        }
+        logger.info("[get_loyalty_balance] Calling API: GET %s | Params: %s", _LOYALTY_BALANCE_URL, params)
         # Network call: requests.get with explicit connect + read timeout pair.
         response = requests.get(
             _LOYALTY_BALANCE_URL,
-            params={
-                "OperatorId":    _LOYALTY_OPERATOR_ID,
-                "LoyaltyCardNo": card_number,
-            },
+            params=params,
             timeout=(10.0, 12.0),
         )
+        logger.info("[get_loyalty_balance] API Response [%s]: %s", response.status_code, response.text)
 
         # Server-side failure: instruct the LLM to tell the user the system is temporarily down.
         if response.status_code >= 500:
@@ -233,20 +239,23 @@ def get_transaction_history(card_number: str) -> str:
     end_date = '2026-04-30'
 
     try:
+        params = {
+            'LoggedInUserId': 4,
+            'IsFundAmountUsed': 'true',
+            'StartDate': start_date,
+            'EndDate': end_date,
+            'LoyaltyCardNo': card_number,
+            'PageNo': 1,
+            'PageSize': 5
+        }
+        logger.info("[get_transaction_history] Calling API: GET %s | Params: %s", _TRANSACTION_SEARCH_URL, params)
         # Request the transaction history matching the locked staging demo date range.
         response = requests.get(
             _TRANSACTION_SEARCH_URL,
-            params={
-                'LoggedInUserId': 4,
-                'IsFundAmountUsed': 'true',
-                'StartDate': start_date,
-                'EndDate': end_date,
-                'LoyaltyCardNo': card_number,
-                'PageNo': 1,
-                'PageSize': 5
-            },
+            params=params,
             timeout=(10.0, 12.0),
         )
+        logger.info("[get_transaction_history] API Response [%s]: %s", response.status_code, response.text)
 
         # Server-side failure: instruct the LLM to tell the user the system is temporarily down.
         if response.status_code >= 500:
@@ -355,10 +364,14 @@ def check_global_system_status() -> str:
         })
         try:
             # Warm-up request to the homepage first (establishes session context)
+            logger.info("[check_global_system_status] Warming up session at https://setomaticsystems.com/")
             session.get("https://setomaticsystems.com/", timeout=8)
             # Now fetch the actual status page
+            logger.info("[check_global_system_status] Fetching https://setomaticsystems.com/status")
             resp = session.get("https://setomaticsystems.com/status", timeout=10)
-        except Exception:
+            logger.info("[check_global_system_status] Setomatic status page Response [%s]", resp.status_code)
+        except Exception as e:
+            logger.error("[check_global_system_status] Failed to fetch setomatic status: %s", e)
             return None
 
         if resp.status_code != 200:
@@ -401,8 +414,11 @@ def check_global_system_status() -> str:
         """
         headers = {**_BROWSER_HEADERS, "Referer": "https://www.cantaloupe.com/", "DNT": "1"}
         try:
+            logger.info("[check_global_system_status] Fetching fallback: https://www.cantaloupe.com/status")
             resp = requests.get("https://www.cantaloupe.com/status", headers=headers, timeout=10)
-        except Exception:
+            logger.info("[check_global_system_status] Cantaloupe status page Response [%s]", resp.status_code)
+        except Exception as e:
+            logger.error("[check_global_system_status] Failed to fetch cantaloupe status: %s", e)
             return None
 
         if resp.status_code != 200:
@@ -510,15 +526,19 @@ def check_refund_eligibility(transaction_detail_id: str) -> str:
         refund and the reason provided by the API, or a graceful error string.
     """
     try:
+        url = f"{_REFUND_BASE}/api/Transactions/RefundEligibility"
+        params = {
+            "transactionDetailId": transaction_detail_id,
+            "OperatorId":          _REFUND_OPERATOR_ID,
+        }
+        logger.info("[check_refund_eligibility] Calling API: GET %s | Params: %s", url, params)
         # Network call: requests.get with explicit connect + read timeout pair.
         response = requests.get(
-            f"{_REFUND_BASE}/api/Transactions/RefundEligibility",
-            params={
-                "transactionDetailId": transaction_detail_id,
-                "OperatorId":          _REFUND_OPERATOR_ID,
-            },
+            url,
+            params=params,
             timeout=(8.0, 10.0),
         )
+        logger.info("[check_refund_eligibility] API Response [%s]: %s", response.status_code, response.text)
 
         # Server-side failure: instruct the LLM to tell the user the system is temporarily down.
         if response.status_code >= 500:
@@ -591,15 +611,19 @@ def execute_refund(transaction_detail_id: str) -> str:
         or a graceful error string if the API fails.
     """
     try:
+        url = f"{_REFUND_BASE}/api/Transactions/RefundProcessing"
+        params = {
+            "transactionDetailId": transaction_detail_id,
+            "OperatorId":          _REFUND_OPERATOR_ID,
+        }
+        logger.info("[execute_refund] Calling API: GET %s | Params: %s", url, params)
         # Network call: requests.get with explicit connect + read timeout pair.
         response = requests.get(
-            f"{_REFUND_BASE}/api/Transactions/RefundProcessing",
-            params={
-                "transactionDetailId": transaction_detail_id,
-                "OperatorId":          _REFUND_OPERATOR_ID,
-            },
+            url,
+            params=params,
             timeout=(8.0, 10.0),
         )
+        logger.info("[execute_refund] API Response [%s]: %s", response.status_code, response.text)
 
         # Server-side failure: instruct the LLM to tell the user the system is temporarily down.
         if response.status_code >= 500:
