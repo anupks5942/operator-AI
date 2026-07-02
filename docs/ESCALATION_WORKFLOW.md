@@ -18,41 +18,49 @@ sequenceDiagram
   participant E as escalation_node
   participant P as post_escalation_ack
   participant Res as escalation_resolved
+  participant New as new_issue_after_escalation
   participant N as Notifications
 
   Op->>R: Report issue
-  R->>B: blast_radius unknown
+  R->>B: blast_radius unknown (or ambiguous)
   B->>Op: One machine or entire laundromat?
-  Op->>R: Just one machine / entire location
-  R->>T: troubleshooting not done
-  T->>Op: KB steps + Did this resolve?
-  alt Yes fixed
-    Op->>R: Yes
-    R->>Res: positive confirmation
-    Res->>Op: Glad to hear resolved (state reset)
-  else Gibberish / off-topic
-    Op->>R: random text
-    R->>W: workflow active + out_of_domain
-    W->>Op: Did the steps resolve it? Yes/No
-    Op->>R: No
-    R->>E: troubleshooting_failed
+  alt Entire location
+    Op->>R: All / everything
+    R->>E: entire_location = immediate escalation
     E->>N: Email + SMS
     E->>Op: Ticket TKT-xxx dispatched
-  else Still broken
-    Op->>R: No / still offline
-    R->>E: troubleshooting_failed
-    E->>N: Email + SMS
-    E->>Op: Ticket TKT-xxx dispatched
+  else Single/few machines
+    Op->>R: Just one / two machines
+    R->>T: troubleshooting (single_machine)
+    T->>Op: KB steps + Did this resolve?
+    alt Yes / y
+      Op->>R: Yes
+      R->>Res: positive confirmation
+      Res->>Op: Glad to hear resolved (state reset)
+    else Gibberish / off-topic
+      Op->>R: random text
+      R->>W: workflow active + out_of_domain
+      W->>Op: Did the steps resolve it? Yes/No
+    else No / still broken
+      Op->>R: No
+      R->>E: troubleshooting_failed
+      E->>N: Email + SMS
+      E->>Op: Ticket TKT-xxx dispatched
+    end
   end
   Note over R,E: After escalation_dispatched=true
-  alt Operator says NO again
-    Op->>R: No / still down
-    R->>P: escalation_dispatched guard
+  alt New issue report (≥3 words)
+    Op->>R: "one new machine is down"
+    R->>New: reset state + fresh cycle
+    New->>Op: Blast-radius question (new cycle)
+  else Short follow-up / NO again
+    Op->>R: No / still down / gibberish
+    R->>P: dedup guard
     P->>Op: Ticket already dispatched
-  else Operator confirms resolved
+  else Confirms resolved
     Op->>R: Yes / fixed
-    R->>Res: positive confirmation
-    Res->>Op: Glad to hear (state fully reset)
+    R->>Res: state fully reset
+    Res->>Op: Glad to hear resolved
   end
 ```
 
@@ -66,34 +74,42 @@ From `_ESCALATION_WORKFLOW_INTENTS` in [graph.py](../src/agent/graph.py) (same s
 |--------|--------------------------|
 | `machines_not_starting` | "My washer won't start" |
 | `machine_down` | "Machine 5 is offline" |
-| `kiosk_not_responding` | "Kiosk is frozen" |
 | `multiple_machines_offline` | "Several machines lost hub connection" |
 | `emergency_store_down` | "Whole store is down" |
 | `escalation_request` | "I need a human / supervisor" |
 
-**Exception:** `critical_outage` skips troubleshooting and escalates immediately.
+**Exceptions:**
+- `critical_outage` skips troubleshooting and escalates immediately.
+- `entire_location` blast radius also escalates immediately (entire laundromat offline = critical).
 
 ---
 
 ## Step-by-step
 
-### Step 1 — Blast-radius question
+### Step 1 — Blast-radius question (conditional)
 
 **Node:** `blast_radius_check_node`
 
 **Prompt:** "To help me get you the right fix, is this affecting just one specific machine, or is your entire laundromat offline?"
 
+**Skipped when:** the user's initial message already contains a clear blast-radius indicator (e.g., "one machine is down" → inferred as `single_machine` by heuristic, skips the question).
+
 **Router extracts:** `blast_radius`: `single_machine` or `entire_location`
 
-**Heuristic fallback:** [infer_blast_radius](../src/agent/router.py) when LLM omits entity (e.g. "Everything is down" → `entire_location`).
+**Heuristic fallback:** [infer_blast_radius](../src/agent/router.py) — expanded to cover:
+- Single: "one machine", "two machines", "few machines", "a machine", short answers like "one", "1"
+- Entire: "all machines", "everything down", "whole store", short answers like "all", "everything"
 
-### Step 2 — Troubleshooting (RAG)
+### Step 2a — Entire location → Immediate escalation
+
+If `blast_radius == "entire_location"`: **skip troubleshooting** and route to `escalation_node` directly. The entire laundromat being offline is inherently critical and requires immediate human intervention.
+
+### Step 2b — Single/few machines → Troubleshooting (RAG)
 
 **Node:** `troubleshoot_first_node`
 
 - Builds query from original incident message (skips short replies like "yes", "no", "just one machine")
-- **Entire location:** biases query toward hub/gateway/network KB content
-- **Single machine:** filters `doc_type: troubleshooting_guide`
+- Filters `doc_type: troubleshooting_guide`
 - Appends: "Did this resolve the issue? (Yes/No)"
 - Sets `troubleshooting_done: true` in entities
 
@@ -123,18 +139,20 @@ Negative word/phrase matching also runs in `route_after_classifier` after `troub
 
 **SMS format:** `SpyderWash ESCALATION TKT-xxx: {summary}`
 
-### Step 5 — Post-escalation (deduplication guard)
+### Step 5 — Post-escalation (deduplication + fresh cycle)
 
 Once `escalation_node` fires, `escalation_dispatched: true` is set in state. This flag prevents duplicate tickets:
 
 - Any subsequent negative reply ("no", "still down") → `post_escalation_ack_node` (ticket already active)
 - "resolved" / "fixed" → `escalation_resolved_node` (clears all workflow state)
-- Gibberish / ambiguous → `workflow_reminder_node`
+- Gibberish / ambiguous → `post_escalation_ack_node`
+- **New issue report** (outage intent + ≥3 words) → `new_issue_after_escalation_node` (resets all state, starts fresh blast-radius cycle)
 
 If assistant message contains "critical escalation ticket" or "already been dispatched":
 
-- "wait yes" / ambiguous follow-up → `post_escalation_ack_node` (no blast-radius restart)
+- Short follow-up / ambiguous → `post_escalation_ack_node` (no blast-radius restart)
 - "resolved" / "fixed" → `escalation_resolved_node`
+- New descriptive issue report → fresh cycle
 
 ### Step 6 — State reset on resolution
 
@@ -186,6 +204,17 @@ Automated tests: [tests/test_outage_workflow.py](../tests/test_outage_workflow.p
 | "MACHINE DONW" after "YES" stuck in workflow_reminder | `escalation_resolved_node` resets all workflow flags so new issues start fresh |
 | "no" after "Glad to hear..." starts new workflow | Post-resolution closure guard detects conversational "no" (≤5 words) and routes to friendly close |
 | Gibberish during blast-radius question advances workflow | `blast_radius_asked` flag + heuristic-only validation; LLM-hallucinated entities ignored |
+| "every" / "each" not recognized as entire_location | Added to `_ENTIRE_SHORT` set |
+| "yaa" not recognized as positive confirmation | Added to `_positive_words` set |
+| API tool call during active workflow causes state leak | `tool_node` clears all workflow flags on execution |
+| "one machine is down" during "Did this resolve?" triggers false escalation | New-issue detection (≥4 words + machine terms) routes to fresh `blast_radius_check` |
+| "one machine" alone (no symptom) goes straight to troubleshooting | `clarify_issue_node` asks for details when issue description lacks action/symptom words |
+| Workflow_reminder fires after escalation (cycle complete) | Guard checks `not state.get("escalation_dispatched")` |
+| `escalation_node` doesn't mark workflow done | Now sets `troubleshooting_done: True`, `blast_radius_asked: False` |
+| Non-outage symptoms (lights/sounds) enter outage workflow | Router prompt rule 15: `technical_support` for symptoms → RAG directly (no blast-radius/escalation) |
+| Router overwrites `blast_radius: None` destroying established scope | Router only writes blast_radius to state when non-None |
+| `clarify_issue` fires repeatedly (user provides details but gets re-asked) | `clarify_asked` flag ensures clarify only fires once per cycle |
+| "lc-00000212" card number fails but "00000212" works | `_normalize_card_number()` strips LC-/lc- prefixes in tools before API call |
 
 ---
 

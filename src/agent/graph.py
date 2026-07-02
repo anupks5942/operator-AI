@@ -26,7 +26,6 @@ _ESCALATION_WORKFLOW_INTENTS = frozenset({
     "machine_down",
     "escalation_request",
     "machines_not_starting",
-    "kiosk_not_responding",
     "multiple_machines_offline",
 })
 
@@ -159,6 +158,34 @@ def escalation_node(state: AgentState):
     return {
         "messages": [AIMessage(content=response_content)],
         "escalation_dispatched": True,
+        "extracted_entities": {
+            "troubleshooting_done": True,
+            "blast_radius_asked": False,
+        },
+    }
+
+
+def new_issue_after_escalation_node(state: AgentState):
+    """Resets all workflow state from the previous escalation cycle and asks blast-radius for the new issue."""
+    messages = state.get("messages", [])
+    user_text = messages[-1].content if messages and messages[-1].type == "human" else ""
+    blast_radius = infer_blast_radius(user_text)
+
+    # If blast radius is already clear from the new message, persist it so the
+    # next turn can skip the blast-radius question and proceed directly.
+    msg = AIMessage(content="To help me get you the right fix, is this affecting just one specific machine, or is your entire laundromat offline?")
+    return {
+        "messages": [msg],
+        "extracted_entities": {
+            "troubleshooting_done": False,
+            "troubleshooting_failed": False,
+            "blast_radius": None,
+            "blast_radius_asked": True,
+        },
+        "blast_radius": blast_radius,
+        "escalation_required": True,
+        "troubleshooting_failed": None,
+        "escalation_dispatched": None,
     }
 
 
@@ -168,6 +195,23 @@ def blast_radius_check_node(state: AgentState):
     return {
         "messages": [msg],
         "extracted_entities": {"blast_radius_asked": True},
+    }
+
+
+def clarify_issue_node(state: AgentState):
+    """Asks for more detail when the issue description is too vague to produce useful troubleshooting."""
+    msg = AIMessage(content=(
+        "I understand there's an issue with your machine. Could you provide more details? "
+        "For example:\n"
+        "- Is it not starting?\n"
+        "- Is it showing an error message or code?\n"
+        "- Is it making unusual sounds?\n"
+        "- Is the display blank or frozen?\n\n"
+        "This will help me give you the right troubleshooting steps."
+    ))
+    return {
+        "messages": [msg],
+        "extracted_entities": {"clarify_asked": True},
     }
 
 
@@ -248,6 +292,7 @@ def escalation_resolved_node(state: AgentState):
             "troubleshooting_failed": False,
             "blast_radius": None,
             "blast_radius_asked": False,
+            "clarify_asked": False,
         },
         "blast_radius": None,
         "escalation_required": None,
@@ -403,7 +448,19 @@ def tool_node(state: AgentState):
             new_messages.append(tool_msg)
             msgs.append(tool_msg)
 
-    return {"messages": new_messages}
+    # When a tool action runs, the user has switched context (e.g., from outage
+    # troubleshooting to checking balance/transactions). Clear workflow flags to
+    # prevent stale state from leaking into unrelated future interactions.
+    return {
+        "messages": new_messages,
+        "extracted_entities": {
+            "troubleshooting_done": False,
+            "blast_radius_asked": False,
+        },
+        "blast_radius": None,
+        "troubleshooting_failed": None,
+        "escalation_dispatched": None,
+    }
 
 
 
@@ -421,11 +478,20 @@ def route_after_classifier(state: AgentState) -> str:
 
     # Mid-workflow interruption guard: if the outage workflow is active (troubleshooting_done
     # or blast_radius_asked) and the user sends gibberish/greeting/off-topic, re-prompt.
+    # But NOT after escalation is dispatched — that means the workflow completed.
+    # Also check: if the user sent a positive confirmation word (yaa, yes, y, etc.),
+    # DON'T trap it in workflow_reminder — let it fall through to the resolution check.
     entities = state.get("extracted_entities") or {}
     if intent in ("out_of_domain", "greeting") and (
         entities.get("troubleshooting_done") or entities.get("blast_radius_asked")
-    ):
-        return "workflow_reminder"
+    ) and not state.get("escalation_dispatched"):
+        messages = state.get("messages", [])
+        _last_text = messages[-1].content.strip().lower() if messages else ""
+        _quick_positive = {"yes", "yeah", "yep", "yup", "ya", "yaa", "yah", "y", "si", "sí"}
+        if _last_text in _quick_positive or _last_text.split()[0:1] == ["yes"]:
+            pass  # Fall through to the outage workflow block where positive-word check runs
+        else:
+            return "workflow_reminder"
 
     # Greeting: friendly response without RAG or LLM call.
     if intent == "greeting":
@@ -448,13 +514,18 @@ def route_after_classifier(state: AgentState) -> str:
         latest = messages[-1].content if messages else ""
         if _user_indicates_resolved(latest):
             return "escalation_resolved"
+        # Allow new issue reports to start a fresh cycle instead of trapping them.
+        # If the router classified a genuine outage intent AND the user's message has
+        # descriptive content (not just "yes"/"no"/gibberish), start fresh blast-radius.
+        if intent in _ESCALATION_WORKFLOW_INTENTS and len(latest.split()) >= 3:
+            return "new_issue_after_escalation"
         return "post_escalation_ack"
 
     # Post-resolution closure: after "Glad to hear..." if the user replies with a simple
     # negative/closure ("no", "no thanks", "I'm good"), treat it as conversation end.
     if prior_ai and "glad to hear the issue is resolved" in prior_ai.lower():
         latest = messages[-1].content.strip().lower() if messages else ""
-        _closure_words = {"no", "nope", "nah", "nothing", "nhi", "nahi", "bye", "thanks", "thank"}
+        _closure_words = {"no", "nope", "nah", "nothing", "bye", "thanks", "thank", "gracias", "adios"}
         _closure_phrases = (
             "no thanks", "no thank", "i'm good", "im good", "that's all",
             "thats all", "nothing else", "all good", "bye", "thank you",
@@ -477,11 +548,11 @@ def route_after_classifier(state: AgentState) -> str:
         entities = state.get("extracted_entities") or {}
         messages = state.get("messages", [])
 
-        # When the blast-radius question was already asked, only trust the heuristic —
-        # the LLM may hallucinate a blast_radius entity from gibberish input.
+        # When the blast-radius question was already asked, ONLY trust the heuristic —
+        # the LLM/router promotes blast_radius to top-level state which may be hallucinated.
         if entities.get("blast_radius_asked") and not entities.get("troubleshooting_done"):
-            blast_radius = state.get("blast_radius")
-            if not blast_radius and messages and messages[-1].type == "human":
+            blast_radius = None
+            if messages and messages[-1].type == "human":
                 blast_radius = infer_blast_radius(messages[-1].content)
             if not blast_radius:
                 return "blast_radius_check"
@@ -495,14 +566,49 @@ def route_after_classifier(state: AgentState) -> str:
         if not blast_radius and not entities.get("troubleshooting_done"):
             return "blast_radius_check"
 
-        # Retrieve troubleshooting documentation before any escalation dispatch.
+        # Entire location offline = critical situation — escalate immediately, no troubleshooting.
+        if blast_radius == "entire_location" and not entities.get("troubleshooting_done"):
+            if state.get("escalation_dispatched"):
+                return "post_escalation_ack"
+            return "escalation"
+
+        # Single/few machines: retrieve troubleshooting documentation before any escalation.
+        # But first check if the issue description is too vague to produce useful results.
         if not entities.get("troubleshooting_done"):
+            # Only ask for clarification ONCE — if already asked, proceed to troubleshoot.
+            if not entities.get("clarify_asked"):
+                _issue_action_words = {
+                    "down", "offline", "broken", "error", "frozen", "stuck", "starting",
+                    "not", "won't", "wont", "dead", "blank", "beeping", "flashing",
+                    "noise", "sound", "leaking", "stopped", "responding", "working",
+                    "light", "blinking", "green", "amber", "red", "display",
+                }
+                _best_issue_msg = ""
+                for msg in reversed(messages):
+                    if msg.type == "human":
+                        content = msg.content.strip()
+                        if len(content) > 5 and not _is_conversational_workflow_reply(content):
+                            _best_issue_msg = content.lower()
+                            break
+                if not (set(_best_issue_msg.split()) & _issue_action_words) and len(_best_issue_msg.split()) <= 3:
+                    return "clarify_issue"
             return "troubleshoot_first"
 
         # Negative language sets used for both LLM-extracted and heuristic escalation checks.
         messages = state.get("messages", [])
         user_text = messages[-1].content.lower() if messages else ""
         user_words = set(user_text.split())
+
+        # Detect new issue descriptions that contain "down"/"offline" but are NOT a
+        # negative confirmation. E.g., "one machine is down" is a new report, not "no".
+        _machine_terms = {"machine", "washer", "dryer", "kiosk", "hub", "unit"}
+        _is_new_issue_description = (
+            len(user_words) >= 4
+            and bool(user_words & _machine_terms)
+        )
+        if _is_new_issue_description:
+            return "blast_radius_check"
+
         _negative_words = {
             "no", "nope", "nah", "not", "still", "broken", "failed",
             "offline", "unresolved", "didn't", "didnt", "doesn't", "doesnt",
@@ -512,7 +618,7 @@ def route_after_classifier(state: AgentState) -> str:
             "not resolved", "not working", "still down", "didn't work",
             "did not work", "same issue", "same problem", "not fixed",
             "still broken", "no luck", "doesn't work", "does not work",
-            "still not", "nahi", "nhi",
+            "still not", "no funciona", "sigue sin",
         )
         _has_negative = (
             bool(user_words & _negative_words)
@@ -545,7 +651,7 @@ def route_after_classifier(state: AgentState) -> str:
             user_text = messages[-1].content.lower() if messages else ""
             user_words = set(user_text.split())
             _positive_words = {
-                "yes", "yeah", "yep", "yup", "ya", "ha", "haan",
+                "yes", "yeah", "yep", "yup", "ya", "yaa", "yah", "y", "si", "sí",
                 "fixed", "resolved", "working", "works", "good", "great",
                 "done", "solved", "correct", "okay", "ok", "sure", "absolutely",
             }
@@ -569,8 +675,13 @@ def route_after_classifier(state: AgentState) -> str:
 
 
 def route_after_rag(state: AgentState) -> str:
-    # Walk backwards through messages to find the last human turn, skipping the AI response
-    # that was just appended by rag_agent so we never inspect the bot's own text for negatives.
+    # Only escalate after RAG if we're in an active troubleshooting workflow where the
+    # prior AI asked "Did this resolve?" — NOT for general RAG queries that happen to
+    # contain words like "not" or "down" (e.g., "light not blinking", "machine is down").
+    entities = state.get("extracted_entities") or {}
+    if not entities.get("troubleshooting_done"):
+        return "__end__"
+
     messages = state.get("messages", [])
     last_human_text = ""
     for msg in reversed(messages):
@@ -579,11 +690,9 @@ def route_after_rag(state: AgentState) -> str:
             break
 
     user_words = set(last_human_text.split())
-    # Trigger escalation when the user confirms troubleshooting did not resolve the issue.
     _negative_words = {"no", "nope", "nah", "not", "still", "broken", "failed", "offline", "down", "unresolved", "didn't", "didnt", "doesn't", "doesnt"}
     if user_words & _negative_words:
         return "escalation"
-    # Positive or neutral replies end the graph gracefully without dispatching a ticket.
     return "__end__"
 
 
@@ -612,9 +721,12 @@ def create_agent_graph():
     workflow.add_node("workflow_reminder_node", workflow_reminder_node)
     # Register the multi-turn conversational escalation guardrail nodes.
     workflow.add_node("blast_radius_check",  blast_radius_check_node)
+    workflow.add_node("clarify_issue",       clarify_issue_node)
     workflow.add_node("troubleshoot_first",  troubleshoot_first_node)
     workflow.add_node("escalation_resolved", escalation_resolved_node)
     workflow.add_node("post_escalation_ack", post_escalation_ack_node)
+    # Fresh-cycle node: resets state from a completed escalation and starts new outage workflow.
+    workflow.add_node("new_issue_after_escalation", new_issue_after_escalation_node)
 
     # Entry point
     workflow.set_entry_point("router")
@@ -634,8 +746,10 @@ def create_agent_graph():
             "rag":                  "rag_agent",
             "blast_radius_check":   "blast_radius_check",
             "troubleshoot_first":   "troubleshoot_first",
+            "clarify_issue":        "clarify_issue",
             "escalation_resolved":  "escalation_resolved",
             "post_escalation_ack":  "post_escalation_ack",
+            "new_issue_after_escalation": "new_issue_after_escalation",
         }
     )
 
@@ -658,9 +772,11 @@ def create_agent_graph():
     workflow.add_edge("escalation_node",    END)
     workflow.add_edge("tool_node",          END)
     workflow.add_edge("blast_radius_check",  END)
+    workflow.add_edge("clarify_issue",       END)
     workflow.add_edge("troubleshoot_first",  END)
     workflow.add_edge("escalation_resolved", END)
     workflow.add_edge("post_escalation_ack", END)
+    workflow.add_edge("new_issue_after_escalation", END)
 
     # Attach in-memory checkpointer for multi-turn persistence
     checkpointer = MemorySaver()

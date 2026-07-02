@@ -13,8 +13,6 @@ URL routing is controlled by src/config.py — set environment variables in .env
 # httpx replaced by requests across all tool HTTP calls for a unified error boundary interface.
 import requests
 import logging
-import datetime
-from datetime import datetime
 from bs4 import BeautifulSoup
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field, field_validator
@@ -78,6 +76,12 @@ class TransactionHistorySchema(BaseModel):
         pattern=_CARD_NUMBER_PATTERN,
         description="Loyalty card number (alphanumeric and hyphens, 4-15 characters).",
     )
+    count: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="Number of recent transactions to retrieve (1-20, default 5).",
+    )
 
 
 class RefundEligibilitySchema(BaseModel):
@@ -100,6 +104,13 @@ class RefundExecuteSchema(BaseModel):
         pattern=_TX_ID_PATTERN,
         description="Transaction detail ID confirmed eligible in step 2 (alphanumeric and hyphens).",
     )
+
+
+def _normalize_card_number(card_number: str) -> str:
+    """Strip common prefixes (LC-, lc-, LC, lc) that operators prepend to card numbers."""
+    import re
+    stripped = re.sub(r'^(?:lc[-\s]*)', '', card_number.strip(), flags=re.IGNORECASE)
+    return stripped.strip() or card_number
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +144,7 @@ def get_loyalty_balance(card_number: str) -> str:
         API is unreachable, the card is not found, or the response is malformed.
     """
     try:
+        card_number = _normalize_card_number(card_number)
         params = {
             "OperatorId":    _LOYALTY_OPERATOR_ID,
             "LoyaltyCardNo": card_number,
@@ -214,20 +226,21 @@ _TRANSACTION_PAGE_SIZE = 5   # Keep small to avoid context window overflow
 
 # args_schema enforces identical card number constraints as the balance tool.
 @tool(args_schema=TransactionHistorySchema)
-def get_transaction_history(card_number: str) -> str:
+def get_transaction_history(card_number: str, count: int = 5) -> str:
     """
     Use this tool when the user asks to look up recent transactions, payment history,
     or wash history for a specific SpyderWash loyalty card.
 
-    Calls the live SpyderWash production API and returns the last 5 transactions
-    within the past 6 months, formatted as a human-readable summary.
+    Calls the live SpyderWash production API and returns recent transactions
+    formatted as a human-readable summary.
 
-    LoggedInUserId is always 4 (hardcoded). PageNo=1, PageSize=5 (hardcoded to
-    prevent context window overflow). StartDate and EndDate are auto-computed.
+    LoggedInUserId is always 4 (hardcoded). StartDate and EndDate are auto-computed.
 
     Args:
         card_number: The full loyalty card number extracted from the user's message
                      or conversation history (e.g. "00000212", "LC-5555").
+        count: Number of transactions to retrieve (1-20, default 5). Use the number
+               the user explicitly requested, or default to 5.
 
     Returns:
         A formatted multi-line string listing each transaction's date/time,
@@ -237,6 +250,7 @@ def get_transaction_history(card_number: str) -> str:
     # This date window is temporarily locked to April 2026 to ensure the staging data renders correctly for the client demo, alongside the PageSize=5 limitation.
     start_date = '2026-04-01'
     end_date = '2026-04-30'
+    card_number = _normalize_card_number(card_number)
 
     try:
         # Pre-validate: confirm the card exists before fetching transactions.
@@ -257,6 +271,7 @@ def get_transaction_history(card_number: str) -> str:
                     "Please verify the card number and try again."
                 )
 
+        page_size = max(1, min(count, 20))
         params = {
             'LoggedInUserId': 4,
             'IsFundAmountUsed': 'true',
@@ -264,7 +279,7 @@ def get_transaction_history(card_number: str) -> str:
             'EndDate': end_date,
             'LoyaltyCardNo': card_number,
             'PageNo': 1,
-            'PageSize': 5
+            'PageSize': page_size,
         }
         logger.info("[get_transaction_history] Calling API: GET %s | Params: %s", _TRANSACTION_SEARCH_URL, params)
         response = requests.get(

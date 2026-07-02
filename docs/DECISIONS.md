@@ -19,7 +19,7 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 
 **Status:** Accepted  
 **Context:** Multiple entry points existed: Streamlit in-process, `main.py` `/query`, `server.py` chat.  
-**Decision:** Production integrators use **`POST /api/v1/agent/chat`** on [server.py](../src/api/server.py) only.  
+**Decision:** Production integrators use `POST /api/v1/agent/chat` on [server.py](../src/api/server.py) only.  
 **Consequences:** React and .NET widgets target `:8000`. Legacy `/query` deprecated. See [API.md](API.md).
 
 ---
@@ -59,6 +59,8 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 **Consequences:** Streamlit may show "Unknown Operator" in escalations (no contact fields). See [ROADMAP.md](ROADMAP.md) UI channels table.
 
 ---
+
+
 
 ## ADR-007: No live hardware status in chat
 
@@ -128,7 +130,7 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 **Status:** Accepted (planning)  
 **Context:** Brandon’s [Mail.pdf](../SendAnywhere_546287/Mail.pdf) and local KB Admin prototype use **structured chunks** (`chunk_id`, `section_id`, `keywords`, `common_queries`) for retrieval and human-in-the-loop updates. Current [rag_service.py](../src/services/rag_service.py) uses **500-char RecursiveCharacterTextSplitter** on PDF/DOCX with filename metadata only.  
 **Decision:** **MVP:** generic splits acceptable for demo/UAT with manually loaded Bible. **Target (Phase 1–5):** migrate toward Brandon chunk schema or section-aware splits; KB Admin approve workflow before applying AI-suggested updates. Intent Matrix remains the **routing/escalation** layer; chunks are the **retrieval** layer — see [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md).  
-**Consequences:** Do not conflate router intents with `sw_*` chunk IDs. Phase 5 builds admin UI + feedback loop; interim = email notification + manual re-ingest.
+**Consequences:** Do not conflate router intents with `sw_`* chunk IDs. Phase 5 builds admin UI + feedback loop; interim = email notification + manual re-ingest.
 
 ---
 
@@ -137,6 +139,7 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 **Status:** Accepted  
 **Context:** `SendAnywhere_546287/Requrement understading.docx` describes a full dual-agent platform (~6 months): Customer + Operator agents, API gateway, voice, live call transfer, multi-tenant PostgreSQL, admin panel, bilingual support, and low-confidence escalation. This repo delivers **Operator Agent MVP** only.  
 **Decision:**  
+
 - **In scope (this repo):** Operator web chat API, LangGraph, RAG, Setomatic tools, Gregg/Brandon escalation rules, PCI, React QA + .NET prod widget integration.  
 - **Deferred to phases:** Voice (Phase 4), admin KB UI (Phase 5), Qdrant + Rackspace (Phase 3), gateway auth (Phase 2).  
 - **Out of scope / different:** Customer Agent; live phone bridge to human; inbound operator SMS; vendor low-confidence escalation replaced by **intent classification + troubleshoot-first confirmation**; Rackspace preferred over vendor doc’s AWS/Azure default.  
@@ -150,10 +153,47 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 **Status:** Accepted  
 **Context:** Operators could repeatedly say "NO" after an escalation ticket was dispatched, generating infinite duplicate tickets with SMS/email each time. Additionally, after saying "YES" (resolved), the workflow flags persisted in state, trapping subsequent messages in the `workflow_reminder` loop instead of treating them as fresh conversations.  
 **Decision:**  
+
 - `escalation_node` sets `escalation_dispatched: true` in state after dispatch.  
 - `route_after_classifier` checks this flag before routing to escalation — if already dispatched, routes to `post_escalation_ack` instead.  
 - `escalation_resolved_node` performs a full state reset (clears `troubleshooting_done`, `blast_radius`, `troubleshooting_failed`, `escalation_dispatched`) so new issues can start fresh.  
 **Consequences:** Max 1 escalation ticket per unresolved workflow instance. Operator must confirm resolution to start a new workflow. See [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md).
+
+---
+
+## ADR-017: Entire location = immediate escalation (skip troubleshooting)
+
+**Status:** Accepted  
+**Context:** When the operator confirms the entire laundromat is offline (`blast_radius == "entire_location"`), troubleshooting steps (restart hub, check LEDs) are insufficient — the situation requires immediate human intervention. Previously, entire-location outages still went through `troubleshoot_first_node` before escalation.  
+**Decision:** If blast radius is `entire_location`, skip `troubleshoot_first` and route directly to `escalation_node`. Only `single_machine` / few-machine scenarios go through KB troubleshooting before escalation.  
+**Consequences:** Faster response for critical outages. Aligns `entire_location` with `critical_outage` behavior. See [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md).
+
+---
+
+## ADR-018: Post-escalation fresh cycle for new issue reports
+
+**Status:** Accepted  
+**Context:** After a ticket was dispatched, operators were stuck — any message (including new issue reports like "one new machine is down") was caught by `post_escalation_ack` and could not start a fresh workflow.  
+**Decision:** When the prior AI message contains escalation markers AND the user's new message is classified as an outage intent with ≥3 words (descriptive), route to `new_issue_after_escalation_node` which resets all workflow state and starts a fresh blast-radius cycle. Short/ambiguous follow-ups still route to `post_escalation_ack`.  
+**Consequences:** Operators can report genuinely new issues after escalation without being stuck. See [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md).
+
+---
+
+## ADR-019: technical_support intent for non-outage machine symptoms
+
+**Status:** Accepted  
+**Context:** The LLM router was classifying non-outage machine symptoms (lights, sounds, error codes, display questions) as `machine_down`, funneling them through the outage workflow (blast-radius → troubleshoot → escalate). This produced irrelevant hub/network troubleshooting for sound/light issues.  
+**Decision:** Added explicit router rule distinguishing `technical_support` (symptoms: lights, sounds, errors, displays) from `machine_down` (machine physically offline/unresponsive). `technical_support` routes directly to RAG without the outage workflow. Updated system prompt rules 14-15.  
+**Consequences:** Light/sound/display questions get direct KB answers. Only confirmed outages enter the escalation workflow. See [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md).
+
+---
+
+## ADR-020: Card number prefix normalization
+
+**Status:** Accepted  
+**Context:** Operators type card numbers with prefixes like "LC-", "lc-", "lc " which the LLM sometimes passes through to tools. The Setomatic API only recognizes the bare number (e.g., "00000212").  
+**Decision:** `_normalize_card_number()` in tools.py strips `LC-`/`lc-`/`lc ` prefixes before any API call. Applied in both `get_loyalty_balance` and `get_transaction_history`.  
+**Consequences:** "balance lc-00000212" now works the same as "balance 00000212".
 
 ---
 
@@ -170,3 +210,4 @@ When making a significant architectural choice:
 - [PRD.md](PRD.md) — product scope
 - [REQUIREMENTS_MAP.md](REQUIREMENTS_MAP.md) — vendor doc traceability
 - [ROADMAP.md](ROADMAP.md) — implementation phases
+

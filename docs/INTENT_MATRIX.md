@@ -80,7 +80,7 @@ Source: client Intent Matrix spreadsheet (Brandon), June 2026.
 | Global/platform outage | `system_status_check` | tool_node |
 | Portal login, pricing, activation, receipt printer, recharge failure | `technical_support` (no dedicated label) | RAG; conditional Email **not wired** |
 | Human Escalation | `escalation_request` | outage workflow |
-| Kiosk Not Responding | `kiosk_not_responding` | outage workflow |
+| Kiosk Not Responding | `kiosk_not_responding` | RAG direct (no outage workflow) |
 | Machines Not Starting | `machines_not_starting` | outage workflow |
 | Entire Store Down | `emergency_store_down`, `multiple_machines_offline`, or `critical_outage` | outage or immediate escalation |
 | Single machine down | `machine_down` | outage workflow |
@@ -110,7 +110,7 @@ Source: client Intent Matrix spreadsheet (Brandon), June 2026.
 | `transaction_lookup` | tool_node | No | None | None |
 | `refund_request` | tool_node | No | None | Email on failure (**not wired**) |
 | `system_status_check` | tool_node | No | None | None |
-| `kiosk_not_responding` | outage workflow | Yes | Email+SMS | Email/SMS |
+| `kiosk_not_responding` | RAG direct | No (user must escalate manually) | None | Email/SMS |
 | `machines_not_starting` | outage workflow | Yes | Email+SMS | Email/SMS |
 | `machine_down` | outage workflow | Yes | Email+SMS | Email/SMS |
 | `multiple_machines_offline` | outage workflow | Yes | Email+SMS | Email/SMS |
@@ -150,12 +150,14 @@ Outage/hardware intents must keep all three flags **false** on first classificat
 - `troubleshooting_failed` in entities or negative reply after "Did this resolve?" → `escalation_node`
 - `critical_outage` intent → immediate `escalation_node` (skips troubleshoot)
 
-Outage workflow intent set (identical in router `_OUTAGE_WORKFLOW_INTENTS` and graph `_ESCALATION_WORKFLOW_INTENTS`):
+Outage workflow intent set (`_ESCALATION_WORKFLOW_INTENTS` in graph.py):
 
 ```
 emergency_store_down, machine_down, escalation_request,
-machines_not_starting, kiosk_not_responding, multiple_machines_offline
+machines_not_starting, multiple_machines_offline
 ```
+
+RAG-only (no outage workflow): `kiosk_not_responding`, `technical_support`
 
 ---
 

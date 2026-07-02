@@ -2,7 +2,7 @@ import uvicorn
 import uuid
 from fastapi import FastAPI
 from dotenv import load_dotenv
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage
 from src.api.routes import router
 from src.agent.graph import agent_app as compiled_graph
 from src.utils.security import sanitize_user_text

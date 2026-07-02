@@ -1,7 +1,6 @@
 from langchain_core.messages import AIMessage
 from src.agent.state import AgentState
 from src.services.rag_service import RAGService
-from src.services.notifications import NotificationService
 
 _rag_service = None
 

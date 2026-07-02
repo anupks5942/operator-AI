@@ -131,18 +131,22 @@ Each turn ends at `END` after one node chain (router → one downstream node →
 3. `greeting` → greeting_node (pre-LLM heuristic; no RAG or API call)
 4. `out_of_domain` → refusal
 5. `hardware_lookup_attempted` → guardrail
-6. Post-escalation follow-ups → `post_escalation_ack` or `escalation_resolved`
+6. Post-escalation follow-ups → `post_escalation_ack` or `escalation_resolved` or `new_issue_after_escalation` (fresh cycle for new reports)
 7. **Post-resolution closure**: "no" / "no thanks" after "Glad to hear..." → friendly close (not new workflow)
 8. `critical_outage` → immediate escalation (skip troubleshoot; dedup guard prevents re-dispatch)
-9. Outage workflow intents → blast-radius → troubleshoot → escalate on failure
+9. Outage workflow intents → blast-radius → **entire_location: immediate escalation** / single_machine: clarify (if vague) → troubleshoot → escalate on failure
 10. **Escalation dedup**: if `escalation_dispatched` is set, "no" routes to `post_escalation_ack` (no duplicate tickets)
 11. `api_action_required` → tools
 12. Default → RAG
 
-Outage intents (`_ESCALATION_WORKFLOW_INTENTS` in graph; `_OUTAGE_WORKFLOW_INTENTS` in router — same set):
+Outage intents (`_ESCALATION_WORKFLOW_INTENTS` in graph):
 
 - `emergency_store_down`, `machine_down`, `escalation_request`
-- `machines_not_starting`, `kiosk_not_responding`, `multiple_machines_offline`
+- `machines_not_starting`, `multiple_machines_offline`
+
+RAG-only intents (no outage workflow):
+
+- `kiosk_not_responding`, `technical_support` — route directly to RAG for KB answers
 
 ---
 

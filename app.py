@@ -51,6 +51,8 @@ _NODE_LABELS: dict[str, str] = {
     "pci_guardrail_node":   "Applying PCI compliance guardrail...",
     "greeting_node":        "Responding to greeting...",
     "workflow_reminder_node": "Awaiting confirmation...",
+    "new_issue_after_escalation": "Starting fresh support cycle...",
+    "clarify_issue":              "Requesting more details...",
 }
 
 def _node_label(node_name: str) -> str:
