@@ -82,6 +82,10 @@ class TransactionHistorySchema(BaseModel):
         le=20,
         description="Number of recent transactions to retrieve (1-20, default 5).",
     )
+    include_refunds: bool = Field(
+        default=False,
+        description="Set to true ONLY when the user explicitly asks for refunded transactions or refund history. Default false returns normal (non-refunded) transactions.",
+    )
 
 
 class RefundEligibilitySchema(BaseModel):
@@ -226,10 +230,10 @@ _TRANSACTION_PAGE_SIZE = 5   # Keep small to avoid context window overflow
 
 # args_schema enforces identical card number constraints as the balance tool.
 @tool(args_schema=TransactionHistorySchema)
-def get_transaction_history(card_number: str, count: int = 5) -> str:
+def get_transaction_history(card_number: str, count: int = 5, include_refunds: bool = False) -> str:
     """
     Use this tool when the user asks to look up recent transactions, payment history,
-    or wash history for a specific SpyderWash loyalty card.
+    refund history, or wash history for a specific SpyderWash loyalty card.
 
     Calls the live SpyderWash production API and returns recent transactions
     formatted as a human-readable summary.
@@ -241,6 +245,8 @@ def get_transaction_history(card_number: str, count: int = 5) -> str:
                      or conversation history (e.g. "00000212", "LC-5555").
         count: Number of transactions to retrieve (1-20, default 5). Use the number
                the user explicitly requested, or default to 5.
+        include_refunds: Set to true when the user asks specifically for refunded
+                         transactions or refund history. Default false shows normal transactions.
 
     Returns:
         A formatted multi-line string listing each transaction's date/time,
@@ -280,6 +286,7 @@ def get_transaction_history(card_number: str, count: int = 5) -> str:
             'LoyaltyCardNo': card_number,
             'PageNo': 1,
             'PageSize': page_size,
+            'isRefund': 'true' if include_refunds else 'false',
         }
         logger.info("[get_transaction_history] Calling API: GET %s | Params: %s", _TRANSACTION_SEARCH_URL, params)
         response = requests.get(
@@ -306,15 +313,17 @@ def get_transaction_history(card_number: str, count: int = 5) -> str:
         transactions = response.json().get("data", [])
 
         if not transactions:
+            tx_type = "refunded transactions" if include_refunds else "transactions"
             return (
-                f"No transactions found for loyalty card '{card_number}' "
+                f"No {tx_type} found for loyalty card '{card_number}' "
                 f"between {start_date} and {end_date}. "
-                "The card may have no activity in this period, or the card number is incorrect."
+                f"The card may have no {'refund' if include_refunds else ''} activity in this period."
             )
 
         # Format a clean, LLM-friendly summary
+        tx_label = "refunded transaction(s)" if include_refunds else "transaction(s)"
         lines = [
-            f"Last {len(transactions)} transaction(s) for loyalty card '{card_number}' "
+            f"Last {len(transactions)} {tx_label} for loyalty card '{card_number}' "
             f"({start_date} -> {end_date}):\n"
         ]
         for i, tx in enumerate(transactions, start=1):

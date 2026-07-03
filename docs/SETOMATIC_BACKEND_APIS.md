@@ -28,7 +28,7 @@ From the requirements doc: **do not proceed to other endpoints until these four 
 | Requirement (doc name) | Agent tool | Setomatic endpoint (agent code) | Status | Notes |
 |------------------------|------------|----------------------------------|--------|-------|
 | **Loyalty Balance API** | `get_loyalty_balance` | `GET /api/Transactions/CheckLoyaltyCardBalance` | **Partial — live on beta** | Uses `OperatorId` + `LoyaltyCardNo`. Agent hardcodes `OperatorId=4` — Phase 1 fix |
-| **Transaction Search / Lookup API** | `get_transaction_history` | `GET /api/Transactions/ViewAllTransactionSearch` | **Partial — live on beta** | Doc: search by **last 4** of card; agent sends **full** `LoyaltyCardNo`. Doc: general search; agent uses fixed date window + pagination |
+| **Transaction Search / Lookup API** | `get_transaction_history` | `GET /api/Transactions/ViewAllTransactionSearch` | **Partial — live on beta** | Doc: search by **last 4** of card; agent sends **full** `LoyaltyCardNo`. Doc: general search; agent uses fixed date window + pagination. `isRefund` param filters refunded vs normal transactions |
 | **Refund Validation API** | `check_refund_eligibility` | `GET /api/Transactions/RefundEligibility` | **Blocked — mock only** | `USE_MOCK_REFUNDS=true` default → `:8001` mock. Beta API **not ready** |
 | **Refund Transaction API** | `execute_refund` | `GET /api/Transactions/RefundProcessing` | **Blocked — mock only** | Same as above |
 
@@ -43,7 +43,7 @@ From the requirements doc: **do not proceed to other endpoints until these four 
 | Tool | HTTP | Key parameters (today) | Env |
 |------|------|------------------------|-----|
 | `get_loyalty_balance` | GET `.../CheckLoyaltyCardBalance` | `OperatorId`, `LoyaltyCardNo` | Always live `SETOMATIC_BASE_URL` |
-| `get_transaction_history` | GET `.../ViewAllTransactionSearch` | `LoggedInUserId`, `LoyaltyCardNo`, `StartDate`, `EndDate`, `PageNo`, `PageSize` | Always live |
+| `get_transaction_history` | GET `.../ViewAllTransactionSearch` | `LoggedInUserId`, `LoyaltyCardNo`, `StartDate`, `EndDate`, `PageNo`, `PageSize`, `isRefund` | Always live |
 | `check_refund_eligibility` | GET `.../RefundEligibility` | `transactionDetailId`, `OperatorId` | Mock or live per `USE_MOCK_REFUNDS` |
 | `execute_refund` | GET `.../RefundProcessing` | `transactionDetailId`, `OperatorId` | Mock or live per `USE_MOCK_REFUNDS` |
 | `check_global_system_status` | GET scrape `setomaticsystems.com/status` | N/A (not a Setomatic REST API) | Live scrape |
