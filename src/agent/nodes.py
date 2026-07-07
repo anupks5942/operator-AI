@@ -1,6 +1,7 @@
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from src.agent.state import AgentState
 from src.services.rag_service import RAGService
+from src.llm import create_chat_model
 
 _rag_service = None
 
@@ -128,15 +129,27 @@ def pci_guardrail_node(state: AgentState):
 def handle_greeting(state: AgentState):
     """
     Friendly greeting response for simple salutations like 'hi', 'hello', etc.
+    Also handles thank-you / goodbye messages with an appropriate acknowledgment
+    instead of the full intro greeting.
     No LLM or RAG call — hardcoded to avoid pointless KB lookups on greetings.
     """
-    greeting_message = (
-        "Hello! I'm the SpyderWash technical support agent. "
-        "I can help you with machine troubleshooting, loyalty card balances, "
-        "transaction history, refunds, and system status checks. "
-        "How can I assist you today?"
-    )
-    return {"messages": [AIMessage(content=greeting_message)]}
+    messages = state.get("messages", [])
+    user_text = messages[-1].content.strip().lower() if messages else ""
+
+    _thank_words = {"thank", "thanks", "thankyou", "ty", "gracias"}
+    _bye_words = {"bye", "goodbye", "adios", "see ya", "later"}
+    if any(w in user_text for w in _thank_words):
+        msg = "You're welcome! Let me know if there's anything else I can help with."
+    elif any(w in user_text for w in _bye_words):
+        msg = "Goodbye! Feel free to reach out anytime you need support."
+    else:
+        msg = (
+            "Hello! I'm the SpyderWash technical support agent. "
+            "I can help you with machine troubleshooting, loyalty card balances, "
+            "transaction history, refunds, and system status checks. "
+            "How can I assist you today?"
+        )
+    return {"messages": [AIMessage(content=msg)]}
 
 
 def workflow_reminder_node(state: AgentState):
@@ -164,3 +177,65 @@ def handle_out_of_domain(state: AgentState):
         "I can only assist with SpyderWash hardware, portal troubleshooting, and operator actions."
     )
     return {"messages": [AIMessage(content=refusal_message)]}
+
+
+_SUMMARY_SYSTEM_PROMPT = (
+    "You are a Setomatic/SpyderWash support agent. Summarise the support conversation "
+    "below for the operator in a clear, friendly recap. Structure the summary as:\n"
+    "  - **Issues raised:** what the operator reported\n"
+    "  - **Actions taken:** troubleshooting steps provided, lookups performed (balance/transactions), etc.\n"
+    "  - **Tickets / refunds:** any escalation tickets dispatched or refunds processed (include IDs if present)\n"
+    "  - **Current status:** resolved, escalated, or pending\n\n"
+    "Keep it concise and factual. Only include sections that apply. Do NOT invent details "
+    "that are not in the conversation. Never include full card numbers or sensitive payment data."
+)
+
+# Conversational filler that carries no substantive content for the summary.
+_SUMMARY_SKIP_PHRASES = frozenset({
+    "summarise", "summarize", "summary", "recap", "tldr", "tl;dr",
+})
+
+
+def summarize_conversation_node(state: AgentState):
+    """
+    Produces an operator-friendly recap of the conversation so far.
+
+    Reads the full thread history from state (persisted per thread_id), filters to
+    substantive human + assistant turns, and asks the LLM to summarise. The current
+    "summarise this chat" request itself is excluded from the transcript.
+    """
+    messages = state.get("messages", [])
+
+    transcript_lines: list[str] = []
+    for msg in messages:
+        # Only human and assistant messages carry conversational content.
+        role = getattr(msg, "type", None)
+        content = (getattr(msg, "content", "") or "").strip()
+        if not content:
+            continue
+        if role == "human":
+            # Skip the summary request itself so it doesn't pollute the recap.
+            if content.strip().lower().rstrip("!.,?") in _SUMMARY_SKIP_PHRASES:
+                continue
+            transcript_lines.append(f"Operator: {content}")
+        elif role == "ai":
+            transcript_lines.append(f"Agent: {content}")
+
+    if not transcript_lines:
+        return {
+            "messages": [AIMessage(content=(
+                "There's nothing to summarise yet — we haven't discussed anything in this "
+                "conversation so far. How can I help you today?"
+            ))]
+        }
+
+    transcript = "\n".join(transcript_lines)
+    llm = create_chat_model(temperature=0)
+    response = llm.invoke([
+        {"role": "system", "content": _SUMMARY_SYSTEM_PROMPT},
+        HumanMessage(content=f"Conversation to summarise:\n\n{transcript}"),
+    ])
+    summary = response.content if getattr(response, "content", None) else (
+        "I couldn't generate a summary right now. Please try again."
+    )
+    return {"messages": [AIMessage(content=summary)]}

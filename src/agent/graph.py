@@ -10,6 +10,7 @@ from src.agent.nodes import (
     handle_out_of_domain,
     handle_greeting,
     workflow_reminder_node,
+    summarize_conversation_node,
     _extract_metadata_filter,
 )
 from src.agent.router import semantic_router, infer_blast_radius
@@ -476,21 +477,44 @@ def route_after_classifier(state: AgentState) -> str:
     if intent == "pci_sensitive_data":
         return "pci_guardrail"
 
+    # Conversation summary: honored at any point, even mid-workflow, so the operator
+    # can recap the chat without breaking or losing the active workflow state.
+    if intent == "conversation_summary":
+        return "summarize"
+
     # Mid-workflow interruption guard: if the outage workflow is active (troubleshooting_done
     # or blast_radius_asked) and the user sends gibberish/greeting/off-topic, re-prompt.
     # But NOT after escalation is dispatched — that means the workflow completed.
-    # Also check: if the user sent a positive confirmation word (yaa, yes, y, etc.),
-    # DON'T trap it in workflow_reminder — let it fall through to the resolution check.
+    # Positive-word passthrough: "yes"/"yaa" should only pass through during the
+    # troubleshooting_done phase (answering "Did this resolve?"), NOT during blast_radius_asked
+    # where "yes" is ambiguous and doesn't answer "one machine or entire laundromat?".
     entities = state.get("extracted_entities") or {}
+    messages = state.get("messages", [])
+    _last_text = messages[-1].content.strip().lower() if messages else ""
+
     if intent in ("out_of_domain", "greeting") and (
         entities.get("troubleshooting_done") or entities.get("blast_radius_asked")
     ) and not state.get("escalation_dispatched"):
-        messages = state.get("messages", [])
-        _last_text = messages[-1].content.strip().lower() if messages else ""
         _quick_positive = {"yes", "yeah", "yep", "yup", "ya", "yaa", "yah", "y", "si", "sí"}
-        if _last_text in _quick_positive or _last_text.split()[0:1] == ["yes"]:
+        if entities.get("troubleshooting_done") and (
+            _last_text in _quick_positive or _last_text.split()[0:1] == ["yes"]
+        ):
             pass  # Fall through to the outage workflow block where positive-word check runs
         else:
+            return "workflow_reminder"
+
+    # Secondary gibberish guard: when troubleshooting_done is active and the user's message
+    # is very short (≤5 chars) with no recognizable English words, the LLM may misclassify
+    # gibberish as technical_support/general_query instead of out_of_domain. Catch it here.
+    if entities.get("troubleshooting_done") and not state.get("escalation_dispatched"):
+        _quick_positive = {"yes", "yeah", "yep", "yup", "ya", "yaa", "yah", "y", "si", "sí"}
+        _quick_negative = {"no", "nope", "nah"}
+        if (
+            len(_last_text) <= 6
+            and _last_text not in _quick_positive
+            and _last_text not in _quick_negative
+            and not _last_text.isdigit()
+        ):
             return "workflow_reminder"
 
     # Greeting: friendly response without RAG or LLM call.
@@ -514,9 +538,11 @@ def route_after_classifier(state: AgentState) -> str:
         latest = messages[-1].content if messages else ""
         if _user_indicates_resolved(latest):
             return "escalation_resolved"
+        # Allow API-action intents (balance, transactions, refund, status) to proceed
+        # normally — operators shouldn't be trapped after escalation for unrelated actions.
+        if state.get("api_action_required"):
+            return "tool"
         # Allow new issue reports to start a fresh cycle instead of trapping them.
-        # If the router classified a genuine outage intent AND the user's message has
-        # descriptive content (not just "yes"/"no"/gibberish), start fresh blast-radius.
         if intent in _ESCALATION_WORKFLOW_INTENTS and len(latest.split()) >= 3:
             return "new_issue_after_escalation"
         return "post_escalation_ack"
@@ -612,7 +638,7 @@ def route_after_classifier(state: AgentState) -> str:
         _negative_words = {
             "no", "nope", "nah", "not", "still", "broken", "failed",
             "offline", "unresolved", "didn't", "didnt", "doesn't", "doesnt",
-            "down", "issue", "problem", "worse", "nothing", "same",
+            "down", "worse", "nothing", "same",
         }
         _negative_phrases = (
             "not resolved", "not working", "still down", "didn't work",
@@ -624,6 +650,26 @@ def route_after_classifier(state: AgentState) -> str:
             bool(user_words & _negative_words)
             or any(phrase in user_text for phrase in _negative_phrases)
         )
+
+        # Positive override: if the message contains strong resolution indicators,
+        # treat it as confirmation even if it also has a negative word (e.g., "issue resolved").
+        _positive_override_words = {"resolved", "fixed", "working", "sorted", "solved", "done"}
+        _positive_override_phrases = ("issue resolved", "problem fixed", "working now", "all good", "issue is fixed")
+        _has_positive_override = (
+            bool(user_words & _positive_override_words)
+            or any(phrase in user_text for phrase in _positive_override_phrases)
+        )
+        if _has_positive_override and not any(neg in user_text for neg in ("not resolved", "not fixed", "not working")):
+            return "escalation_resolved"
+
+        # Question-structure guard: messages phrased as questions (re-stating symptoms)
+        # should not trigger escalation. E.g., "Is it not starting?" is not "no".
+        _is_question = (
+            user_text.rstrip().endswith("?")
+            or user_text.startswith(("is ", "does ", "can ", "will ", "has ", "are ", "do "))
+        )
+        if _has_negative and _is_question and len(user_words) >= 4:
+            return "workflow_reminder"
 
         # Deduplication guard: if a ticket was already dispatched in this session,
         # do NOT create another one — route to the acknowledgment node instead.
@@ -719,6 +765,8 @@ def create_agent_graph():
     workflow.add_node("greeting_node", handle_greeting)
     # Workflow reminder: re-prompts when user sends gibberish mid-outage-workflow.
     workflow.add_node("workflow_reminder_node", workflow_reminder_node)
+    # Summary node: recaps the conversation on demand ("summarise this chat").
+    workflow.add_node("summarize_node", summarize_conversation_node)
     # Register the multi-turn conversational escalation guardrail nodes.
     workflow.add_node("blast_radius_check",  blast_radius_check_node)
     workflow.add_node("clarify_issue",       clarify_issue_node)
@@ -737,6 +785,7 @@ def create_agent_graph():
         route_after_classifier,
         {
             "greeting":             "greeting_node",
+            "summarize":            "summarize_node",
             "workflow_reminder":     "workflow_reminder_node",
             "out_of_domain":        "out_of_domain_node",
             "pci_guardrail":        "pci_guardrail_node",
@@ -765,6 +814,7 @@ def create_agent_graph():
 
     # Terminal edges
     workflow.add_edge("greeting_node",          END)
+    workflow.add_edge("summarize_node",          END)
     workflow.add_edge("workflow_reminder_node",  END)
     workflow.add_edge("out_of_domain_node",     END)
     workflow.add_edge("pci_guardrail_node", END)

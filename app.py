@@ -50,6 +50,7 @@ _NODE_LABELS: dict[str, str] = {
     "out_of_domain_node":   "Applying domain guardrail...",
     "pci_guardrail_node":   "Applying PCI compliance guardrail...",
     "greeting_node":        "Responding to greeting...",
+    "summarize_node":       "Summarising the conversation...",
     "workflow_reminder_node": "Awaiting confirmation...",
     "new_issue_after_escalation": "Starting fresh support cycle...",
     "clarify_issue":              "Requesting more details...",
@@ -79,6 +80,32 @@ if "processing" not in st.session_state:
     st.session_state.processing = False
 if "pending_input" not in st.session_state:
     st.session_state.pending_input = None
+if "routing_diagnostics" not in st.session_state:
+    st.session_state.routing_diagnostics = {
+        "current_intent": "Unknown",
+        "hardware_lookup_attempted": False,
+        "escalation_required": False,
+        "api_action_required": False,
+    }
+
+def _render_routing_diagnostics(diag: dict) -> None:
+    """Render sidebar routing diagnostics from persisted session state."""
+    intent_placeholder.info(f"**Detected Intent:**\n{diag.get('current_intent', 'Unknown')}")
+
+    if diag.get("hardware_lookup_attempted", False):
+        guardrail_placeholder.error("🛑 **Guardrail:**\nTRIGGERED (Action Blocked)")
+    else:
+        guardrail_placeholder.success("✅ **Guardrail:**\nCLEAR")
+
+    if diag.get("escalation_required", False):
+        escalation_placeholder.error("🚨 **Escalation:**\nACTIVE (Simulating SMS Alert)")
+    else:
+        escalation_placeholder.success("✅ **Escalation:**\nNONE")
+
+    if diag.get("api_action_required", False):
+        api_placeholder.warning("⚡ **API Tool Triggered:**\nTrue")
+    else:
+        api_placeholder.success("🔌 **API Tool Triggered:**\nFalse")
 
 # ── Sidebar: routing diagnostics ─────────────────────────────────────────────
 with st.sidebar:
@@ -90,6 +117,8 @@ with st.sidebar:
     guardrail_placeholder  = st.empty()
     escalation_placeholder = st.empty()
     api_placeholder        = st.empty()
+
+    _render_routing_diagnostics(st.session_state.routing_diagnostics)
 
     st.divider()
     st.markdown("""
@@ -156,27 +185,33 @@ if st.session_state.processing and st.session_state.pending_input:
                         else:
                             accumulated_state[key] = value
 
+                    # Refresh sidebar live during streaming
+                    st.session_state.routing_diagnostics = {
+                        "current_intent": accumulated_state.get("current_intent", "Unknown"),
+                        "hardware_lookup_attempted": accumulated_state.get(
+                            "hardware_lookup_attempted", False
+                        ),
+                        "escalation_required": accumulated_state.get(
+                            "escalation_required", False
+                        ),
+                        "api_action_required": accumulated_state.get(
+                            "api_action_required", False
+                        ),
+                    }
+                    _render_routing_diagnostics(st.session_state.routing_diagnostics)
+
             final_response = _extract_final_response(accumulated_state)
             status.update(label="Task Complete", state="complete", expanded=False)
 
-        # ── Update sidebar diagnostics from final accumulated state ───────────
-        current_intent = accumulated_state.get("current_intent", "Unknown")
-        intent_placeholder.info(f"**Detected Intent:**\n{current_intent}")
-
-        if accumulated_state.get("hardware_lookup_attempted", False):
-            guardrail_placeholder.error("🛑 **Guardrail:**\nTRIGGERED (Action Blocked)")
-        else:
-            guardrail_placeholder.success("✅ **Guardrail:**\nCLEAR")
-
-        if accumulated_state.get("escalation_required", False):
-            escalation_placeholder.error("🚨 **Escalation:**\nACTIVE (Simulating SMS Alert)")
-        else:
-            escalation_placeholder.success("✅ **Escalation:**\nNONE")
-
-        if accumulated_state.get("api_action_required", False):
-            api_placeholder.warning("⚡ **API Tool Triggered:**\nTrue")
-        else:
-            api_placeholder.success("🔌 **API Tool Triggered:**\nFalse")
+        # Persist final diagnostics so they survive the post-response rerun
+        st.session_state.routing_diagnostics = {
+            "current_intent": accumulated_state.get("current_intent", "Unknown"),
+            "hardware_lookup_attempted": accumulated_state.get(
+                "hardware_lookup_attempted", False
+            ),
+            "escalation_required": accumulated_state.get("escalation_required", False),
+            "api_action_required": accumulated_state.get("api_action_required", False),
+        }
 
     except Exception as exc:
         final_response = f"An error occurred while processing your request: {exc}"
