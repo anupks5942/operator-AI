@@ -100,7 +100,7 @@ From Brandon’s chunk editor dropdown — mapped to **Intent Matrix rows** and 
 Operator chat → feedback (thumbs down)
         │
         ▼
-Feedback store (API §9 in SETOMATIC_BACKEND_APIS.md)
+Feedback store (Tier 2 Feedback API in SETOMATIC_BACKEND_APIS.md)
         │
         ▼
 Admin: Generate suggested KB update (LLM reads Q + answer + feedback)
@@ -130,9 +130,9 @@ Operator Agent RAG uses updated chunk on next query
 
 ---
 
-## Backend APIs needed (beyond Sprint 1)
+## Backend APIs needed (Phase 5)
 
-From [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) §9–10, tied to this vision:
+From [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) Tier 2 (future platform), tied to this vision:
 
 | API | KB Admin use |
 |-----|----------------|

@@ -169,7 +169,7 @@ Automated coverage: [tests/test_outage_workflow.py](../tests/test_outage_workflo
 | Video content in agent | **Not implemented** | Strategy TBD — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 | Rackspace KB/video hosting + ingest | **Planned** | Phase 3 — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 | Live loyalty / transactions | **Implemented** | [src/agent/tools.py](../src/agent/tools.py) |
-| Refunds (mock or live) | **Partial** — mock only in practice | Beta refund APIs **not ready**; keep `USE_MOCK_REFUNDS=true` |
+| Refunds (mock or live) | **Partial** — mock only in practice | 2 refund APIs (`RefundEligibility`, `RefundProcessing`) not ready from backend; keep `USE_MOCK_REFUNDS=true` — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
 | Global system status scrape | **Implemented** | [src/agent/tools.py](../src/agent/tools.py) |
 | Production REST API | **Implemented** | [src/api/server.py](../src/api/server.py) |
 | Live escalation email (Mandrill) | **Implemented** | [src/services/notifications.py](../src/services/notifications.py) |
@@ -186,15 +186,15 @@ Automated coverage: [tests/test_outage_workflow.py](../tests/test_outage_workflo
 
 ---
 
-## 8. Open blockers (June 2026)
+## 8. Open blockers (July 2026)
 
 | Item | Owner | Notes |
 |------|-------|-------|
-| Beta refund APIs | Setomatic backend | Not ready — mock server required — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
+| **Refund APIs** (`RefundEligibility` + `RefundProcessing`) | Setomatic backend | Only 2 of 4 core agent APIs remain; mock server required until delivered — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
 | .NET auth → agent API | Setomatic backend | Web chat UI not started |
 | Production hosting target | infra vendor + product | **Rackspace preferred** — see [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 | Escalation email template sign-off | Product owner | Feedback pending |
-| Bible PDF delivery | Product owner | ~500 pages; blocks RAG cutover |
+| Bible PDF delivery | Product owner (Brandon) | 250 pages done; sending PDF; blocks RAG cutover |
 | Bible image strategy (captions vs OCR vs links) | Product + dev1 | Text-only RAG today |
 | Bilingual support | Product | Vendor doc mentions; not in code |
 | Video strategy (transcripts vs links) | Product + dev1 | Blocks video-aware answers |
@@ -248,7 +248,7 @@ Use this section for quick navigation from the PRD. Do not duplicate the README 
 | Doc | Source | When to read |
 |-----|--------|--------------|
 | [REQUIREMENTS_MAP.md](REQUIREMENTS_MAP.md) | `Requrement understading.docx` | Vendor dual-agent vision vs this repo |
-| [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) | `API_Requirements.docx` | Setomatic POS APIs (loyalty, refunds) — Sprint 1 blockers |
+| [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) | `API_Requirements.docx` | Final Setomatic POS API scope: 7 APIs (4 core + 3 future platform) |
 | [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) | `Mail.pdf` + screenshots | Bible ~500 pp, KB Admin prototype, chunk map |
 | [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) | Product + planning | Bible/images/videos, Rackspace ingest strategy |
 
@@ -279,7 +279,7 @@ Use this section for quick navigation from the PRD. Do not duplicate the README 
 | Is feature X built? | [§7 Feature status matrix](#feature-status-matrix) + [ROADMAP.md](ROADMAP.md) |
 | What blocks production? | [ROADMAP.md](ROADMAP.md) — production readiness + gap register |
 | Which API does React call? | [API.md](API.md) |
-| Which APIs does Setomatic backend owe us? | [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
+| Which APIs does Setomatic backend owe us? | [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) (2 done, 2 this month, 3 Phase 5) |
 | SMS-only for store-down? | [INTENT_MATRIX.md](INTENT_MATRIX.md) |
 | How does outage escalation work? | [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md) |
 | Bible size, images, admin portal? | [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md), [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |

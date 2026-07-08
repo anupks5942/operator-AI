@@ -43,7 +43,7 @@ Port 8001 is **not** a second agent server. Only **refund** tools (`check_refund
 
 ### Target state (production)
 
-All UIs call **only** `:8000/api/v1/agent/chat`. Mock server replaced by live Setomatic refund APIs in UAT/prod (`USE_MOCK_REFUNDS=false`).
+All UIs call **only** `:8000/api/v1/agent/chat`. Mock server replaced by live Setomatic refund APIs (`RefundEligibility` + `RefundProcessing`) in UAT/prod (`USE_MOCK_REFUNDS=false`). Full API scope: 4 core APIs (2 done, 2 blocked on backend) — see [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md).
 
 ---
 
@@ -184,7 +184,7 @@ See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) and ADR-013 in [DECISIONS.md](DECIS
 
 | Tool | Target | OperatorId |
 |------|--------|--------------|
-| `get_loyalty_balance` | Live `SETOMATIC_BASE_URL` | Hardcoded `4` (**Phase 1 fix**) |
+| `get_loyalty_balance` | Live `SETOMATIC_BASE_URL` | Hardcoded `4` (**agent-side fix**: pipe `operator_id` from ChatRequest) |
 | `get_transaction_history` | Live `SETOMATIC_BASE_URL` | Hardcoded `LoggedInUserId=4`; `PageSize` from `count` (1–20); `isRefund` from `include_refunds`; card pre-validated via balance API; LC-prefix stripped |
 | `check_refund_eligibility` | Mock or live per `USE_MOCK_REFUNDS` | Hardcoded `4` |
 | `execute_refund` | Mock or live per `USE_MOCK_REFUNDS` | Hardcoded `4` |

@@ -56,7 +56,7 @@ Vendor SOW (RAG platform, POS integrations, multi-channel, voice, admin portal) 
 
 KB / Bible / Brandon KB Admin: [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md), [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md).
 
-POS / Setomatic backend APIs: [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) (`API_Requirements.docx`).
+POS / Setomatic backend APIs: [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) — final scope: 7 APIs (4 core + 3 future platform).
 
 ---
 
@@ -111,11 +111,11 @@ Gaps from codebase audit, mapped to phases. Severity = impact if shipped to prod
 
 | Blocker | Status | Impact | Workaround |
 |---------|--------|--------|------------|
-| **Refund APIs on beta** | Not ready (Setomatic backend) | Cannot flip `USE_MOCK_REFUNDS=false` | Keep mock server on `:8001` — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
+| **Refund APIs on beta** (`RefundEligibility` + `RefundProcessing`) | Not ready (Setomatic backend) | Only 2 of 4 core agent APIs remain; cannot flip `USE_MOCK_REFUNDS=false` | Keep mock server on `:8001` — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
 | **.NET auth contract** | Not started (web chat UI not begun) | No JWT/API-key for `operator_id` + contact fields | dev2 passes fields manually; auth Phase 2 |
 | **Production hosting** | Rackspace preferred; not deployed | Phase 3 | See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 | **`operator_id` in tools** | API accepts field; tools hardcode `4` | Wrong operator scope in prod | Wire `state.operator_id` — Phase 1 |
-| **Bible not yet delivered** | Product owner compiling ~500 pages | RAG still on legacy `KB/` | Manual ingest when PDF ready — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
+| **Bible partially ready** | Brandon confirmed 250 pages done; sending PDF | RAG still on legacy `KB/` | Manual ingest when PDF received — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
 | **Video strategy undecided** | Transcripts vs links vs defer | Videos not in RAG | [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 
 ---
@@ -244,7 +244,7 @@ Gaps from codebase audit, mapped to phases. Severity = impact if shipped to prod
 | [ ] | Dashboard: chunk stats, feedback log, test assistant | |
 | [ ] | Generate suggested KB update from low-rated feedback | Approve before apply |
 | [ ] | Pending updates queue + chunk editor (`chunk_id`, keywords) | Structured schema ADR-015 |
-| [ ] | Operator thumbs up/down → Feedback API | [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) §9 |
+| [ ] | Operator thumbs up/down → Feedback API | [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) Tier 2 |
 | [ ] | Upload + auto re-index (replace email/manual loop) | Super Admin / Rackspace webhook |
 | [ ] | Video strategy implementation (transcripts and/or link catalog) | [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 | [ ] | Bible image pipeline (OCR / figure links) if product rejects text-only MVP | [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |

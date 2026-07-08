@@ -50,7 +50,7 @@ These are **deliberate** gaps vs the vendor end-state doc — not oversights.
 |-------------|--------|-------------------------|
 | Customer Agent (24/7, bilingual, POS) | **N/A** | Out of scope — [PRD.md](PRD.md) §9 |
 | Operator Agent (24/7, KB-driven) | **Partial** | LangGraph + RAG + tools + escalation MVP |
-| POS / Setomatic API integration | **Partial** | Sprint 1 blockers — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
+| POS / Setomatic API integration | **Partial** | 4 core APIs total: 2 done (loyalty balance, transaction search), 2 blocked (refund eligibility, refund processing) — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
 | ~6 month full dual-agent timeline | **Planned** | Mapped to Phase 0–5 — not a committed calendar in this repo |
 
 ---
@@ -74,7 +74,7 @@ These are **deliberate** gaps vs the vendor end-state doc — not oversights.
 
 | Step (vendor) | Status | Notes |
 |---------------|--------|-------|
-| 1. Requirement analysis (POS, channels, personas) | **Partial** | Gregg/Brandon rules in PRD; POS gaps in `API_Requirements.docx` |
+| 1. Requirement analysis (POS, channels, personas) | **Partial** | Gregg/Brandon rules in PRD; final API scope: 7 APIs (4 core + 3 future) — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
 | 2. Design architecture | **Partial** | [ARCHITECTURE.md](ARCHITECTURE.md) — MVP not full 8-layer |
 | 3. Implement core AI agents | **Partial** | Operator web path only; Customer Agent N/A |
 | 4. Integrate channels | **Partial** | Web chat API ready; voice/SMS-inbound deferred |
@@ -149,7 +149,7 @@ These are **deliberate** gaps vs the vendor end-state doc — not oversights.
 |-------------|--------|-------|
 | Admin portal KB upload | **Deferred** | Phase 5 — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
 | Continuous learning / feedback loop | **Planned** | Brandon KB Admin — Phase 5 |
-| POS / internal tool API integration | **Partial** | Setomatic loyalty/transactions/refunds |
+| POS / internal tool API integration | **Partial** | 2 of 4 core APIs live (loyalty balance, transactions); refund APIs blocked on backend — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
 
 ---
 
@@ -194,7 +194,7 @@ When the vendor requirements doc or client scope changes:
 
 - [PRD.md](PRD.md) — Operator Agent requirements
 - [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) — Brandon mail, KB Admin prototype
-- [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) — Setomatic POS APIs (`API_Requirements.docx`)
+- [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) — Final Setomatic POS API requirements: 7 APIs (4 core + 3 future platform)
 - [ROADMAP.md](ROADMAP.md) — phased backlog
 - [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) — Bible, images, videos, Rackspace
 - [DECISIONS.md](DECISIONS.md) — ADR-001, ADR-013, ADR-014

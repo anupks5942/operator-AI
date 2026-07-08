@@ -19,7 +19,7 @@ Product requirements and a [documentation map by role](PRD.md#documentation-map)
 | [TECH_STACK.md](TECH_STACK.md) | Current MVP stack vs target production |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System diagram, graph nodes, data flow |
 | [API.md](API.md) | Production REST contract for React/.NET |
-| [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) | Setomatic POS API requirements (`API_Requirements.docx`) → agent tools |
+| [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) | Final Setomatic POS API scope: 7 APIs (4 core + 3 future platform) |
 | [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md) | Gregg TC1/TC2 outage workflow |
 | [INTENT_MATRIX.md](INTENT_MATRIX.md) | Brandon matrix (29 rows) → router intents |
 | [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) | Brandon mail — KB Admin prototype, chunk map, feedback loop |
@@ -103,9 +103,8 @@ See [ROADMAP.md](ROADMAP.md) for full blocker table.
 
 - **Brandon KB mail** — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) (`SendAnywhere_546287/Mail.pdf`)
 - **Requirement understanding** (vendor SOW) — [REQUIREMENTS_MAP.md](REQUIREMENTS_MAP.md) (`SendAnywhere_546287/Requrement understading.docx`)
-- **API Requirements** (Setomatic backend) — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) (`SendAnywhere_546287/API_Requirements.docx`)
+- **API Requirements** (Setomatic backend) — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) — final scope: 7 APIs (4 core + 3 future)
 - Intent Matrix (Brandon, 29 rows) — [INTENT_MATRIX.md](INTENT_MATRIX.md)
-- `API_Requirements.docx` — Setomatic backend API gaps — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md)
 - Chat 1 / Chat 2 PDFs — stakeholder notes
 - Setomatic Summary / DDD docs — legacy context
 

@@ -82,7 +82,7 @@ Root files: `app.py` (Streamlit demo with persisted routing diagnostics sidebar)
 - `src/api/routes.py` `/query` endpoint is legacy. Use `POST /api/v1/agent/chat` from `server.py`.
 - `chroma_db/` is gitignored — it's regenerated on first run if missing.
 - `protobuf<=3.20.3` is pinned due to a LangChain compatibility constraint.
-- Transaction history tool has a staging-locked date range (April 2026) — update before production.
+- Transaction history tool has a staging-locked date range (April 2026) — switch to rolling 6-month window before production (agent-side fix, not a backend API).
 - `get_transaction_history` pre-validates cards via balance API; supports `count` (1–20) and `include_refunds` → API `isRefund`.
 - Card numbers are normalized (LC- prefix stripped) in loyalty/transaction tools.
 - The `__init__.py` files are missing from most packages; imports work because `src/` is on `sys.path` implicitly. Add `__init__.py` files if restructuring to a proper package layout.
@@ -92,7 +92,7 @@ Full docs in `docs/`. Key files for agents making changes:
 - `docs/ARCHITECTURE.md` — system design
 - `docs/ESCALATION_WORKFLOW.md` — Gregg's outage workflow (TC1/TC2)
 - `docs/INTENT_MATRIX.md` — Brandon matrix → router intent mapping
-- `docs/SETOMATIC_BACKEND_APIS.md` — live Setomatic API contract
+- `docs/SETOMATIC_BACKEND_APIS.md` — final Setomatic POS API scope: 7 APIs (4 core + 3 future platform)
 - `docs/ENVIRONMENT.md` — all env var descriptions
 - `docs/API.md` — REST contract for integrators
 - `docs/DECISIONS.md` — architectural decision records
