@@ -2,7 +2,7 @@
 
 How the Operator Agent is structured at runtime and inside LangGraph.
 
-**Last verified against code:** June 2026
+**Last verified against code:** July 2026
 
 ---
 
@@ -57,11 +57,13 @@ All UIs call **only** `:8000/api/v1/agent/chat`. Mock server replaced by live Se
 flowchart TD
   start([User message]) --> router[router]
   router -->|greeting| greet[greeting_node]
+  router -->|conversation_summary| summarize[summarize_node]
   router -->|mid-workflow gibberish| remind[workflow_reminder_node]
   router -->|out_of_domain| ood[out_of_domain_node]
   router -->|hardware_status| guard[guardrail_node]
   router -->|critical_outage| esc[escalation_node]
   router -->|outage workflow| blast[blast_radius_check]
+  router -->|vague outage report| clarify[clarify_issue]
   router -->|outage workflow| troubleshoot[troubleshoot_first]
   router -->|outage workflow| esc
   router -->|outage workflow| resolved[escalation_resolved]
@@ -71,7 +73,9 @@ flowchart TD
   rag -->|user says no| esc
   rag -->|resolved| endNode([END])
   greet --> endNode
+  summarize --> endNode
   remind --> endNode
+  clarify --> endNode
   blast --> endNode
   troubleshoot --> endNode
   esc --> endNode
@@ -84,20 +88,24 @@ flowchart TD
 
 ---
 
-## Graph nodes (13)
+## Graph nodes (16 + router)
 
 | Node | File | Purpose |
 |------|------|---------|
 | `router` | [router.py](../src/agent/router.py) | Classify intent, extract entities, set flags |
-| `greeting_node` | [nodes.py](../src/agent/nodes.py) | Friendly response for simple greetings (no LLM/RAG) |
+| `greeting_node` | [nodes.py](../src/agent/nodes.py) | Friendly response for greetings, thanks, and goodbyes (no RAG) |
+| `summarize_node` | [nodes.py](../src/agent/nodes.py) | Operator-friendly conversation recap on demand |
 | `workflow_reminder_node` | [nodes.py](../src/agent/nodes.py) | Re-prompts Yes/No when user sends gibberish mid-outage-workflow |
 | `guardrail_node` | [nodes.py](../src/agent/nodes.py) | Refuse live hardware status requests |
+| `pci_guardrail_node` | [nodes.py](../src/agent/nodes.py) | Static refusal for CVV/CVC/track-data requests |
 | `out_of_domain_node` | [nodes.py](../src/agent/nodes.py) | Static refusal for off-topic / injection |
 | `blast_radius_check` | [graph.py](../src/agent/graph.py) | Ask one machine vs entire laundromat |
+| `clarify_issue` | [graph.py](../src/agent/graph.py) | Ask for symptom details when outage report is too vague |
 | `troubleshoot_first` | [graph.py](../src/agent/graph.py) | RAG KB steps + "Did this resolve?" |
 | `escalation_node` | [graph.py](../src/agent/graph.py) | Email + SMS dispatch; sets `escalation_dispatched` |
-| `escalation_resolved` | [graph.py](../src/agent/graph.py) | Polite close when issue fixed |
+| `escalation_resolved` | [graph.py](../src/agent/graph.py) | Polite close when issue fixed; full workflow state reset |
 | `post_escalation_ack` | [graph.py](../src/agent/graph.py) | Ack after ticket sent; no workflow restart |
+| `new_issue_after_escalation` | [graph.py](../src/agent/graph.py) | Fresh blast-radius cycle after prior ticket dispatch |
 | `tool_node` | [graph.py](../src/agent/graph.py) | ReAct loop for Setomatic API tools |
 | `rag_agent` | [nodes.py](../src/agent/nodes.py) | Standard KB Q&A (`retrieve_and_generate`) |
 
@@ -127,17 +135,18 @@ Each turn ends at `END` after one node chain (router → one downstream node →
 ## Routing priority (`route_after_classifier`)
 
 1. `pci_sensitive_data` → PCI guardrail
-2. **Workflow continuity guard**: if `out_of_domain`/`greeting` BUT `troubleshooting_done` or `blast_radius_asked` is active → `workflow_reminder_node` (re-prompts)
-3. `greeting` → greeting_node (pre-LLM heuristic; no RAG or API call)
-4. `out_of_domain` → refusal
-5. `hardware_lookup_attempted` → guardrail
-6. Post-escalation follow-ups → `post_escalation_ack` or `escalation_resolved` or `new_issue_after_escalation` (fresh cycle for new reports)
-7. **Post-resolution closure**: "no" / "no thanks" after "Glad to hear..." → friendly close (not new workflow)
-8. `critical_outage` → immediate escalation (skip troubleshoot; dedup guard prevents re-dispatch)
-9. Outage workflow intents → blast-radius → **entire_location: immediate escalation** / single_machine: clarify (if vague) → troubleshoot → escalate on failure
-10. **Escalation dedup**: if `escalation_dispatched` is set, "no" routes to `post_escalation_ack` (no duplicate tickets)
-11. `api_action_required` → tools
-12. Default → RAG
+2. `conversation_summary` → `summarize_node` (honored even mid-workflow; does not reset outage state)
+3. **Workflow continuity guard**: if `out_of_domain`/`greeting` BUT `troubleshooting_done` or `blast_radius_asked` is active → `workflow_reminder_node` (re-prompts)
+4. `greeting` → greeting_node (pre-LLM heuristic; no RAG or API call)
+5. `out_of_domain` → refusal
+6. `hardware_lookup_attempted` → guardrail
+7. Post-escalation follow-ups → `post_escalation_ack` or `escalation_resolved` or `new_issue_after_escalation` (fresh cycle for new reports); API intents pass through
+8. **Post-resolution closure**: "no" / "no thanks" after "Glad to hear..." → friendly close (not new workflow)
+9. `critical_outage` → immediate escalation (skip troubleshoot; dedup guard prevents re-dispatch)
+10. Outage workflow intents → blast-radius → **entire_location: immediate escalation** / single_machine: `clarify_issue` (if vague, once per cycle) → troubleshoot → escalate on failure
+11. **Escalation dedup**: if `escalation_dispatched` is set, "no" routes to `post_escalation_ack` (no duplicate tickets)
+12. `api_action_required` → tools (clears stale workflow flags on completion)
+13. Default → RAG
 
 Outage intents (`_ESCALATION_WORKFLOW_INTENTS` in graph):
 
@@ -176,7 +185,7 @@ See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) and ADR-013 in [DECISIONS.md](DECIS
 | Tool | Target | OperatorId |
 |------|--------|--------------|
 | `get_loyalty_balance` | Live `SETOMATIC_BASE_URL` | Hardcoded `4` (**Phase 1 fix**) |
-| `get_transaction_history` | Live `SETOMATIC_BASE_URL` | Hardcoded `LoggedInUserId=4` |
+| `get_transaction_history` | Live `SETOMATIC_BASE_URL` | Hardcoded `LoggedInUserId=4`; `PageSize` from `count` (1–20); `isRefund` from `include_refunds`; card pre-validated via balance API; LC-prefix stripped |
 | `check_refund_eligibility` | Mock or live per `USE_MOCK_REFUNDS` | Hardcoded `4` |
 | `execute_refund` | Mock or live per `USE_MOCK_REFUNDS` | Hardcoded `4` |
 | `check_global_system_status` | Web scrape setomaticsystems.com/status | N/A |
@@ -207,7 +216,7 @@ Detail: [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md)
 | Entry | Invocation | Use |
 |-------|------------|-----|
 | [server.py](../src/api/server.py) | HTTP `invoke()` | **Production / QA** |
-| [app.py](../app.py) | In-process `stream()` | Local demo |
+| [app.py](../app.py) | In-process `stream()` | Local demo; sidebar routing diagnostics persisted in `st.session_state.routing_diagnostics` |
 | [main.py](../main.py) | HTTP `/query` or CLI | **Legacy** — avoid |
 
 ---

@@ -2,7 +2,7 @@
 
 Every source file in this repo and its role. Use this when navigating without an AI assistant.
 
-**Last verified:** June 2026
+**Last verified:** July 2026
 
 ---
 
@@ -10,7 +10,7 @@ Every source file in this repo and its role. Use this when navigating without an
 
 ```
 operator-AI/
-├── app.py                      # Streamlit dev UI (in-process graph)
+├── app.py                      # Streamlit dev UI (in-process graph; persisted routing diagnostics sidebar)
 ├── main.py                     # Legacy FastAPI + console harness — avoid
 ├── pyproject.toml              # Dependencies (uv)
 ├── .env.example                # Env template — copy to .env
@@ -24,8 +24,8 @@ operator-AI/
     ├── config.py               # All env-backed settings
     ├── agent/
     │   ├── graph.py            # LangGraph state machine + workflow guards (start here for behavior)
-    │   ├── router.py           # 16-intent semantic classifier + greeting heuristic
-    │   ├── nodes.py            # RAG, guardrail, greeting, workflow_reminder, out-of-domain nodes
+    │   ├── router.py           # 17-intent semantic classifier + greeting/summary heuristics
+    │   ├── nodes.py            # RAG, guardrail, greeting, summary, workflow_reminder, out-of-domain nodes
     │   ├── tools.py            # Setomatic API + status scrape tools
     │   └── state.py            # AgentState TypedDict
     ├── api/

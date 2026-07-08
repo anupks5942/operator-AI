@@ -215,6 +215,8 @@ Automated tests: [tests/test_outage_workflow.py](../tests/test_outage_workflow.p
 | Router overwrites `blast_radius: None` destroying established scope | Router only writes blast_radius to state when non-None |
 | `clarify_issue` fires repeatedly (user provides details but gets re-asked) | `clarify_asked` flag ensures clarify only fires once per cycle |
 | "lc-00000212" card number fails but "00000212" works | `_normalize_card_number()` strips LC-/lc- prefixes in tools before API call |
+| "summarise this chat" mid-workflow ignored or breaks outage state | `conversation_summary` routed early to `summarize_node`; workflow flags preserved |
+| Streamlit sidebar diagnostics flash then disappear | `routing_diagnostics` persisted in `st.session_state`; rendered on every run |
 
 ---
 

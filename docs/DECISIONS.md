@@ -197,6 +197,46 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 
 ---
 
+## ADR-021: On-demand conversation summary
+
+**Status:** Accepted  
+**Context:** Operators need a quick recap of issues raised, actions taken, tickets/refunds, and current status without leaving an active troubleshooting or outage workflow.  
+**Decision:** Add `conversation_summary` intent with a pre-LLM phrase heuristic (`_is_summary_request`) and `summarize_conversation_node`. Route early in `route_after_classifier` so summary requests are honored even mid-workflow without clearing outage state.  
+**Consequences:** Operators can say "summarise this chat" at any time. Summary uses LLM over filtered thread history; does not dispatch escalation or call Setomatic APIs.
+
+---
+
+## ADR-022: Transaction lookup — card validation, count, and refund filter
+
+**Status:** Accepted  
+**Context:** Invalid loyalty cards could return unrelated operator-wide transactions from the Setomatic API. Operators also need configurable result counts and separate refund vs non-refund history after `isRefund` was added to `ViewAllTransactionSearch`.  
+**Decision:**  
+
+- `get_transaction_history` pre-validates the card via `get_loyalty_balance` before fetching transactions.  
+- Add `count` parameter (1–20, default 5) mapped to API `PageSize`.  
+- Add `include_refunds` boolean (default `false`) mapped to API `isRefund`.  
+**Consequences:** Invalid cards get a clear "not found" message. "Show my last 10 transactions" and "show refunded transactions" work via natural language tool selection. See [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md).
+
+---
+
+## ADR-023: Clarify vague outage reports before troubleshooting
+
+**Status:** Accepted  
+**Context:** Operators reporting only scope without symptom (e.g., "one machine") were pushed into blast-radius or troubleshooting with no actionable context.  
+**Decision:** Add `clarify_issue` node. When an outage intent is classified but the message lacks action/symptom words and `clarify_asked` is not set, route to `clarify_issue` to ask what the machine is doing. Set `clarify_asked: true` so clarification fires at most once per cycle.  
+**Consequences:** Vague reports get a guided follow-up before KB troubleshooting. See [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md).
+
+---
+
+## ADR-024: Streamlit routing diagnostics persistence
+
+**Status:** Accepted  
+**Context:** Sidebar intent/guardrail/escalation/API indicators in [app.py](../app.py) were written only during the processing run; `st.rerun()` after each response recreated empty placeholders, so diagnostics flashed briefly then disappeared.  
+**Decision:** Persist routing diagnostics in `st.session_state.routing_diagnostics` and render from that on every Streamlit run. Update live during graph streaming and after completion.  
+**Consequences:** Dev demo sidebar shows stable last-known routing state across turns. Production React/.NET clients are unaffected (they use the HTTP API, not Streamlit sidebar).
+
+---
+
 When making a significant architectural choice:
 
 1. Add a numbered ADR to this file

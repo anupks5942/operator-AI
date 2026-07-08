@@ -1,216 +1,129 @@
-# Setomatic Backend API Requirements
+# Setomatic Backend API Requirements — Operator AI Agent (Final)
 
-Maps **`SendAnywhere_546287/API_Requirements.docx`** to what the Operator Agent **calls today**, what **blocks UAT/prod**, and the full backend backlog for the Setomatic team.
+**Purpose:** Every API the Operator AI Agent needs from the Setomatic backend team. APIs that serve only the portal dashboard, admin panel, or reporting UI are excluded — they are not consumed by the AI agent.
 
-**This is not the Agent API.** For the chat contract (`POST /api/v1/agent/chat`), see [API.md](API.md).
+**Status legend:**
+- **DONE** = API is live on beta and integrated into the agent.
+- No status = Backend has not delivered this API yet.
 
-**Last updated:** July 2026  
-**Owner (backend delivery):** Setomatic backend team  
-**Owner (agent integration):** dev1
-
----
-
-## Two API surfaces
-
-| Surface | Base URL | Purpose | Doc |
-|---------|----------|---------|-----|
-| **Operator Agent API** | `:8000` (this repo) | Web chat → LangGraph | [API.md](API.md) |
-| **Setomatic POS / portal APIs** | `SETOMATIC_BASE_URL` (beta/prod) | Tools: loyalty, transactions, refunds | This document |
-
-The agent does **not** handle login. The .NET portal authenticates the operator and passes `operator_id` (+ contact fields) to the agent API. Setomatic must later provide **Operator Profile** and **Role/Permission** APIs so the portal can scope tool calls correctly.
+**Last updated:** July 2026
 
 ---
 
-## Sprint 1 — critical blockers (MVP)
+## Sprint 1 — MVP Critical Blockers
 
-From the requirements doc: **do not proceed to other endpoints until these four are delivered, tested, and deployed.**
+> Do **not** proceed to other sections until these 4 APIs are delivered, tested, and deployed on beta. The agent's core workflows are blocked without them.
 
-| Requirement (doc name) | Agent tool | Setomatic endpoint (agent code) | Status | Notes |
-|------------------------|------------|----------------------------------|--------|-------|
-| **Loyalty Balance API** | `get_loyalty_balance` | `GET /api/Transactions/CheckLoyaltyCardBalance` | **Partial — live on beta** | Uses `OperatorId` + `LoyaltyCardNo`. Agent hardcodes `OperatorId=4` — Phase 1 fix |
-| **Transaction Search / Lookup API** | `get_transaction_history` | `GET /api/Transactions/ViewAllTransactionSearch` | **Partial — live on beta** | Doc: search by **last 4** of card; agent sends **full** `LoyaltyCardNo`. Doc: general search; agent uses fixed date window + pagination. `isRefund` param filters refunded vs normal transactions |
-| **Refund Validation API** | `check_refund_eligibility` | `GET /api/Transactions/RefundEligibility` | **Blocked — mock only** | `USE_MOCK_REFUNDS=true` default → `:8001` mock. Beta API **not ready** |
-| **Refund Transaction API** | `execute_refund` | `GET /api/Transactions/RefundProcessing` | **Blocked — mock only** | Same as above |
-
-**Agent refund workflow (implemented):** transaction history → eligibility → execute (never skip eligibility). See [tools.py](../src/agent/tools.py).
-
-**Unblock criteria for UAT refunds:** Setomatic delivers + documents beta RefundEligibility + RefundProcessing; dev1 sets `USE_MOCK_REFUNDS=false` and validates end-to-end.
+| # | API | Endpoint | Purpose | Description | Status | Notes for Backend |
+|---|-----|----------|---------|-------------|--------|-------------------|
+| 1 | Loyalty Balance API | `GET /api/Transactions/CheckLoyaltyCardBalance` | Fetch loyalty card balance | Returns current balance, bonus balance, and total used amount for a loyalty card number scoped to an operator. | **DONE** | |
+| 2 | Transaction Search API | `GET /api/Transactions/ViewAllTransactionSearch` | Search & fetch transactions | Returns a paginated list of transactions filtered by card number, date range, refund status, location, amount, etc. Also serves as the agent's transaction history and refund-transaction lookup. | **DONE** | |
+| 3 | Refund Validation API | `GET /api/Transactions/RefundEligibility` | Validate refund eligibility | Checks if a specific transaction is eligible for refund (e.g., within 30-day refund window, not already refunded). Returns eligibility status and reason. | | |
+| 4 | Refund Transaction API | `GET /api/Transactions/RefundProcessing` | Execute refund | Processes the actual refund for a validated transaction. Returns a refund receipt identifier. | | |
 
 ---
 
-## Implemented in agent today (Setomatic calls)
+## Sprint 2 — Authentication, Scoping & System Status
 
-| Tool | HTTP | Key parameters (today) | Env |
-|------|------|------------------------|-----|
-| `get_loyalty_balance` | GET `.../CheckLoyaltyCardBalance` | `OperatorId`, `LoyaltyCardNo` | Always live `SETOMATIC_BASE_URL` |
-| `get_transaction_history` | GET `.../ViewAllTransactionSearch` | `LoggedInUserId`, `LoyaltyCardNo`, `StartDate`, `EndDate`, `PageNo`, `PageSize`, `isRefund` | Always live |
-| `check_refund_eligibility` | GET `.../RefundEligibility` | `transactionDetailId`, `OperatorId` | Mock or live per `USE_MOCK_REFUNDS` |
-| `execute_refund` | GET `.../RefundProcessing` | `transactionDetailId`, `OperatorId` | Mock or live per `USE_MOCK_REFUNDS` |
-| `check_global_system_status` | GET scrape `setomaticsystems.com/status` | N/A (not a Setomatic REST API) | Live scrape |
-
-Default base URL: `https://betasetomaticposwebapplication.spyderwash.com` — [config.py](../src/config.py).
-
-### Known agent-side gaps (not Setomatic blockers)
-
-| Gap | Impact | Phase |
-|-----|--------|-------|
-| `OperatorId` / `LoggedInUserId` hardcoded `4` | Wrong operator in prod | Phase 1 — [ROADMAP.md](ROADMAP.md) |
-| Transaction dates locked to `2026-04-01`–`2026-04-30` | Demo/staging window only | Phase 1 — use rolling 6-month window |
-| Full card number vs last-4 search | May not match doc’s “last 4 digits” UX | Align with Setomatic API contract |
-| Mock server loyalty/transaction routes | **Unused** by tools — only refund mocks wired | [mock_server.py](../src/api/mock_server.py) |
+| # | API | Endpoint | Purpose | Description | Status | Notes for Backend |
+|---|-----|----------|---------|-------------|--------|-------------------|
+| 5 | Operator Profile API | TBD | Fetch logged-in operator details | Returns the authenticated operator's ID, operator code, assigned locations, display name, email, and phone number. | | |
+| 6 | Role / Permission API | TBD | Check operator permissions | Verifies whether an operator has permission for specific actions (e.g., process refunds, view transactions, recharge cards). | | |
+| 7 | System Status API | TBD | Check global system status | Returns current Setomatic/SpyderWash operational status (operational, degraded, outage) with active incident details and timestamps. | | |
 
 ---
 
-## Full backend backlog (requirements doc)
+## Phase 2 — Extended Transaction & Refund Capabilities
 
-Status for **Operator Agent MVP** unless noted.
-
-### 1. Authentication & session
-
-| API (doc) | Agent needs? | Status | Notes |
-|-----------|--------------|--------|-------|
-| Operator Profile API | **Yes** (via portal → agent) | **Planned** | Portal passes `operator_id`, name, email, phone to agent API today |
-| Role/Permission API | **Yes** (refunds) | **Planned** | Agent has no permission check before refund tools |
-
-Login/logout: **N/A** — agent runs inside authenticated portal per requirements doc.
-
-### 2. Transaction APIs
-
-| API (doc) | Agent needs? | Status | Notes |
-|-----------|--------------|--------|-------|
-| View All Transactions API | **Partial** | **Partial** | Mapped to `ViewAllTransactionSearch` |
-| Transaction Details API | **Future** | **Not integrated** | Single-tx metadata |
-| Transaction Search API (filters) | **Future** | **Not integrated** | Date/payment/amount filters |
-| Transaction Status API | **Future** | **Not integrated** | |
-| Transaction History API | **Partial** | **Partial** | Overlaps ViewAllTransactionSearch tool |
-
-### 3. Refund APIs
-
-| API (doc) | Agent needs? | Status | Notes |
-|-----------|--------------|--------|-------|
-| Refund Validation API | **Yes** | **Mock only** | Sprint 1 blocker |
-| Refund Transaction API | **Yes** | **Mock only** | Sprint 1 blocker |
-| Refund Status API | **Future** | **Not integrated** | |
-| Refund History API | **Future** | **Not integrated** | |
-
-### 4. Loyalty card APIs
-
-| API (doc) | Agent needs? | Status | Notes |
-|-----------|--------------|--------|-------|
-| Loyalty Balance API | **Yes** | **Partial — live** | Sprint 1 |
-| Loyalty Card Lookup API | **Future** | **Not integrated** | Status, assigned user, location |
-| Loyalty Transaction History API | **Partial** | **Partial** | Via transaction search tool |
-| Loyalty Recharge API | **Future** | **Not integrated** | |
-| Loyalty Registration API | **Future** | **Not integrated** | |
-| Loyalty Activation/Deactivation API | **Future** | **Not integrated** | |
-
-### 5. Reporting APIs
-
-| API (doc) | Agent needs? | Status | Notes |
-|-----------|--------------|--------|-------|
-| Revenue / Daily / Machine / Location / Refund / Loyalty reports | **No (MVP)** | **Not integrated** | Out of operator chat scope for v1 |
-
-### 6. Operator & location APIs
-
-| API (doc) | Agent needs? | Status | Notes |
-|-----------|--------------|--------|-------|
-| Operator Details API | **Future** | **Not integrated** | |
-| Location List / Details / Store config / Pricing | **Future** | **Not integrated** | Intent Matrix has pricing rows — RAG today |
-
-### 7. Kiosk & reload center (future scope)
-
-| API (doc) | Agent needs? | Status | Notes |
-|-----------|--------------|--------|-------|
-| Kiosk Transaction API | **Deferred** | **Not integrated** | Doc marks future scope |
-| Reload Center API | **Deferred** | **Not integrated** | |
-
-### 8. Notification & escalation
-
-| API (doc) | Agent needs? | Status | Notes |
-|-----------|--------------|--------|-------|
-| Email Notification API | **No** | **Agent-owned** | Mandrill via [notifications.py](../src/services/notifications.py) — not Setomatic REST |
-| SMS Notification API | **No** | **Agent-owned** | Twilio via agent — not Setomatic REST |
-| Ticket Creation API | **Future** | **Partial** | Agent generates ticket ID locally; no helpdesk API |
-| Escalation Logging API | **Future** | **Not integrated** | Email/SMS only today |
-
-### 9. AI conversation logging
-
-| API (doc) | Agent needs? | Status | Notes |
-|-----------|--------------|--------|-------|
-| Conversation Logging API | **Future** | **Not integrated** | MemorySaver in-process only |
-| Interaction Audit API | **Future** | **Not integrated** | |
-| Escalation Summary API | **Future** | **Partial** | Summary in escalation email body |
-| Feedback API (thumbs up/down) | **Yes (Phase 5)** | **Not integrated** | Powers Brandon KB Admin feedback log — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
-
-### 10. Knowledge base / documentation (optional)
-
-| API (doc) | Agent needs? | Status | Notes |
-|-----------|--------------|--------|-------|
-| Manual Upload / KB Search / Metadata / Versioning | **Yes (Phase 5)** | **Not integrated** | Replaces email + manual re-ingest; pairs with KB Admin — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
+| # | API | Endpoint | Purpose | Description | Status | Notes for Backend |
+|---|-----|----------|---------|-------------|--------|-------------------|
+| 8 | Transaction Details API | TBD | Fetch single transaction metadata | Returns comprehensive details for a specific transaction ID — payment method, machine ID, location, timestamps, status. | | |
+| 9 | Transaction Status API | TBD | Fetch transaction state | Returns the current state of a transaction: success, failed, pending, or refunded. | | |
+| 10 | Refund Status API | TBD | Check refund processing state | Returns whether a previously initiated refund has been processed, is pending, or failed at the payment gateway. | | |
+| 11 | Refund History API | TBD | Fetch refund audit trail | Returns a historical log of all refunds issued by an operator, with amounts, timestamps, and receipt numbers. | | |
 
 ---
 
-## APIs explicitly NOT required (guardrails)
+## Phase 2 — Extended Loyalty Card Capabilities
 
-Per requirements doc — **must not** be exposed to the agent. Enforced in code:
-
-| Forbidden capability | Agent behavior | Code |
-|---------------------|----------------|------|
-| Live machine telemetry / individual machine status | Static refusal | `guardrail_node` — [nodes.py](../src/agent/nodes.py) |
-| Live hub status / port-level diagnostics | Static refusal | Same guardrail |
-| Kiosk hardware status / kiosk error logs | Not integrated | No tools |
-| Internal infrastructure monitoring | Not integrated | Global status scrape is **public** status page only |
-| Raw backend/system errors to operator | Graceful tool error strings | [tools.py](../src/agent/tools.py) |
-
-See [PRD.md](PRD.md) §4 and [INTENT_MATRIX.md](INTENT_MATRIX.md).
+| # | API | Endpoint | Purpose | Description | Status | Notes for Backend |
+|---|-----|----------|---------|-------------|--------|-------------------|
+| 12 | Loyalty Card Lookup API | TBD | Fetch card details | Returns card status (active/deactivated), assigned customer name, base location, and registration date using exact card number. | | |
+| 13 | Loyalty Transaction History API | TBD | Fetch card-specific usage history | Returns detailed recharge and usage history for a specific loyalty card — distinguishes recharges, washes, and adjustments. | | |
+| 14 | Loyalty Recharge API | TBD | Reload card balance | Processes a manual recharge/reload of a loyalty card with a specified dollar amount. | | |
+| 15 | Loyalty Registration API | TBD | Register new loyalty card | Assigns a new or existing loyalty card to a customer, employee, or technician profile. | | |
+| 16 | Loyalty Activation / Deactivation API | TBD | Toggle card active state | Activates or deactivates a loyalty card (e.g., block a lost card, reactivate a returned card). | | |
 
 ---
 
-## Expected workflow (requirements doc)
+## Phase 2 — Operator & Location Context
 
-```
-Operator query
-  → Intent classification (router)
-  → Guardrail & outage evaluation
-  → Knowledge retrieval and/or API decision
-  → API call (if required)
-  → Response generation
-  → Escalation (if unresolved)
-```
-
-Implemented in [graph.py](../src/agent/graph.py). Detail: [ARCHITECTURE.md](ARCHITECTURE.md), [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md).
+| # | API | Endpoint | Purpose | Description | Status | Notes for Backend |
+|---|-----|----------|---------|-------------|--------|-------------------|
+| 17 | Operator Details API | TBD | Fetch operator account info | Returns overarching operator account details — company name, global settings, contact information. | | |
+| 18 | Location List API | TBD | Fetch operator's locations | Returns an array of all physical store locations managed by the authenticated operator, with location IDs and names. | | |
+| 19 | Location Details API | TBD | Fetch single location config | Returns configuration, address, operating hours, and parameters for a specific location. | | |
 
 ---
 
-## Environment & testing
+## Phase 3 — Escalation & Audit Trail
 
-| Goal | Config |
-|------|--------|
-| Loyalty + transactions against beta | `SETOMATIC_BASE_URL` → beta; mock server optional |
-| Refunds in dev | `USE_MOCK_REFUNDS=true`, run `:8001` mock — [RUNBOOK.md](RUNBOOK.md) |
-| Refunds in UAT/prod | `USE_MOCK_REFUNDS=false` when Sprint 1 refund APIs ready |
-
-Mock refund endpoints (used by tools):  
-`GET /api/Transactions/RefundEligibility`, `GET /api/Transactions/RefundProcessing` on `:8001`.
-
----
-
-## Maintenance
-
-When Setomatic delivers or changes an API:
-
-1. Update the **Sprint 1** and **Implemented** tables in this doc.
-2. Update [tools.py](../src/agent/tools.py) and [PRD.md](PRD.md) feature matrix.
-3. Update [REQUIREMENTS_MAP.md](REQUIREMENTS_MAP.md) if vendor scope shifts.
-4. Add integration tests when live refund APIs are available.
+| # | API | Endpoint | Purpose | Description | Status | Notes for Backend |
+|---|-----|----------|---------|-------------|--------|-------------------|
+| 20 | Ticket Creation API | TBD | Create support ticket | Creates a formal ticket in the helpdesk system containing the AI-generated issue summary, operator info, and conversation transcript. Returns a persistent ticket ID. | | |
+| 21 | Escalation Logging API | TBD | Record escalation events | Logs the escalation event — timestamp, destination (email/SMS), ticket ID, and outcome — in the database for auditing. | | |
+| 22 | Conversation Logging API | TBD | Persist AI chat transcripts | Stores the raw AI chat transcript and session state for QA review and compliance auditing. | | |
+| 23 | Interaction Audit API | TBD | Log specific AI actions | Records each discrete agent action (balance lookup, refund executed, escalation triggered) with timestamps, parameters, and results. | | |
+| 24 | Escalation Summary API | TBD | Persist escalation summaries | Stores the AI-generated compressed issue summary that accompanies human handoff, linked to the ticket ID. | | |
+| 25 | Feedback API | TBD | Capture operator feedback | Records thumbs up/down from the operator on individual AI responses, with optional free-text comment. | | |
 
 ---
 
-## Related documents
+## Phase 4 — Knowledge Base Administration
 
-- [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) — Feedback & KB APIs → Brandon Admin UX
-- [API.md](API.md) — Operator Agent REST contract (`:8000`)
-- [REQUIREMENTS_MAP.md](REQUIREMENTS_MAP.md) — full vendor requirements traceability
-- [ROADMAP.md](ROADMAP.md) — Phase 1 `operator_id`, refund unblock
-- [PRD.md](PRD.md) — feature status matrix
-- [ENVIRONMENT.md](ENVIRONMENT.md) — `SETOMATIC_BASE_URL`, `USE_MOCK_REFUNDS`
+| # | API | Endpoint | Purpose | Description | Status | Notes for Backend |
+|---|-----|----------|---------|-------------|--------|-------------------|
+| 26 | Manual Upload API | TBD | Upload KB documents | Endpoint to ingest new operator manuals (PDF/DOCX) into the agent's vector database. Returns upload status and document metadata. | | |
+
+---
+
+## APIs Explicitly NOT Required from Backend
+
+These capabilities are either **agent-owned** (handled internally by the AI agent) or **out of scope** for the operator chat agent. Do **not** build these as Setomatic REST APIs for the agent.
+
+| Capability | Reason NOT Required |
+|------------|---------------------|
+| Email Notification API | Agent-owned — sends escalation emails directly via Mandrill SMTP. Not a Setomatic REST call. |
+| SMS Notification API | Agent-owned — sends SMS alerts directly via Twilio. Not a Setomatic REST call. |
+| Revenue Report API | Portal/dashboard scope — the chat agent does not generate reports. |
+| Daily Transaction Report API | Portal/dashboard scope. |
+| Machine Revenue API | Portal/dashboard scope. |
+| Location Revenue API | Portal/dashboard scope. |
+| Refund Report API | Portal/dashboard scope. |
+| Loyalty Usage Report API | Portal/dashboard scope. |
+| Pricing Configuration API | Portal admin scope — agent answers pricing questions via RAG from operator manuals. |
+| Store Configuration API | Portal admin scope. |
+| Kiosk Transaction API | Future scope / portal — no agent integration path planned. |
+| Reload Center API | Future scope / portal. |
+| KB Search API | Agent-internal — the agent queries its vector database (ChromaDB) directly. |
+| Document Metadata API | Agent-internal. |
+| KB Versioning API | Agent-internal. |
+| Live machine telemetry / individual machine status | Explicitly forbidden — agent has a guardrail that refuses these requests. |
+| Live hub status / port-level diagnostics | Explicitly forbidden — same guardrail. |
+| Kiosk hardware status / kiosk error logs | Not integrated — no tools or intent for this. |
+| Raw backend/system errors | Blocked — agent wraps all API errors in graceful user-facing messages. |
+
+---
+
+## Summary
+
+| Priority | APIs | Done | Remaining |
+|----------|------|------|-----------|
+| Sprint 1 — MVP Blockers | 4 | 2 | 2 |
+| Sprint 2 — Auth & Scoping | 3 | 0 | 3 |
+| Phase 2 — Transactions & Refunds | 4 | 0 | 4 |
+| Phase 2 — Loyalty | 5 | 0 | 5 |
+| Phase 2 — Operator & Location | 3 | 0 | 3 |
+| Phase 3 — Escalation & Audit | 6 | 0 | 6 |
+| Phase 4 — KB Admin | 1 | 0 | 1 |
+| **Total** | **26** | **2** | **24** |

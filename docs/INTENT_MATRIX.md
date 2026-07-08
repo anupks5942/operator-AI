@@ -2,7 +2,7 @@
 
 Brandon's signed-off business intent matrix (June 2026), mapped to LangGraph router intents and escalation channels.
 
-**Router:** [src/agent/router.py](../src/agent/router.py) — 16 intents  
+**Router:** [src/agent/router.py](../src/agent/router.py) — 17 intents  
 **Routing:** [src/agent/graph.py](../src/agent/graph.py) — `route_after_classifier`  
 **Notifications:** [src/services/notifications.py](../src/services/notifications.py)
 
@@ -72,10 +72,11 @@ Source: client Intent Matrix spreadsheet (Brandon), June 2026.
 | Brandon subcategory(s) | Router intent(s) | Graph route |
 |------------------------|------------------|-------------|
 | Simple greeting / salutation (hi, hello, hey) | `greeting` | greeting_node |
+| Summarise / recap current chat | `conversation_summary` | summarize_node |
 | Hub setup, portal how-to, time clock, card registration, free wash, etc. | `general_query` or `technical_support` | RAG |
 | Machine Availability; live machine/port status questions | `hardware_status` | guardrail |
 | Balance Lookup | `loyalty_balance_query` | tool_node |
-| Transaction lookup / card history | `transaction_lookup` | tool_node |
+| Transaction lookup / card history (normal or refunded) | `transaction_lookup` | tool_node (`isRefund` false/true) |
 | Customer Refunds | `refund_request` | tool_node |
 | Global/platform outage | `system_status_check` | tool_node |
 | Portal login, pricing, activation, receipt printer, recharge failure | `technical_support` (no dedicated label) | RAG; conditional Email **not wired** |
@@ -97,11 +98,12 @@ Source: client Intent Matrix spreadsheet (Brandon), June 2026.
 
 ---
 
-## Router intent table (16 intents)
+## Router intent table (17 intents)
 
 | Router intent | Graph route | Outage workflow | Escalation today | Target (Brandon) |
 |---------------|-------------|-----------------|------------------|------------------|
 | `greeting` | greeting_node | No | None | None |
+| `conversation_summary` | summarize_node | No (does not reset active workflow) | None | None |
 | `general_query` | RAG | No | None | None |
 | `technical_support` | RAG | No | None | None (Conditional Email rows — **not wired**) |
 | `hardware_status` | guardrail | No | None | None |
@@ -170,6 +172,7 @@ RAG-only (no outage workflow): `kiosk_not_responding`, `technical_support`
 | Did this resolve? | "yes", "fixed" | `troubleshooting_failed: false` |
 | Refund workflow | card number, "yes proceed" | `card_number`, `confirmation` |
 | Ticket already dispatched | any follow-up | `general_query` — no workflow restart |
+| Summarise / recap request | "summarise this chat", "recap", "tl;dr" | `conversation_summary` — honored mid-workflow |
 
 ---
 
