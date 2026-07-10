@@ -163,7 +163,11 @@ def _user_indicates_resolved(text: str) -> bool:
     lower = text.lower()
     return any(
         marker in lower
-        for marker in ("resolved", "fixed it", "fixed", "all good", "working now", "issue is fixed")
+        for marker in (
+            "resolved", "fixed it", "fixed", "all good", "working now", "now working",
+            "working fine", "working again", "back up", "back online", "back to normal",
+            "up and running", "issue is fixed", "problem solved",
+        )
     )
 
 
@@ -232,6 +236,7 @@ def escalation_node(state: AgentState):
             "troubleshooting_done": True,
             "blast_radius_asked": False,
             "escalation_confirmation_asked": False,
+            "escalation_ticket_id": ticket_number,
         },
     }
 
@@ -381,6 +386,14 @@ def escalation_resolved_node(state: AgentState):
     # Route to resolution response since initial troubleshooting resolved the system issue.
     # Reset all workflow flags so subsequent messages are treated as fresh conversations
     # rather than being trapped in the completed workflow's state.
+
+    # If an escalation ticket was dispatched, notify the team that the issue is now resolved.
+    if state.get("escalation_dispatched"):
+        entities = state.get("extracted_entities") or {}
+        ticket_id = entities.get("escalation_ticket_id", "")
+        issue_context = _extract_escalation_context(state.get("messages", []))
+        NotificationService.send_resolution(ticket_id=ticket_id, issue_summary=issue_context)
+
     msg = AIMessage(content="Glad to hear the issue is resolved! Let me know if there is anything else I can help you with.")
     return {
         "messages": [msg],
@@ -390,6 +403,7 @@ def escalation_resolved_node(state: AgentState):
             "blast_radius": None,
             "blast_radius_asked": False,
             "clarify_asked": False,
+            "escalation_ticket_id": None,
         },
         "blast_radius": None,
         "escalation_required": None,

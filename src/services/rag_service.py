@@ -1,6 +1,6 @@
 import os
 import re
-from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
+from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
@@ -31,6 +31,8 @@ def _infer_doc_type(filename: str) -> str:
         return "manual"
     if "release" in name_lower or "notes" in name_lower:
         return "release_notes"
+    if "overview" in name_lower:
+        return "overview"
     return "general"
 
 def _infer_brand(filename: str) -> str:
@@ -86,7 +88,8 @@ class RAGService:
 
             system_prompt = (
                 "You are an expert Technical Support AI Agent for the Setomatic/SpyderWash ecosystem. "
-                "Use the provided context from the legacy manuals and release notes to answer the user's troubleshooting questions. "
+                "Use the provided context from manuals, release notes, and product documentation to answer "
+                "the user's questions about SpyderWash hardware, portal operations, product features, and troubleshooting. "
                 "Be brutally direct, technically rigorous, and zero fluff. "
                 "If the answer is not contained in the context, explicitly state that you do not have that information in the current KB. "
                 "\n\n"
@@ -106,7 +109,7 @@ class RAGService:
 
     def load_and_process_documents(self):
         """
-        Load all PDF and DOCX files from kb_dir, split into chunks of 500/50,
+        Load all PDF, DOCX, and TXT files from kb_dir, split into chunks of 500/50,
         enrich each chunk with source metadata, and prepend a provenance header
         to each chunk's page_content so the LLM sees the source inline.
 
@@ -124,8 +127,10 @@ class RAGService:
                 raw_docs = PyPDFLoader(file_path).load()
             elif filename.endswith(".docx"):
                 raw_docs = Docx2txtLoader(file_path).load()
+            elif filename.endswith(".txt"):
+                raw_docs = TextLoader(file_path, encoding="utf-8").load()
             else:
-                continue  # skip .txt and other auxiliary files
+                continue
 
             # Enrich metadata before splitting so every chunk inherits it
             for doc in raw_docs:
@@ -197,6 +202,10 @@ class RAGService:
         """
         Query the RAG pipeline.
 
+        If a metadata_filter is provided and retrieval returns zero context documents,
+        the query is retried without the filter as a fallback to avoid false "not in KB"
+        responses when the filter is too restrictive.
+
         Args:
             input_text:      The user's question.
             metadata_filter: Optional Chroma filter dict to restrict retrieval
@@ -209,11 +218,22 @@ class RAGService:
         if not self.vectorstore:
             return {"answer": "Error: RAG Chain not initialized (no KB documents found).", "context": []}
 
+        result = self._invoke_rag(input_text, metadata_filter)
+
+        if metadata_filter and not result.get("context"):
+            result = self._invoke_rag(input_text, metadata_filter=None)
+
+        return result
+
+    def _invoke_rag(self, input_text: str, metadata_filter: dict | None = None) -> dict:
+        """Run a single retrieval-augmented generation pass."""
         retriever = self._build_retriever(metadata_filter)
         prompt = ChatPromptTemplate.from_messages([
             ("system",
              "You are an expert Technical Support AI Agent for the Setomatic/SpyderWash ecosystem. "
-             "Use the provided context from the legacy manuals and release notes to answer the user's troubleshooting questions. "
+             "Use the provided context from manuals, release notes, and product documentation to answer "
+             "the user's questions about SpyderWash hardware, portal operations, product features, and troubleshooting. "
+             "Setomatic Systems is the company that manufactures SpyderWash — treat any SpyderWash context as relevant when answering questions about Setomatic, and vice versa. "
              "Be brutally direct, technically rigorous, and zero fluff. "
              "If the answer is not contained in the context, explicitly state that you do not have that information in the current KB. "
              "\n\nContext:\n{context}"),

@@ -19,6 +19,7 @@ from src.agent.nodes import (
 from src.agent.router import (
     infer_blast_radius,
     _is_greeting,
+    _is_product_overview_query,
 )
 
 
@@ -145,6 +146,17 @@ class GreetingDetectionTests(unittest.TestCase):
     def test_not_greeting(self) -> None:
         self.assertFalse(_is_greeting("my machine is down"))
         self.assertFalse(_is_greeting("check balance on 00000212"))
+
+
+class ProductOverviewDetectionTests(unittest.TestCase):
+    def test_spyderwash_overview_questions(self) -> None:
+        self.assertTrue(_is_product_overview_query("What is SpyderWash?"))
+        self.assertTrue(_is_product_overview_query('What is SpyderWash?"'))
+        self.assertTrue(_is_product_overview_query("What components does SpyderWash have"))
+
+    def test_not_product_overview(self) -> None:
+        self.assertFalse(_is_product_overview_query("my machine is down"))
+        self.assertFalse(_is_product_overview_query("check balance on 00000212"))
 
 
 # ── Conversational reply detection ────────────────────────────────────────────

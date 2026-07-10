@@ -56,6 +56,82 @@ def _is_summary_request(text: str) -> bool:
         return True
     return False
 
+
+# Pre-LLM detection for product-overview questions. The LLM router sometimes misclassifies
+# these as out_of_domain because they are informational rather than troubleshooting.
+_PRODUCT_OVERVIEW_PHRASES = frozenset({
+    "what is spyderwash",
+    "what's spyderwash",
+    "whats spyderwash",
+    "tell me about spyderwash",
+    "about spyderwash",
+    "spyderwash overview",
+    "what are spyderwash",
+    "who is spyderwash",
+    "who makes spyderwash",
+    "what is setomatic",
+    "what's setomatic",
+    "whats setomatic",
+    "tell me about setomatic",
+    "about setomatic",
+    "about setomatic systems",
+    "who is setomatic",
+    "who are setomatic",
+    "what components does spyderwash have",
+    "what components does spyderwash",
+    "spyderwash components",
+    "spyderwash features",
+    "what does spyderwash do",
+    "describe spyderwash",
+    "explain spyderwash",
+    "spyderwash info",
+    "info about spyderwash",
+    "how does spyderwash work",
+    "how spyderwash works",
+    "what services does spyderwash provide",
+    "setomatic systems",
+    "what is setomatic systems",
+    "who is setomatic systems",
+    "setomatic overview",
+    "setomatic info",
+})
+
+
+def _is_product_overview_query(text: str) -> bool:
+    """Return True if the message asks what SpyderWash/Setomatic is or its components."""
+    normalized = text.strip().lower().strip("\"'").rstrip("!.,?")
+    if normalized in _PRODUCT_OVERVIEW_PHRASES:
+        return True
+    if "spyderwash" in normalized or "setomatic" in normalized:
+        if any(
+            phrase in normalized
+            for phrase in (
+                "what is ",
+                "what's ",
+                "whats ",
+                "tell me about ",
+                "who is ",
+                "who makes ",
+                "who are ",
+                "what are ",
+                "what components",
+                "what does ",
+                "components of ",
+                "features of ",
+                "overview of ",
+                "describe ",
+                "explain ",
+                "how does ",
+                "how do ",
+                " info",
+                "about ",
+                "services ",
+                "products ",
+            )
+        ):
+            return True
+    return False
+
 # Outage intents that share the blast-radius → troubleshoot → confirm → escalate workflow.
 _OUTAGE_WORKFLOW_INTENTS = frozenset({
     "emergency_store_down",
@@ -178,7 +254,7 @@ You will be given:
   - [CURRENT USER MESSAGE]: The user's latest input to classify.
 
 ## Intent Categories (you MUST use exactly one of these values):
-- `general_query`             : General how-to questions about features, pricing, setup, or loyalty programs.
+- `general_query`             : General how-to questions about features, pricing, setup, loyalty programs, or product overview questions (e.g. "What is SpyderWash?", "What components does SpyderWash have?", "Tell me about Setomatic"). Route to RAG.
 - `technical_support`         : Troubleshooting a specific machine symptom that is NOT an outage — e.g., unusual sounds, LED light meanings, error codes on display, blinking lights, beeping, vibration, water leaks, or questions about what a light color means. The machine may still be powered on but behaving abnormally. Route to RAG — do NOT enter the outage workflow.
 - `hardware_status`           : User is asking for the LIVE or CURRENT status of a specific machine, hub, or port (e.g., "is port 4 offline?", "is washer #5 running?").
 - `emergency_store_down`      : User states that their ENTIRE store, laundromat, or system is down, non-functional, or completely offline. This is a CRITICAL intent.
@@ -232,6 +308,12 @@ You will be given:
     (e.g. 'summarise this chat', 'summarize our conversation', 'recap', 'tl;dr',
     'what did we discuss') -> intent MUST be `conversation_summary`. Set ALL three
     flags to FALSE. This applies even if a troubleshooting workflow is active.
+
+### PRODUCT OVERVIEW RULE (applies before out-of-domain check):
+17. If the user asks what SpyderWash or Setomatic IS, what it does, what components it has,
+    or for a general product overview (e.g. "What is SpyderWash?", "Tell me about SpyderWash",
+    "What components does SpyderWash have?") -> intent MUST be `general_query`. Set ALL three
+    flags to FALSE. Route to RAG — do NOT classify these as out_of_domain.
 
 ### OUT-OF-DOMAIN AND PROMPT INJECTION GUARDRAIL (applies before all other rules):
 12. If the query is about topics unrelated to Setomatic, SpyderWash, laundry equipment, payments,
@@ -383,6 +465,19 @@ def semantic_router(state: AgentState):
     if _is_summary_request(latest_user_msg):
         return {
             "current_intent": "conversation_summary",
+            "hardware_lookup_attempted": False,
+            "escalation_required": False,
+            "api_action_required": False,
+            "extracted_entities": {},
+            "blast_radius": None,
+            "troubleshooting_failed": None,
+        }
+
+    # Product-overview detection: short-circuit before the LLM call so "What is SpyderWash?"
+    # routes to RAG instead of being misclassified as out_of_domain.
+    if _is_product_overview_query(latest_user_msg):
+        return {
+            "current_intent": "general_query",
             "hardware_lookup_attempted": False,
             "escalation_required": False,
             "api_action_required": False,

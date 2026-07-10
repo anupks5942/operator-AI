@@ -372,6 +372,12 @@ def get_transaction_history(
         # Parse: response['data'] is the transaction array
         transactions = response.json().get("data", [])
 
+        # Sort by date descending (most recent first) — API does not guarantee order.
+        transactions.sort(
+            key=lambda tx: tx.get("transactionDateTime", ""),
+            reverse=True,
+        )
+
         if not transactions:
             tx_type = "refunded transactions" if include_refunds else "transactions"
             return (

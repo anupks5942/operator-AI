@@ -1,5 +1,6 @@
 from langchain_core.messages import AIMessage, HumanMessage
 from src.agent.state import AgentState
+from src.agent.router import _is_product_overview_query
 from src.services.rag_service import RAGService
 from src.llm import create_chat_model
 
@@ -50,6 +51,11 @@ def _extract_metadata_filter(state: AgentState) -> dict | None:
 
     if brand:
         filters["brand"] = {"$eq": brand}
+
+    # Product-overview questions (what is SpyderWash, components, features) retrieve better
+    # from overview docs than from large operator manuals.
+    if _is_product_overview_query(latest_text):
+        filters["doc_type"] = {"$eq": "overview"}
 
     # Doc-type hint (e.g. router could set extracted_entities["doc_type"])
     doc_type = entities.get("doc_type")

@@ -165,12 +165,15 @@ RAG-only intents (no outage workflow):
 
 **Today (MVP):**
 
-1. Load **`.pdf` and `.docx` only** from local `KB/` (`.txt` files skipped — [rag_service.py](../src/services/rag_service.py))
+1. Load **`.pdf`, `.docx`, and `.txt`** from local `KB/` ([rag_service.py](../src/services/rag_service.py))
 2. Chunk: 500 chars, 50 overlap; metadata: brand, doc_type
 3. Embed: HuggingFace `all-MiniLM-L6-v2`
 4. Store: Chroma `./chroma_db` (single-node; not shared across replicas)
-5. Retrieve: MMR, k=6, fetch_k=20
-6. Generate: OpenAI via `RAG_OPENAI_MODEL`
+5. Retrieve: MMR, k=6, fetch_k=20; metadata filter applied per-query (brand, doc_type)
+6. **Fallback:** If filtered retrieval returns 0 context docs, retries without the filter
+7. Generate: OpenAI via `RAG_OPENAI_MODEL`
+
+**Product-overview routing:** Questions about SpyderWash/Setomatic (what it is, components, features) are detected by `_is_product_overview_query` heuristic in router.py and force-routed to RAG with `doc_type: "overview"` filter, preventing LLM misclassification as `out_of_domain`.
 
 **Target (production):**
 
@@ -187,7 +190,7 @@ See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) and ADR-013 in [DECISIONS.md](DECIS
 | Tool | Target | OperatorId |
 |------|--------|--------------|
 | `get_loyalty_balance` | Live `SETOMATIC_BASE_URL` | Hardcoded `4` (**agent-side fix**: pipe `operator_id` from ChatRequest) |
-| `get_transaction_history` | Live `SETOMATIC_BASE_URL` | Hardcoded `LoggedInUserId=4`; `PageSize` from `count` (1–20); `isRefund` from `include_refunds`; card pre-validated via balance API; LC-prefix stripped |
+| `get_transaction_history` | Live `SETOMATIC_BASE_URL` | Hardcoded `LoggedInUserId=4`; `PageSize` from `count` (1–20); `isRefund` from `include_refunds`; `start_date`/`end_date` (YYYY-MM-DD, defaults to rolling 6-month window); card pre-validated via balance API; LC-prefix stripped; results sorted by date descending |
 | `check_refund_eligibility` | Mock or live per `USE_MOCK_REFUNDS` | Hardcoded `4` |
 | `execute_refund` | Mock or live per `USE_MOCK_REFUNDS` | Hardcoded `4` |
 | `check_global_system_status` | Web scrape setomaticsystems.com/status | N/A |
@@ -203,11 +206,15 @@ Refund mock endpoints on `:8001`:
 
 When `escalation_node` runs:
 
-1. `_extract_escalation_context` — summary from **current** incident
-2. `_format_conversation_for_email` — full transcript (PCI-masked on API input only)
-3. `_resolve_operator_contact` — from API fields or defaults
-4. `NotificationService.send_escalation` — Mandrill + Twilio when `USE_LIVE_NOTIFICATIONS=true`
-5. Sets `escalation_dispatched: true` → API returns `requires_escalation: true`
+1. `_generate_escalation_summary` — LLM-generated structured technical handoff (Issue, Equipment, Steps Attempted, Outcome, Severity)
+2. `_resolve_operator_contact` — from API fields or defaults
+3. `NotificationService.send_escalation` — Professional HTML email (summary only, no full transcript) + SMS when `USE_LIVE_NOTIFICATIONS=true`
+4. Sets `escalation_dispatched: true`, persists `escalation_ticket_id` in `extracted_entities`
+
+When `escalation_resolved_node` runs (operator confirms resolution):
+
+1. Retrieves `escalation_ticket_id` from state
+2. `NotificationService.send_resolution` — sends resolution email + SMS with ticket reference
 
 Detail: [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md)
 

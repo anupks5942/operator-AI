@@ -67,8 +67,8 @@ Root files: `app.py` (Streamlit demo with persisted routing diagnostics sidebar)
 - Outbound text (escalation emails/SMS) is sanitized via `sanitize_outbound_text()`.
 
 ## Knowledge Base
-- `KB/` contains PDF and DOCX source documents (SpyderWash manuals, troubleshooting guides).
-- Ingested into ChromaDB at `./chroma_db/` with HuggingFace `all-MiniLM-L6-v2` embeddings.
+- `KB/` contains PDF, DOCX, and TXT source documents (SpyderWash manuals, troubleshooting guides, product overview).
+- Ingested into ChromaDB at `./chroma_db/` with HuggingFace `all-MiniLM-L6-v2` embeddings. Delete `chroma_db/` and restart the app after adding new KB files.
 - Chunking: 500 chars / 50 overlap. MMR retrieval with k=3, fetch_k=20, lambda=0.6.
 - Metadata: `brand`, `doc_type`, `source_file`, `page` enriched per chunk.
 

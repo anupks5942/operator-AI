@@ -111,7 +111,7 @@ Expected:
 |---------|-------|-----|
 | 500 on chat | Missing `OPENAI_API_KEY` | Set in `.env`, restart |
 | Empty RAG answers | Empty/missing `chroma_db/` | Add PDF/DOCX to `KB/`, delete `chroma_db/`, restart |
-| KB txt not in answers | `.txt` not ingested | Use PDF/DOCX or extend rag_service loader |
+| KB txt not in answers | stale `chroma_db/` or Streamlit not restarted after KB change | Delete `chroma_db/`, restart app so `.txt` files re-ingest |
 | Refund tool errors | Mock not running | Start `:8001` or `USE_MOCK_REFUNDS=false` when APIs ready |
 | No email/SMS | `USE_LIVE_NOTIFICATIONS=false` | Set `true` + Twilio/SMTP vars |
 | Email/SMS failed | Bad credentials | Check server logs |

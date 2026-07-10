@@ -106,14 +106,12 @@ class NotificationService:
         name: str,
         email: str,
         phone: str,
-        conversation: str,
         summary: str,
     ) -> str:
         from datetime import datetime, timezone
 
         safe_ticket = html.escape(ticket_id)
         safe_summary = html.escape(summary)
-        safe_conversation = html.escape(conversation)
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
         is_critical = "entire location" in summary.lower() or "Critical" in summary
@@ -170,13 +168,7 @@ class NotificationService:
                 </tr>
                 <!-- Operator Contact (conditional) -->
                 {contact_section}
-                <!-- Full Transcript -->
-                <tr>
-                    <td style="padding:16px 24px;">
-                        <h3 style="margin:0 0 8px 0; color:#495057; font-size:14px; text-transform:uppercase; letter-spacing:0.5px;">Full Conversation Transcript</h3>
-                        <pre style="margin:0; padding:16px; background:#f8f9fa; border-radius:6px; font-family:'SF Mono', Consolas, monospace; font-size:12px; line-height:1.5; white-space:pre-wrap; word-wrap:break-word; color:#6c757d; max-height:400px; overflow-y:auto;">{safe_conversation}</pre>
-                    </td>
-                </tr>
+                
                 <!-- Footer -->
                 <tr>
                     <td style="padding:16px 24px; background:#f8f9fa; border-radius:0 0 8px 8px; text-align:center;">
@@ -198,7 +190,6 @@ class NotificationService:
         conversation: str,
         summary: str,
     ) -> EscalationResult:
-        safe_conversation = sanitize_outbound_text(conversation)
         safe_summary = sanitize_outbound_text(summary)
         is_critical = "entire location" in safe_summary.lower() or "Critical" in safe_summary
         severity_tag = "[CRITICAL]" if is_critical else "[STANDARD]"
@@ -208,7 +199,6 @@ class NotificationService:
             name=name,
             email=email,
             phone=phone,
-            conversation=safe_conversation,
             summary=safe_summary,
         )
         email_sent = NotificationService.send_email_html(ESCALATION_EMAIL, subject, html_body)
@@ -223,3 +213,60 @@ class NotificationService:
             logger.warning("Escalation SMS dispatch failed for ticket %s", ticket_id)
 
         return EscalationResult(email_sent=email_sent, sms_sent=sms_sent)
+
+    @staticmethod
+    def send_resolution(*, ticket_id: str = "", issue_summary: str) -> bool:
+        """Send a resolution notification (email + SMS) so the on-call technician can stand down."""
+        from datetime import datetime, timezone
+
+        safe_summary = sanitize_outbound_text(issue_summary)
+        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        ticket_ref = f" — {html.escape(ticket_id)}" if ticket_id else ""
+        subject = f"[RESOLVED] SpyderWash Escalation {ticket_id}".strip()
+
+        html_body = f"""
+        <html>
+        <body style="margin:0; padding:0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#f8f9fa;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px; margin:24px auto; background:#ffffff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+                <tr>
+                    <td style="padding:24px; background:#1a6b3a; border-radius:8px 8px 0 0;">
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td>
+                                    <h1 style="margin:0; color:#ffffff; font-size:18px;">Issue Resolved{ticket_ref}</h1>
+                                    <p style="margin:4px 0 0 0; color:#c3e6cb; font-size:13px;">{html.escape(timestamp)}</p>
+                                </td>
+                                <td align="right">
+                                    <span style="display:inline-block; padding:4px 12px; background:#28a745; color:#fff; border-radius:4px; font-size:12px; font-weight:600;">RESOLVED</span>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:24px;">
+                        <p style="margin:0 0 12px 0; color:#212529; font-size:14px;">The operator has confirmed that the previously escalated issue has been resolved. No further action is required.</p>
+                        <h3 style="margin:16px 0 8px 0; color:#495057; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">Original Issue Context</h3>
+                        <pre style="margin:0; padding:12px; background:#f8f9fa; border-radius:6px; font-family:'SF Mono', Consolas, monospace; font-size:13px; line-height:1.5; white-space:pre-wrap; word-wrap:break-word; color:#212529;">{html.escape(safe_summary)}</pre>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:16px 24px; background:#f8f9fa; border-radius:0 0 8px 8px; text-align:center;">
+                        <p style="margin:0; color:#6c757d; font-size:11px;">Auto-generated by SpyderWash Operator AI | Do not reply to this email</p>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+
+        email_sent = NotificationService.send_email_html(ESCALATION_EMAIL, subject, html_body)
+        if not email_sent:
+            logger.warning("Resolution email dispatch failed for %s", ticket_id)
+
+        sms_body = f"SpyderWash [RESOLVED] {ticket_id}: Operator confirmed issue resolved.".strip()
+        sms_sent = NotificationService.send_sms(ESCALATION_SMS_TO, sms_body)
+        if not sms_sent:
+            logger.warning("Resolution SMS dispatch failed for %s", ticket_id)
+
+        return email_sent

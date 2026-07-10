@@ -167,7 +167,8 @@ Sets `escalation_confirmation_asked: true` in entities.
 - Header: ticket ID, timestamp, severity badge (CRITICAL = red, STANDARD = orange)
 - Technical Summary: LLM-generated structured summary (Issue, Equipment, Steps, Outcome, Severity)
 - Operator Contact: conditional — only shown when portal sends real operator data
-- Full Transcript: complete conversation history (sanitized)
+
+NOTE: Full transcript is NOT included (QA issue #3 — only the professional summary is sent).
 
 **SMS format:** `SpyderWash [SEVERITY] TKT-xxx: {issue line}`
 
@@ -186,9 +187,18 @@ If assistant message contains "critical escalation ticket" or "already been disp
 - "resolved" / "fixed" → `escalation_resolved_node`
 - New descriptive issue report → fresh cycle
 
-### Step 6 — State reset on resolution
+### Step 6 — Resolution notification + state reset
 
-`escalation_resolved_node` clears all workflow flags (`troubleshooting_done`, `blast_radius`, `escalation_dispatched`, `troubleshooting_failed`) so subsequent messages are treated as fresh conversations — not trapped in the completed workflow's state.
+When `escalation_dispatched` is `True` and the operator confirms resolution, `escalation_resolved_node`:
+
+1. Retrieves `escalation_ticket_id` from `extracted_entities`
+2. Calls `NotificationService.send_resolution(ticket_id=..., issue_summary=...)`:
+   - Email subject: `[RESOLVED] SpyderWash Escalation TKT-xxx`
+   - Email body: green-themed HTML with ticket reference and original issue context
+   - SMS: `SpyderWash [RESOLVED] TKT-xxx: Operator confirmed issue resolved.`
+3. Clears all workflow flags (`troubleshooting_done`, `blast_radius`, `escalation_dispatched`, `troubleshooting_failed`, `escalation_ticket_id`) so subsequent messages are treated as fresh conversations.
+
+**Resolution detection** (`_user_indicates_resolved`): "resolved", "fixed", "fixed it", "all good", "working now", "now working", "working fine", "working again", "back up", "back online", "back to normal", "up and running", "issue is fixed", "problem solved".
 
 ---
 
@@ -249,6 +259,11 @@ Automated tests: [tests/test_outage_workflow.py](../tests/test_outage_workflow.p
 | "lc-00000212" card number fails but "00000212" works | `_normalize_card_number()` strips LC-/lc- prefixes in tools before API call |
 | "summarise this chat" mid-workflow ignored or breaks outage state | `conversation_summary` routed early to `summarize_node`; workflow flags preserved |
 | Streamlit sidebar diagnostics flash then disappear | `routing_diagnostics` persisted in `st.session_state`; rendered on every run |
+| "now working fine" not recognized as resolved after escalation | Expanded `_user_indicates_resolved` with "now working", "working fine", "working again", "back up", "back online", "back to normal", "up and running", "problem solved" |
+| "What is SpyderWash?" misclassified as out_of_domain | Pre-LLM heuristic `_is_product_overview_query` forces `general_query` routing; RAG fallback retries without filter if 0 docs returned |
+| "Tell me about Setomatic" returns "not in KB" | Added dedicated Setomatic section to KB overview + RAG system prompt equates Setomatic = SpyderWash |
+| Escalation email includes full chat transcript | Removed transcript section; email now contains only the professional LLM-generated Technical Summary (QA issue #3) |
+| Resolution notification missing ticket reference | `escalation_ticket_id` persisted in entities; `send_resolution` includes ticket in email subject/body + sends SMS |
 
 ---
 
