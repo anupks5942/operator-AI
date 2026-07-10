@@ -86,6 +86,34 @@ class TransactionHistorySchema(BaseModel):
         default=False,
         description="Set to true ONLY when the user explicitly asks for refunded transactions or refund history. Default false returns normal (non-refunded) transactions.",
     )
+    start_date: str | None = Field(
+        default=None,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description=(
+            "Start date for the transaction search window (YYYY-MM-DD format). "
+            "Use when the operator specifies a date range. If omitted, defaults to 6 months ago."
+        ),
+    )
+    end_date: str | None = Field(
+        default=None,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description=(
+            "End date for the transaction search window (YYYY-MM-DD format). "
+            "Use when the operator specifies a date range. If omitted, defaults to today."
+        ),
+    )
+
+    @field_validator("start_date", "end_date", mode="before")
+    @classmethod
+    def _validate_date_parseable(cls, v):
+        if v is None:
+            return v
+        from datetime import date as date_type
+        try:
+            date_type.fromisoformat(v)
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid date format '{v}'. Must be YYYY-MM-DD.")
+        return v
 
 
 class RefundEligibilitySchema(BaseModel):
@@ -230,7 +258,13 @@ _TRANSACTION_PAGE_SIZE = 5   # Keep small to avoid context window overflow
 
 # args_schema enforces identical card number constraints as the balance tool.
 @tool(args_schema=TransactionHistorySchema)
-def get_transaction_history(card_number: str, count: int = 5, include_refunds: bool = False) -> str:
+def get_transaction_history(
+    card_number: str,
+    count: int = 5,
+    include_refunds: bool = False,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> str:
     """
     Use this tool when the user asks to look up recent transactions, payment history,
     refund history, or wash history for a specific SpyderWash loyalty card.
@@ -238,7 +272,7 @@ def get_transaction_history(card_number: str, count: int = 5, include_refunds: b
     Calls the live SpyderWash production API and returns recent transactions
     formatted as a human-readable summary.
 
-    LoggedInUserId is always 4 (hardcoded). StartDate and EndDate are auto-computed.
+    LoggedInUserId is always 4 (hardcoded).
 
     Args:
         card_number: The full loyalty card number extracted from the user's message
@@ -247,16 +281,42 @@ def get_transaction_history(card_number: str, count: int = 5, include_refunds: b
                the user explicitly requested, or default to 5.
         include_refunds: Set to true when the user asks specifically for refunded
                          transactions or refund history. Default false shows normal transactions.
+        start_date: Start of the search window in YYYY-MM-DD format. Defaults to
+                    6 months before end_date when not provided by the operator.
+        end_date: End of the search window in YYYY-MM-DD format. Defaults to today
+                  when not provided by the operator.
 
     Returns:
         A formatted multi-line string listing each transaction's date/time,
         amount, type, and location — or a graceful error string if the API
         is unreachable, returns no data, or the response is malformed.
     """
-    # This date window is temporarily locked to April 2026 to ensure the staging data renders correctly for the client demo, alongside the PageSize=5 limitation.
-    start_date = '2026-04-01'
-    end_date = '2026-04-30'
+    from datetime import date, timedelta
+
     card_number = _normalize_card_number(card_number)
+
+    # Resolve date window: operator-provided dates take priority, otherwise rolling 6-month default.
+    if end_date:
+        try:
+            resolved_end = date.fromisoformat(end_date)
+        except ValueError:
+            resolved_end = date.today()
+    else:
+        resolved_end = date.today()
+
+    if start_date:
+        try:
+            resolved_start = date.fromisoformat(start_date)
+        except ValueError:
+            resolved_start = resolved_end - timedelta(days=180)
+    else:
+        resolved_start = resolved_end - timedelta(days=180)
+
+    if resolved_start > resolved_end:
+        resolved_start, resolved_end = resolved_end, resolved_start
+
+    start_date = resolved_start.isoformat()
+    end_date = resolved_end.isoformat()
 
     try:
         # Pre-validate: confirm the card exists before fetching transactions.

@@ -29,6 +29,7 @@ Product requirements and a [documentation map by role](PRD.md#documentation-map)
 | [ENVIRONMENT.md](ENVIRONMENT.md) | All environment variables |
 | [DECISIONS.md](DECISIONS.md) | Architecture decision records (ADRs) |
 | [ONBOARDING.md](ONBOARDING.md) | Guided tour for new developers |
+| [SetomaticRETL2_TASKLIST.xlsx](SetomaticRETL2_TASKLIST.xlsx) | Sprint task tracker (status, owners: Monish P / Shivansh); STATUS column color-coded: green=Done, amber=In Progress, gray=Not Started, red=Blocked, blue=Deferred — regenerate via `scripts/update_tasklist_xlsx.py` |
 
 Root [README.md](../README.md) — install and run commands. Copy [`.env.example`](../.env.example) → `.env`.
 

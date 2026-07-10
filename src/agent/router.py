@@ -286,7 +286,7 @@ explicitly asked the user for a missing piece of information, or a confirmation,
 - `escalation_required`      : true ONLY for `emergency_store_down` or `escalation_request` intents.
 - `api_action_required`      : true ONLY for `loyalty_balance_query`, `transaction_lookup`, `refund_request`, or `system_status_check` intents.
                                MUST be false for `kiosk_not_responding`, `machines_not_starting`, `multiple_machines_offline`, and `out_of_domain`.
-- `extracted_entities`       : extract any card numbers, transaction IDs, machine IDs, error codes, location names, confirmation booleans, blast_radius, or troubleshooting_failed indicators.
+- `extracted_entities`       : extract any card numbers, transaction IDs, machine IDs, error codes, location names, confirmation booleans, blast_radius, troubleshooting_failed indicators, start_date (YYYY-MM-DD), or end_date (YYYY-MM-DD) when the user specifies a date range for transactions.
 """
 
 # ── Pydantic output schema ────────────────────────────────────────────────────
@@ -317,7 +317,7 @@ class IntentClassification(BaseModel):
         description=(
             "Entities extracted from the conversation: card_number, transaction_detail_id, "
             "machine_id, error_code, location_name, confirmation (bool), blast_radius ('single_machine' or 'entire_location'), "
-            "troubleshooting_failed (bool), etc."
+            "troubleshooting_failed (bool), start_date (YYYY-MM-DD), end_date (YYYY-MM-DD), etc."
         )
     )
 

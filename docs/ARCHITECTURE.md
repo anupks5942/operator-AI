@@ -102,7 +102,9 @@ flowchart TD
 | `blast_radius_check` | [graph.py](../src/agent/graph.py) | Ask one machine vs entire laundromat |
 | `clarify_issue` | [graph.py](../src/agent/graph.py) | Ask for symptom details when outage report is too vague |
 | `troubleshoot_first` | [graph.py](../src/agent/graph.py) | RAG KB steps + "Did this resolve?" |
-| `escalation_node` | [graph.py](../src/agent/graph.py) | Email + SMS dispatch; sets `escalation_dispatched` |
+| `confirm_escalation` | [graph.py](../src/agent/graph.py) | Asks operator permission before escalating (single-machine only) |
+| `escalation_declined` | [graph.py](../src/agent/graph.py) | Provides direct contact info when operator declines escalation |
+| `escalation_node` | [graph.py](../src/agent/graph.py) | LLM summary generation + Email + SMS dispatch; sets `escalation_dispatched` |
 | `escalation_resolved` | [graph.py](../src/agent/graph.py) | Polite close when issue fixed; full workflow state reset |
 | `post_escalation_ack` | [graph.py](../src/agent/graph.py) | Ack after ticket sent; no workflow restart |
 | `new_issue_after_escalation` | [graph.py](../src/agent/graph.py) | Fresh blast-radius cycle after prior ticket dispatch |

@@ -44,7 +44,7 @@ Root files: `app.py` (Streamlit demo with persisted routing diagnostics sidebar)
 1. **LangGraph is the orchestrator.** All conversation flow goes through `src/agent/graph.py`. Do not bypass the graph.
 2. **Router → Conditional Edge → Node.** The `router` node classifies intent and sets flags; `route_after_classifier()` dispatches to the correct node. Add new intents by extending `IntentClassification` in `router.py` and the edge map in `graph.py`.
 3. **Tool node uses ReAct loop** (max 6 iterations). Every AIMessage with tool_calls MUST be followed by ToolMessages. Never single-shot the tool node.
-4. **Escalation workflow order:** blast_radius_check → clarify_issue (if vague) → troubleshoot_first → escalation (if failed). `entire_location` skips troubleshoot and escalates immediately. This is Gregg's mandated path — do not reorder.
+4. **Escalation workflow order:** blast_radius_check → clarify_issue (if vague) → troubleshoot_first → tiered escalation. `entire_location` skips troubleshoot and auto-escalates. `single_machine` failure routes to `confirm_escalation_node` (asks operator permission) before dispatching. This prevents alert fatigue on routine single-machine issues.
 5. **RAG-only intents** (`kiosk_not_responding`, `technical_support`): `api_action_required` must always be `false`. Do NOT route these to the tool node. Outage intents (`machine_down`, `machines_not_starting`, etc.) enter the outage workflow, not direct RAG.
 6. **Conversation summary** (`conversation_summary`): honored mid-workflow via early routing; does not reset outage state.
 7. **Out-of-domain and PCI guardrails** are static/hardcoded responses — never delegate to LLM or external APIs.
@@ -82,8 +82,7 @@ Root files: `app.py` (Streamlit demo with persisted routing diagnostics sidebar)
 - `src/api/routes.py` `/query` endpoint is legacy. Use `POST /api/v1/agent/chat` from `server.py`.
 - `chroma_db/` is gitignored — it's regenerated on first run if missing.
 - `protobuf<=3.20.3` is pinned due to a LangChain compatibility constraint.
-- Transaction history tool has a staging-locked date range (April 2026) — switch to rolling 6-month window before production (agent-side fix, not a backend API).
-- `get_transaction_history` pre-validates cards via balance API; supports `count` (1–20) and `include_refunds` → API `isRefund`.
+- `get_transaction_history` pre-validates cards via balance API; supports `count` (1–20), `include_refunds` → API `isRefund`, and optional `start_date`/`end_date` (YYYY-MM-DD). Defaults to a rolling 6-month window when dates are omitted.
 - Card numbers are normalized (LC- prefix stripped) in loyalty/transaction tools.
 - The `__init__.py` files are missing from most packages; imports work because `src/` is on `sys.path` implicitly. Add `__init__.py` files if restructuring to a proper package layout.
 

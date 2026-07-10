@@ -43,9 +43,18 @@ sequenceDiagram
       W->>Op: Did the steps resolve it? Yes/No
     else No / still broken
       Op->>R: No
-      R->>E: troubleshooting_failed
-      E->>N: Email + SMS
-      E->>Op: Ticket TKT-xxx dispatched
+      R->>C: confirm_escalation (ask permission)
+      C->>Op: Would you like me to escalate?
+      alt Yes / please / go ahead
+        Op->>R: Yes
+        R->>E: operator confirmed
+        E->>N: Email + SMS (LLM summary)
+        E->>Op: Ticket TKT-xxx dispatched
+      else No / I'll call myself
+        Op->>R: No thanks
+        R->>D: escalation_declined
+        D->>Op: Contact info provided + state reset
+      end
     end
   end
   Note over R,E: After escalation_dispatched=true
@@ -113,31 +122,54 @@ If `blast_radius == "entire_location"`: **skip troubleshooting** and route to `e
 - Appends: "Did this resolve the issue? (Yes/No)"
 - Sets `troubleshooting_done: true` in entities
 
-### Step 3 — Confirmation routing
+### Step 3 — Confirmation routing (tiered)
 
 **Router continuation rules** detect replies to "Did this resolve?":
 
+| Operator reply | Blast radius | Route |
+|----------------|-------------|-------|
+| yes / fixed / resolved | any | `escalation_resolved_node` |
+| no / still down / didn't work | `entire_location` | `escalation_node` (auto-escalate) |
+| no / still down / didn't work | `single_machine` | `confirm_escalation_node` (ask first) |
+| gibberish / off-topic (while workflow active) | any | `workflow_reminder_node` (re-prompts Yes/No) |
+
+**Tiered escalation rationale:** Entire-location outages are inherently critical and auto-escalate. Single-machine failures are routine — the operator may prefer to call support directly or try their own fix. Asking for confirmation prevents alert fatigue (email pile-up).
+
+### Step 3b — Escalation confirmation (single-machine only)
+
+**Node:** `confirm_escalation_node`
+
+**Prompt:** "I wasn't able to resolve this with the troubleshooting steps available. Would you like me to escalate this to the on-call technician, or would you prefer to contact support directly at Support@setomaticsystems.com / (516) 990-4055?"
+
+Sets `escalation_confirmation_asked: true` in entities.
+
 | Operator reply | Route |
 |----------------|-------|
-| yes / fixed / resolved | `escalation_resolved_node` |
-| no / still down / still offline / not resolved / didn't work | `escalation_node` |
-| gibberish / off-topic (while workflow active) | `workflow_reminder_node` (re-prompts Yes/No) |
-
-Negative word/phrase matching also runs in `route_after_classifier` after `troubleshooting_done` is set. Includes common expressions like "not working", "same issue", "no luck", etc.
+| yes / please / go ahead / escalate | `escalation_node` |
+| no / no thanks / I'll call | `escalation_declined_node` (provides contact info, resets state) |
+| gibberish / ambiguous | Re-prompt via `confirm_escalation_node` |
 
 ### Step 4 — Escalation dispatch
 
 **Node:** `escalation_node`
 
-1. `_extract_escalation_context` — summary from **current** incident (not stale TC1 messages)
-2. `_format_conversation_for_email` — full transcript
-3. `_resolve_operator_contact` — from API fields or "Unknown Operator"
-4. `NotificationService.send_escalation` — Mandrill HTML email + Twilio SMS (both today; Brandon matrix targets per-intent channels — [INTENT_MATRIX.md](INTENT_MATRIX.md))
+1. `_generate_escalation_summary` — LLM-generated structured technical handoff summary (Issue, Equipment, Steps Attempted, Outcome, Severity). Falls back to heuristic `_extract_escalation_context` if LLM call fails.
+2. `_format_conversation_for_email` — full transcript (sanitized, PCI-masked)
+3. `_resolve_operator_contact` — from API fields (conditional: only rendered in email when real data available)
+4. `NotificationService.send_escalation` — Professional HTML email + Twilio SMS (both today; Brandon matrix targets per-intent channels — [INTENT_MATRIX.md](INTENT_MATRIX.md))
 5. Sets `escalation_dispatched: true`
 
 **Ticket format:** `TKT-{8 hex chars}`
 
-**SMS format:** `SpyderWash ESCALATION TKT-xxx: {summary}`
+**Email subject:** `[CRITICAL] SpyderWash Escalation TKT-xxx` or `[STANDARD] SpyderWash Escalation TKT-xxx`
+
+**Email structure:**
+- Header: ticket ID, timestamp, severity badge (CRITICAL = red, STANDARD = orange)
+- Technical Summary: LLM-generated structured summary (Issue, Equipment, Steps, Outcome, Severity)
+- Operator Contact: conditional — only shown when portal sends real operator data
+- Full Transcript: complete conversation history (sanitized)
+
+**SMS format:** `SpyderWash [SEVERITY] TKT-xxx: {issue line}`
 
 ### Step 5 — Post-escalation (deduplication + fresh cycle)
 

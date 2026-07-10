@@ -52,7 +52,7 @@ These are code changes on our side, not new APIs for the backend team:
 | Item | Current state | Fix |
 |------|---------------|-----|
 | `OperatorId` / `LoggedInUserId` hardcoded to `4` | All Setomatic API calls use `OperatorId=4` regardless of who's logged in | Pipe `operator_id` from `ChatRequest` through LangGraph state to tools — the portal already sends it |
-| Transaction date range locked to April 2026 | Demo/staging window only | Switch to rolling 6-month date window — `ViewAllTransactionSearch` already supports dynamic `StartDate`/`EndDate` |
+| ~~Transaction date range locked to April 2026~~ | ~~Demo/staging window only~~ | **DONE** — `start_date` and `end_date` are now optional tool parameters. Operators can specify a custom date range; defaults to rolling 6-month window when omitted. |
 | Bible PDF ingestion | Manual file placement in `KB/` folder | Ingest Brandon's 250-page PDF into ChromaDB — no backend endpoint needed |
 
 ---
