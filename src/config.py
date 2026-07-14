@@ -47,6 +47,9 @@ LLM_PROVIDER: str = _env_str("LLM_PROVIDER", "openai").lower()
 OPENAI_MODEL: str = _env_str("OPENAI_MODEL", "gpt-4o-mini")
 GROQ_MODEL: str = _env_str("GROQ_MODEL", "llama-3.3-70b-versatile")
 
+# OpenAI embedding model for RAG vectorstore ingestion and retrieval.
+OPENAI_EMBEDDING_MODEL: str = _env_str("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+
 # Escalation notifications — when False, NotificationService logs only (local dev).
 USE_LIVE_NOTIFICATIONS: bool = _env_bool("USE_LIVE_NOTIFICATIONS", False)
 

@@ -360,15 +360,6 @@ def troubleshoot_first_node(state: AgentState):
     response = rag_service.query(combined_query, metadata_filter=metadata_filter)
     answer = response.get("answer", "Please verify local network connections and power cycle your devices.")
 
-    context_docs = response.get("context", [])
-    if context_docs:
-        source_tags = sorted({
-            f"{doc.metadata.get('source_file', 'Unknown')} [p.{doc.metadata.get('page', '?')}]"
-            for doc in context_docs
-        })
-        sources_note = "\n\n**Sources:** " + " | ".join(source_tags)
-        answer += sources_note
-
     # Explicitly concatenate the resolution prompt so the router detects the next turn as a confirmation.
     full_response = answer + "\n\nDid this resolve the issue? (Yes/No)"
 
@@ -463,22 +454,20 @@ _TOOL_SYSTEM_PROMPT = (
     "is down, you MUST call the check_global_system_status tool FIRST before doing anything else. "
     "After receiving the tool result, follow these rules EXACTLY:\n\n"
     "1. If the result says '[Setomatic Systems] STATUS: No Issue' or similar 'No Issue'/'Operational': "
-    "tell the user the global system is fully operational. Their issue is a LOCAL network problem. "
-    "Provide these hub troubleshooting steps:\n"
+    "Present the scraped status information directly to the operator. Include the STATUS and the Details "
+    "text exactly as returned by the tool. Then add the live status page link: https://setomaticsystems.com/status\n"
+    "If the operator mentions they are experiencing a problem despite 'No Issue' status, THEN provide "
+    "these local hub troubleshooting steps:\n"
     "   a. Power-cycle the SpyderWash Hub (unplug for 30 seconds, replug).\n"
     "   b. Verify the hub's Ethernet cable is firmly seated on both the hub and the router.\n"
     "   c. Confirm the router has internet access (open a browser on a connected device).\n"
     "   d. Check the hub's LED — solid green = connected; flashing amber = no internet.\n"
     "   e. If amber, reboot the router/modem and wait 5 minutes.\n"
     "   f. If still failing, contact Setomatic support at Support@setomaticsystems.com or (516) 990-4055.\n\n"
-    "2. If the result contains 'HISTORICAL INCIDENT': the tool only has stale backup data. "
-    "Tell the user: 'I checked our backup status source but the data is from a past incident that "
-    "has likely been resolved. The current Setomatic status page shows no active outages. "
-    "Please verify at https://setomaticsystems.com/status.' Then provide the local troubleshooting steps above.\n\n"
-    "3. If the result says 'STATUS: Degraded' or contains an active outage event with a recent date: "
+    "2. If the result says 'STATUS: Degraded' or contains an active outage event: "
     "confirm the global outage and advise the user to monitor https://setomaticsystems.com/status. "
     "No local troubleshooting is needed until the global issue is resolved.\n\n"
-    "4. If the result says 'SYSTEM STATUS CHECK FAILED': tell the user you could not automatically "
+    "3. If the result says 'SYSTEM STATUS CHECK FAILED': tell the user you could not automatically "
     "check the status page and ask them to visit https://setomaticsystems.com/status directly.\n\n"
 
     "DATE RANGE RULE: When calling get_transaction_history, if the operator specifies a date range "
@@ -499,10 +488,44 @@ _TOOL_SYSTEM_PROMPT = (
     "Do NOT call execute_refund under any circumstances if eligibility is false.\n\n"
     "  STEP 3 — ONLY if Step 2 confirmed eligibility: call execute_refund with the same "
     "transactionDetailId. Report the refund confirmation message and receipt number "
-    "(e.g. REF-998877) back to the user."
+    "(e.g. REF-998877) back to the user.\n\n"
+
+    "REMOTE DEVICE RULE: The send_remote_device_command tool performs a DESTRUCTIVE action "
+    "(reboot or card dispense). You MUST follow a 2-step confirmation flow:\n"
+    "  STEP 1 — Confirm with the operator: Summarize the action you are about to take "
+    "(device ID, command, and amount if Dispense) and ask for explicit confirmation. "
+    "Example: 'I'm about to send a Reboot command to device ABC123. Please confirm with yes/no.'\n"
+    "  STEP 2 — ONLY after the operator confirms with 'yes', 'confirm', 'proceed', or similar "
+    "affirmative: call send_remote_device_command with the confirmed parameters.\n"
+    "  If the operator says 'no' or 'cancel': acknowledge and do NOT call the tool.\n"
+    "  For Dispense commands, the amount MUST be > 0. Ask the operator for the card value if not provided.\n\n"
+
+    "POS TRANSACTION RULE: When calling get_pos_transactions, map the operator's natural language "
+    "to the correct parameter values:\n"
+    "  - Payment type (card_code): 'loyalty card' or 'loyalty' = 17, 'credit card' or 'credit' = 19, 'cash' = 20. Default: 17.\n"
+    "  - Order type (order_type): 'all orders' = 1, 'sales only' or 'sale' = 2, 'WDF and PUD' = 3. Default: 1.\n"
+    "  - Customer type (account_type): 'all customers' = 1, 'commercial' or 'commercial only' = 2, "
+    "'non-commercial' or 'residential' = 3. Default: 1.\n"
+    "  If the operator does not specify these filters, use the defaults (17, 1, 1). "
+    "Always require a date range — ask the operator if not provided.\n\n"
+
+    "KIOSK LOOKUP RULE: When calling get_kiosk_purchases or get_kiosk_recharges, both require "
+    "a date range (start_date and end_date). If the operator does not specify dates, ask for them. "
+    "Optional filters include location_name and imei (kiosk device ID).\n\n"
+
+    "PAGINATION / SHOW MORE RULE: When a tool result says 'X more available. Say show more to see the next page', "
+    "and the operator subsequently says 'show more', 'give me more', 'more records', 'more data', "
+    "'next page', or similar — re-call the SAME tool with the SAME parameters but increment page_no by 1. "
+    "Do NOT route these requests to RAG or out-of-domain. Do NOT ask the operator for parameters again. "
+    "Always preserve all original filter arguments (dates, card_number, card_code, etc.) from the prior call."
 )
 
 _tool_llm = None
+
+def _reset_tool_llm():
+    """Force re-binding of tools on next invocation (call after adding/removing tools)."""
+    global _tool_llm
+    _tool_llm = None
 
 def _get_tool_llm():
     global _tool_llm
@@ -550,7 +573,14 @@ def tool_node(state: AgentState):
             f"user for them again:\n{entity_lines}"
         )
 
-    base_system = {"role": "system", "content": _TOOL_SYSTEM_PROMPT}
+    from datetime import date as _date_type
+    _today = _date_type.today().isoformat()
+    _date_prefix = (
+        f"TODAY'S DATE: {_today} — use this to resolve relative date expressions "
+        "like 'last 3 months', 'this month', 'last week', 'this year', etc. "
+        "Always calculate start_date and end_date relative to this date.\n\n"
+    )
+    base_system = {"role": "system", "content": _date_prefix + _TOOL_SYSTEM_PROMPT}
     msgs        = [base_system]
     if hint_parts:
         msgs.append({
@@ -783,8 +813,10 @@ def route_after_classifier(state: AgentState) -> str:
                 for msg in reversed(messages):
                     if msg.type == "human":
                         content = msg.content.strip()
-                        if len(content) > 5 and not _is_conversational_workflow_reply(content):
-                            _best_issue_msg = content.lower()
+                        content_lower = content.lower()
+                        has_action_word = bool(set(content_lower.split()) & _issue_action_words)
+                        if len(content) > 5 and (has_action_word or not _is_conversational_workflow_reply(content)):
+                            _best_issue_msg = content_lower
                             break
                 if not (set(_best_issue_msg.split()) & _issue_action_words) and len(_best_issue_msg.split()) <= 3:
                     return "clarify_issue"

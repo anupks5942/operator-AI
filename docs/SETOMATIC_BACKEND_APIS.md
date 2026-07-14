@@ -17,7 +17,7 @@
 | # | API | Endpoint | Purpose | Description | Status | Notes for Backend |
 |---|-----|----------|---------|-------------|--------|-------------------|
 | 1 | Loyalty Balance API | `GET /api/Transactions/CheckLoyaltyCardBalance` | Fetch loyalty card balance | Returns current balance, bonus balance, and total used amount for a loyalty card number scoped to an operator. Agent sends `OperatorId` + `LoyaltyCardNo`. | **DONE** | |
-| 2 | Transaction Search API | `GET /api/Transactions/ViewAllTransactionSearch` | Search & fetch transactions | Returns a paginated list of transactions filtered by card number, date range, refund status, location, and amount. Agent sends `LoggedInUserId`, `LoyaltyCardNo`, `StartDate`, `EndDate`, `PageNo`, `PageSize`, `isRefund`, `IsFundAmountUsed`. Each result must include `transactionDetailId` (required for refund flow). | **DONE** | |
+| 2 | Transaction Search API | `GET /api/Transactions/ViewAllTransactionSearch` | Search & fetch transactions | Returns a paginated list of transactions filtered by card number, date range, refund status, location, and amount. Agent sends `LoggedInUserId`, `LoyaltyCardNo`, `StartDate`, `EndDate`, `PageNo`, `PageSize`, `isRefund`, `IsFundAmountUsed`. Default 5 records/page with "show more" continuation. Each result must include `transactionDetailId` (required for refund flow; hidden from operator display). | **DONE** | |
 | 3 | Refund Validation API | `GET /api/Transactions/RefundEligibility` | Validate refund eligibility | Checks if a specific transaction is eligible for refund (e.g., within 30-day window, not already refunded). Returns eligibility status (`isEligible`) and reason. Agent sends `transactionDetailId` + `OperatorId`. | | |
 | 4 | Refund Transaction API | `GET /api/Transactions/RefundProcessing` | Execute refund | Processes the actual refund for a validated transaction. Returns a refund receipt identifier. Agent sends `transactionDetailId` + `OperatorId`. Must only succeed after `RefundEligibility` confirmed `isEligible=true`. | | |
 
@@ -57,15 +57,28 @@ These are code changes on our side, not new APIs for the backend team:
 
 ---
 
+## Tier 1B — Kiosk & POS APIs (July 2026)
+
+> APIs delivered by backend team in July 2026 for kiosk operations and POS transaction reporting. All integrated into the agent.
+
+| # | API | Endpoint | Purpose | Description | Status | Notes |
+|---|-----|----------|---------|-------------|--------|-------|
+| 5 | Kiosk Purchases API | `GET /api/Kiosk/GetKioskPurchasedLoyaltyCarddetails` | Fetch kiosk card purchase records | Returns loyalty cards purchased/sold at kiosks within a date range. Filters by UserId, date range, location, IMEI. API returns all records; agent paginates client-side (5/page). | **DONE** | Agent tool: `get_kiosk_purchases` |
+| 6 | Kiosk Recharges API | `GET /api/Kiosk/GetKioskLoyaltyCardRechargedetails` | Fetch kiosk card recharge records | Returns loyalty cards recharged/topped-up at kiosks within a date range. Same filters as purchases. API returns all records; agent paginates client-side (5/page). | **DONE** | Agent tool: `get_kiosk_recharges` |
+| 7 | Remote Device Command API | `POST /api/Kiosk/SendCommondToRemoteDevice` | Send remote command to kiosk device | Sends a 'Reboot' or 'Dispense' command to a target device. Dispense requires amount > 0. Agent uses 2-step confirmation flow before execution. | **DONE** | Agent tool: `send_remote_device_command` |
+| 8 | POS Transaction Report API | `GET /api/POS/GetPOSTransactionReport` | Fetch POS transaction/order data | Returns POS transactions filtered by date range, CardCode (17=Loyalty/19=Credit/20=Cash), OrderType (1=All/2=Sale/3=WDF-PUD), AccountType (1=All/2=Commercial/3=Non-commercial). Optional: CardNo, LocationId, POSID. API returns all records; agent paginates client-side (5/page). | **DONE** | Agent tool: `get_pos_transactions` |
+
+---
+
 ## Tier 2 — Future Platform APIs (Phase 5, not this month)
 
 > These APIs power the **admin experience around the chatbot** (Brandon's KB Admin panel, QA review). The chatbot functions without them. Listed here so the backend team has visibility for future planning.
 
 | # | API | Purpose | Description | Notes for Backend |
 |---|-----|---------|-------------|-------------------|
-| 5 | Feedback API | Capture operator feedback | Records thumbs up/down from the operator on individual AI responses, with optional free-text comment. Powers KB quality improvement loop. | |
-| 6 | Conversation Logging API | Persist AI chat transcripts | Stores raw chat transcripts and session metadata for QA review and compliance auditing. Currently the agent uses in-memory storage (lost on restart). | |
-| 7 | Manual Upload API | Upload KB documents | Endpoint for the Super Admin portal to upload new operator manuals (PDF/DOCX) and trigger re-ingestion into the agent's vector database. | |
+| 9 | Feedback API | Capture operator feedback | Records thumbs up/down from the operator on individual AI responses, with optional free-text comment. Powers KB quality improvement loop. | |
+| 10 | Conversation Logging API | Persist AI chat transcripts | Stores raw chat transcripts and session metadata for QA review and compliance auditing. Currently the agent uses in-memory storage (lost on restart). | |
+| 11 | Manual Upload API | Upload KB documents | Endpoint for the Super Admin portal to upload new operator manuals (PDF/DOCX) and trigger re-ingestion into the agent's vector database. | |
 
 ---
 
@@ -121,7 +134,6 @@ These were in the original `API_Requirements.docx` but are **not needed** by the
 | API | Reason |
 |-----|--------|
 | All 6 Reporting APIs (Revenue, Daily, Machine, Location, Refund, Loyalty) | Portal dashboard features. The chat agent does not generate reports. |
-| Kiosk Transaction API | Future scope / portal. No agent integration path. |
 | Reload Center API | Future scope / portal. |
 | KB Search / Document Metadata / KB Versioning APIs | Agent queries its vector database (ChromaDB) directly. These would serve an admin panel, not the chatbot. |
 | Live machine telemetry / hub status / kiosk hardware | Explicitly forbidden. Agent has a guardrail node that refuses these requests. |
@@ -132,8 +144,9 @@ These were in the original `API_Requirements.docx` but are **not needed** by the
 
 | Tier | APIs | Done | To Build |
 |------|------|------|----------|
-| Tier 1 — Core Agent (this month) | 4 | 2 | **2** |
+| Tier 1 — Core Agent | 4 | 2 | **2** |
+| Tier 1B — Kiosk & POS (July 2026) | 4 | 4 | 0 |
 | Tier 2 — Future Platform (Phase 5) | 3 | 0 | 3 |
-| **Total** | **7** | **2** | **5** |
+| **Total** | **11** | **6** | **5** |
 
 **Immediate action for backend team:** Deliver `RefundEligibility` and `RefundProcessing` on beta. Once ready, agent switches from mock server to live (`USE_MOCK_REFUNDS=false`) and refund workflow is fully operational.

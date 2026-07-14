@@ -22,7 +22,7 @@ src/
     router.py   — semantic_router node: LLM intent classifier + entity extraction
     nodes.py    — RAG, guardrail, greeting, summary, PCI, and out-of-domain nodes
     graph.py    — StateGraph definition, conditional edges, escalation/tool/blast-radius nodes
-    tools.py    — LangChain @tool definitions (loyalty, transactions, refund, system status)
+    tools.py    — LangChain @tool definitions (loyalty, transactions, refund, system status, kiosk purchases/recharges, POS transactions, remote device commands)
   api/
     server.py   — Production FastAPI app: POST /api/v1/agent/chat, GET /health
     routes.py   — Legacy /query endpoint (do NOT extend)
@@ -68,7 +68,7 @@ Root files: `app.py` (Streamlit demo with persisted routing diagnostics sidebar)
 
 ## Knowledge Base
 - `KB/` contains PDF, DOCX, and TXT source documents (SpyderWash manuals, troubleshooting guides, product overview).
-- Ingested into ChromaDB at `./chroma_db/` with HuggingFace `all-MiniLM-L6-v2` embeddings. Delete `chroma_db/` and restart the app after adding new KB files.
+- Ingested into ChromaDB at `./chroma_db/` with OpenAI `text-embedding-3-small` embeddings (configurable via `OPENAI_EMBEDDING_MODEL` env var). Delete `chroma_db/` and restart the app after adding new KB files.
 - Chunking: 500 chars / 50 overlap. MMR retrieval with k=3, fetch_k=20, lambda=0.6.
 - Metadata: `brand`, `doc_type`, `source_file`, `page` enriched per chunk.
 
@@ -83,6 +83,7 @@ Root files: `app.py` (Streamlit demo with persisted routing diagnostics sidebar)
 - `chroma_db/` is gitignored — it's regenerated on first run if missing.
 - `protobuf<=3.20.3` is pinned due to a LangChain compatibility constraint.
 - `get_transaction_history` pre-validates cards via balance API; supports `count` (1–20), `include_refunds` → API `isRefund`, and optional `start_date`/`end_date` (YYYY-MM-DD). Defaults to a rolling 6-month window when dates are omitted.
+- All transaction tools (loyalty, kiosk purchases/recharges, POS) default to **5 records per page**. Pagination is client-side (kiosk/POS APIs return all data at once; agent slices locally via `page_no`). "Show more" triggers the router's pre-LLM regex heuristic (`Showing \d+ of \d+ records`) → stays in API intent → tool re-called with `page_no` incremented. Transaction IDs are hidden from operator display but kept internally for refund flow.
 - Card numbers are normalized (LC- prefix stripped) in loyalty/transaction tools.
 - The `__init__.py` files are missing from most packages; imports work because `src/` is on `sys.path` implicitly. Add `__init__.py` files if restructuring to a proper package layout.
 

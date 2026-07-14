@@ -2,7 +2,7 @@ import os
 import re
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
@@ -62,7 +62,8 @@ class RAGService:
     def __init__(self, kb_dir: str = "KB", persist_dir: str = "./chroma_db", force_reingest: bool = False):
         self.kb_dir = kb_dir
         self.persist_dir = persist_dir
-        self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        from src.config import OPENAI_EMBEDDING_MODEL
+        self.embeddings = OpenAIEmbeddings(model=OPENAI_EMBEDDING_MODEL)
 
         # Load or build vectorstore
         db_exists = os.path.exists(self.persist_dir) and len(os.listdir(self.persist_dir)) > 0

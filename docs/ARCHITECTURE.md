@@ -100,7 +100,7 @@ flowchart TD
 | `pci_guardrail_node` | [nodes.py](../src/agent/nodes.py) | Static refusal for CVV/CVC/track-data requests |
 | `out_of_domain_node` | [nodes.py](../src/agent/nodes.py) | Static refusal for off-topic / injection |
 | `blast_radius_check` | [graph.py](../src/agent/graph.py) | Ask one machine vs entire laundromat |
-| `clarify_issue` | [graph.py](../src/agent/graph.py) | Ask for symptom details when outage report is too vague |
+| `clarify_issue` | [graph.py](../src/agent/graph.py) | Ask for symptom details when outage report is too vague (skipped if message already contains action words like "down", "offline") |
 | `troubleshoot_first` | [graph.py](../src/agent/graph.py) | RAG KB steps + "Did this resolve?" |
 | `confirm_escalation` | [graph.py](../src/agent/graph.py) | Asks operator permission before escalating (single-machine only) |
 | `escalation_declined` | [graph.py](../src/agent/graph.py) | Provides direct contact info when operator declines escalation |
@@ -145,7 +145,7 @@ Each turn ends at `END` after one node chain (router → one downstream node →
 7. Post-escalation follow-ups → `post_escalation_ack` or `escalation_resolved` or `new_issue_after_escalation` (fresh cycle for new reports); API intents pass through
 8. **Post-resolution closure**: "no" / "no thanks" after "Glad to hear..." → friendly close (not new workflow)
 9. `critical_outage` → immediate escalation (skip troubleshoot; dedup guard prevents re-dispatch)
-10. Outage workflow intents → blast-radius → **entire_location: immediate escalation** / single_machine: `clarify_issue` (if vague, once per cycle) → troubleshoot → escalate on failure
+10. Outage workflow intents → blast-radius → **entire_location: immediate escalation** / single_machine: `clarify_issue` (only if message lacks action words like "down"/"offline" AND is ≤3 words; fires once per cycle) → troubleshoot → escalate on failure
 11. **Escalation dedup**: if `escalation_dispatched` is set, "no" routes to `post_escalation_ack` (no duplicate tickets)
 12. `api_action_required` → tools (clears stale workflow flags on completion)
 13. Default → RAG
@@ -169,11 +169,8 @@ RAG-only intents (no outage workflow):
 2. Chunk: 500 chars, 50 overlap; metadata: brand, doc_type
 3. Embed: HuggingFace `all-MiniLM-L6-v2`
 4. Store: Chroma `./chroma_db` (single-node; not shared across replicas)
-5. Retrieve: MMR, k=6, fetch_k=20; metadata filter applied per-query (brand, doc_type)
-6. **Fallback:** If filtered retrieval returns 0 context docs, retries without the filter
-7. Generate: OpenAI via `RAG_OPENAI_MODEL`
-
-**Product-overview routing:** Questions about SpyderWash/Setomatic (what it is, components, features) are detected by `_is_product_overview_query` heuristic in router.py and force-routed to RAG with `doc_type: "overview"` filter, preventing LLM misclassification as `out_of_domain`.
+5. Retrieve: MMR, k=6, fetch_k=20
+6. Generate: OpenAI via `RAG_OPENAI_MODEL`
 
 **Target (production):**
 
@@ -190,10 +187,26 @@ See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) and ADR-013 in [DECISIONS.md](DECIS
 | Tool | Target | OperatorId |
 |------|--------|--------------|
 | `get_loyalty_balance` | Live `SETOMATIC_BASE_URL` | Hardcoded `4` (**agent-side fix**: pipe `operator_id` from ChatRequest) |
-| `get_transaction_history` | Live `SETOMATIC_BASE_URL` | Hardcoded `LoggedInUserId=4`; `PageSize` from `count` (1–20); `isRefund` from `include_refunds`; `start_date`/`end_date` (YYYY-MM-DD, defaults to rolling 6-month window); card pre-validated via balance API; LC-prefix stripped; results sorted by date descending |
+| `get_transaction_history` | Live `SETOMATIC_BASE_URL` | Hardcoded `LoggedInUserId=4`; `PageSize` from `count` (default 5); `isRefund` from `include_refunds`; `page_no` for pagination; card pre-validated via balance API; LC-prefix stripped; IDs hidden from display (kept internal for refund) |
 | `check_refund_eligibility` | Mock or live per `USE_MOCK_REFUNDS` | Hardcoded `4` |
 | `execute_refund` | Mock or live per `USE_MOCK_REFUNDS` | Hardcoded `4` |
 | `check_global_system_status` | Web scrape setomaticsystems.com/status | N/A |
+| `get_kiosk_purchases` | Live `SETOMATIC_BASE_URL` | Hardcoded `UserId=4`; requires date range; optional location/IMEI; client-side pagination (default 5/page) |
+| `get_kiosk_recharges` | Live `SETOMATIC_BASE_URL` | Hardcoded `UserId=4`; requires date range; optional location/IMEI; client-side pagination (default 5/page) |
+| `get_pos_transactions` | Live `SETOMATIC_BASE_URL` | Hardcoded `UserId=4`; requires date range + CardCode/OrderType/AccountType; optional CardNo/LocationId/POSID; client-side pagination (default 5/page) |
+| `send_remote_device_command` | Live `SETOMATIC_BASE_URL` | Hardcoded `operatorId=4`; POST with 2-step confirmation; commands: Reboot (amount=0) or Dispense (amount>0) |
+
+### Pagination ("show more" flow)
+
+All transaction-type tools display **5 records per page** by default. When more records exist, the tool appends:
+
+> Showing 5 of 57 records. 52 more records are available. Say "show more" to view the next 5 records.
+
+**Detection:** Router has a pre-LLM regex heuristic (`_is_show_more_request`) that matches `Showing \d+ of \d+ records` in the prior assistant message. If the user says "show more" / "give me more" / "yes" / "next page", the router short-circuits to the active API intent with `api_action_required=true`.
+
+**Execution:** The `_TOOL_SYSTEM_PROMPT` PAGINATION rule instructs the LLM to re-call the same tool with identical parameters but `page_no` incremented by 1.
+
+**Client-side slicing:** Kiosk and POS APIs return all records at once (ignore `PageSize`). The tool functions slice locally: `records[(page_no-1)*page_size : page_no*page_size]`. Transaction IDs are excluded from the operator-facing display but appended as an internal LLM-only note for refund flow.
 
 Refund mock endpoints on `:8001`:
 
@@ -206,15 +219,11 @@ Refund mock endpoints on `:8001`:
 
 When `escalation_node` runs:
 
-1. `_generate_escalation_summary` — LLM-generated structured technical handoff (Issue, Equipment, Steps Attempted, Outcome, Severity)
-2. `_resolve_operator_contact` — from API fields or defaults
-3. `NotificationService.send_escalation` — Professional HTML email (summary only, no full transcript) + SMS when `USE_LIVE_NOTIFICATIONS=true`
-4. Sets `escalation_dispatched: true`, persists `escalation_ticket_id` in `extracted_entities`
-
-When `escalation_resolved_node` runs (operator confirms resolution):
-
-1. Retrieves `escalation_ticket_id` from state
-2. `NotificationService.send_resolution` — sends resolution email + SMS with ticket reference
+1. `_extract_escalation_context` — summary from **current** incident
+2. `_format_conversation_for_email` — full transcript (PCI-masked on API input only)
+3. `_resolve_operator_contact` — from API fields or defaults
+4. `NotificationService.send_escalation` — Mandrill + Twilio when `USE_LIVE_NOTIFICATIONS=true`
+5. Sets `escalation_dispatched: true` → API returns `requires_escalation: true`
 
 Detail: [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md)
 

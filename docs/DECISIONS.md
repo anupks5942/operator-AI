@@ -221,10 +221,10 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 
 ## ADR-023: Clarify vague outage reports before troubleshooting
 
-**Status:** Accepted  
-**Context:** Operators reporting only scope without symptom (e.g., "one machine") were pushed into blast-radius or troubleshooting with no actionable context.  
-**Decision:** Add `clarify_issue` node. When an outage intent is classified but the message lacks action/symptom words and `clarify_asked` is not set, route to `clarify_issue` to ask what the machine is doing. Set `clarify_asked: true` so clarification fires at most once per cycle.  
-**Consequences:** Vague reports get a guided follow-up before KB troubleshooting. See [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md).
+**Status:** Accepted (updated)  
+**Context:** Operators reporting only scope without symptom (e.g., "one machine") were pushed into blast-radius or troubleshooting with no actionable context. However, messages like "one machine is down" contain a clear symptom word ("down") and should NOT be treated as vague.  
+**Decision:** Add `clarify_issue` node. When an outage intent is classified but the message lacks action/symptom words (down, offline, broken, error, frozen, etc.) and `clarify_asked` is not set, route to `clarify_issue`. Set `clarify_asked: true` so clarification fires at most once per cycle. The message-selection logic now prioritizes action-word presence over `_is_conversational_workflow_reply` matching — if a message contains an action word it is accepted as the issue description regardless of conversational-reply heuristics.  
+**Consequences:** "one machine" alone gets a clarification question. "one machine is down" goes directly to KB troubleshooting. See [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md).
 
 ---
 
@@ -234,6 +234,15 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 **Context:** Sidebar intent/guardrail/escalation/API indicators in [app.py](../app.py) were written only during the processing run; `st.rerun()` after each response recreated empty placeholders, so diagnostics flashed briefly then disappeared.  
 **Decision:** Persist routing diagnostics in `st.session_state.routing_diagnostics` and render from that on every Streamlit run. Update live during graph streaming and after completion.  
 **Consequences:** Dev demo sidebar shows stable last-known routing state across turns. Production React/.NET clients are unaffected (they use the HTTP API, not Streamlit sidebar).
+
+---
+
+## ADR-025: Remove source citations from troubleshooting responses
+
+**Status:** Accepted  
+**Context:** `troubleshoot_first_node` appended a "Sources: filename [p.X] | filename [p.Y]" line to KB troubleshooting responses. PM requested removal — operators do not need to see internal document references.  
+**Decision:** Remove the `context_docs` → `sources_note` block from `troubleshoot_first_node`. Troubleshooting responses now show only the KB answer followed by "Did this resolve the issue? (Yes/No)".  
+**Consequences:** Cleaner operator-facing output. Source provenance is still available in ChromaDB metadata for debugging but not surfaced in responses.
 
 ---
 

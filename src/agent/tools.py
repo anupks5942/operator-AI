@@ -22,16 +22,14 @@ logger = logging.getLogger("setomatic.tools")
 # Import centralized URL config — all base URLs are defined in src/config.py
 from src.config import MOCK_BASE_URL, SETOMATIC_BASE_URL, USE_MOCK_REFUNDS
 
-# Chrome-mimicking headers — Accept-Encoding intentionally omitted so requests
-# receives plain HTML (not brotli/gzip binary that requests can't decompress natively)
 _BROWSER_HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
+        "Chrome/149.0.0.0 Mobile Safari/537.36"
     ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8,hi;q=0.7",
     "Connection": "keep-alive",
     "Upgrade-Insecure-Requests": "1",
     "Sec-Fetch-Dest": "document",
@@ -39,6 +37,9 @@ _BROWSER_HEADERS = {
     "Sec-Fetch-Site": "none",
     "Sec-Fetch-User": "?1",
     "Cache-Control": "max-age=0",
+    "sec-ch-ua": '"Google Chrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"',
+    "sec-ch-ua-mobile": "?1",
+    "sec-ch-ua-platform": '"Android"',
 }
 
 
@@ -102,6 +103,11 @@ class TransactionHistorySchema(BaseModel):
             "Use when the operator specifies a date range. If omitted, defaults to today."
         ),
     )
+    page_no: int = Field(
+        default=1,
+        ge=1,
+        description="Page number for pagination. Increment when operator asks 'show more'.",
+    )
 
     @field_validator("start_date", "end_date", mode="before")
     @classmethod
@@ -136,6 +142,153 @@ class RefundExecuteSchema(BaseModel):
         pattern=_TX_ID_PATTERN,
         description="Transaction detail ID confirmed eligible in step 2 (alphanumeric and hyphens).",
     )
+
+
+class KioskPurchasesSchema(BaseModel):
+    start_date: str = Field(
+        ...,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="Start date for the search window (YYYY-MM-DD). Required.",
+    )
+    end_date: str = Field(
+        ...,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="End date for the search window (YYYY-MM-DD). Required.",
+    )
+    location_name: str | None = Field(
+        default=None,
+        description="Filter by location name. Optional.",
+    )
+    imei: str | None = Field(
+        default=None,
+        description="Filter by kiosk IMEI/device ID. Optional.",
+    )
+    page_size: int = Field(default=5, ge=1, le=100, description="Results per page (default 5).")
+    page_no: int = Field(default=1, ge=1, description="Page number for pagination. Increment for 'show more'.")
+
+    @field_validator("start_date", "end_date", mode="before")
+    @classmethod
+    def _validate_date(cls, v):
+        if v is None:
+            return v
+        from datetime import date as date_type
+        try:
+            date_type.fromisoformat(v)
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid date format '{v}'. Must be YYYY-MM-DD.")
+        return v
+
+
+class KioskRechargesSchema(BaseModel):
+    start_date: str = Field(
+        ...,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="Start date for the search window (YYYY-MM-DD). Required.",
+    )
+    end_date: str = Field(
+        ...,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="End date for the search window (YYYY-MM-DD). Required.",
+    )
+    location_name: str | None = Field(
+        default=None,
+        description="Filter by location name. Optional.",
+    )
+    imei: str | None = Field(
+        default=None,
+        description="Filter by kiosk IMEI/device ID. Optional.",
+    )
+    page_size: int = Field(default=5, ge=1, le=100, description="Results per page (default 5).")
+    page_no: int = Field(default=1, ge=1, description="Page number for pagination. Increment for 'show more'.")
+
+    @field_validator("start_date", "end_date", mode="before")
+    @classmethod
+    def _validate_date(cls, v):
+        if v is None:
+            return v
+        from datetime import date as date_type
+        try:
+            date_type.fromisoformat(v)
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid date format '{v}'. Must be YYYY-MM-DD.")
+        return v
+
+
+class POSTransactionsSchema(BaseModel):
+    start_date: str = Field(
+        ...,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="Start date (YYYY-MM-DD). Required.",
+    )
+    end_date: str = Field(
+        ...,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="End date (YYYY-MM-DD). Required.",
+    )
+    card_code: int = Field(
+        default=17,
+        description="Payment type filter: 17=Loyalty Card (default), 19=Credit Card, 20=Cash.",
+    )
+    order_type: int = Field(
+        default=1,
+        description="Order type: 1=All (default), 2=Sale only, 3=WDF and PUD.",
+    )
+    account_type: int = Field(
+        default=1,
+        description="Customer type: 1=All (default), 2=Commercial only, 3=Non-commercial only.",
+    )
+    card_no: str | None = Field(
+        default=None,
+        description="Filter by specific card number. Optional.",
+    )
+    location_id: int | None = Field(
+        default=None,
+        description="Filter by location ID. Optional.",
+    )
+    pos_id: str | None = Field(
+        default=None,
+        description="Filter by POS terminal ID. Optional.",
+    )
+    page_size: int = Field(default=5, ge=1, le=100, description="Results per page (default 5).")
+    page_no: int = Field(default=1, ge=1, description="Page number for pagination. Increment for 'show more'.")
+
+    @field_validator("start_date", "end_date", mode="before")
+    @classmethod
+    def _validate_date(cls, v):
+        if v is None:
+            return v
+        from datetime import date as date_type
+        try:
+            date_type.fromisoformat(v)
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid date format '{v}'. Must be YYYY-MM-DD.")
+        return v
+
+
+class RemoteDeviceCommandSchema(BaseModel):
+    device_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Target device ID/IMEI to send the command to.",
+    )
+    command: str = Field(
+        ...,
+        description="Command to execute: 'Dispense' (dispense a loyalty card) or 'Reboot' (restart device).",
+    )
+    amount: float = Field(
+        default=0,
+        ge=0,
+        description="Dollar amount for card dispense (must be > 0 for Dispense, 0 for Reboot).",
+    )
+
+    @field_validator("command", mode="before")
+    @classmethod
+    def _validate_command(cls, v):
+        normalized = v.strip().capitalize()
+        if normalized not in ("Dispense", "Reboot"):
+            raise ValueError(f"Invalid command '{v}'. Must be 'Dispense' or 'Reboot'.")
+        return normalized
 
 
 def _normalize_card_number(card_number: str) -> str:
@@ -264,6 +417,7 @@ def get_transaction_history(
     include_refunds: bool = False,
     start_date: str | None = None,
     end_date: str | None = None,
+    page_no: int = 1,
 ) -> str:
     """
     Use this tool when the user asks to look up recent transactions, payment history,
@@ -344,7 +498,7 @@ def get_transaction_history(
             'StartDate': start_date,
             'EndDate': end_date,
             'LoyaltyCardNo': card_number,
-            'PageNo': 1,
+            'PageNo': page_no,
             'PageSize': page_size,
             'isRefund': 'true' if include_refunds else 'false',
         }
@@ -386,28 +540,43 @@ def get_transaction_history(
                 f"The card may have no {'refund' if include_refunds else ''} activity in this period."
             )
 
-        # Format a clean, LLM-friendly summary
+        total_records = response.json().get("totalRecords") or response.json().get("totalrecords") or len(transactions)
+
         tx_label = "refunded transaction(s)" if include_refunds else "transaction(s)"
         lines = [
-            f"Last {len(transactions)} {tx_label} for loyalty card '{card_number}' "
-            f"({start_date} -> {end_date}):\n"
+            f"**{tx_label.capitalize()}** for loyalty card '{card_number}' "
+            f"({start_date} to {end_date}):\n"
         ]
+        tx_ids = []
         for i, tx in enumerate(transactions, start=1):
-            tx_id  = tx.get("transactionDetailId", "N/A")  # required for refund flow
+            tx_id  = tx.get("transactionDetailId", "N/A")
             dt     = tx.get("transactionDateTime", "N/A")
             amount = tx.get("transactionAmount",   "N/A")
             t_type = tx.get("transactionType",     "N/A")
             loc    = tx.get("locationName",        "N/A")
 
-            # Format amount as currency if numeric
             try:
                 amount_str = f"${float(amount):.2f}"
             except (TypeError, ValueError):
                 amount_str = str(amount)
 
             lines.append(
-                f"  {i}. [ID:{tx_id}]  [{dt}]  {t_type}  {amount_str}  @ {loc}"
+                f"  {i}. [{dt}]  {t_type}  {amount_str}  @ {loc}"
             )
+            tx_ids.append(str(tx_id))
+
+        shown = len(transactions)
+        remaining = int(total_records) - (page_no * page_size) if int(total_records) > page_no * page_size else 0
+        if remaining > 0:
+            lines.append(
+                f"\nShowing {shown} of {total_records} records. "
+                f"{remaining} more records are available. "
+                f"Say \"show more\" to view the next {page_size} records."
+            )
+        else:
+            lines.append(f"\nShowing all {total_records} records.")
+
+        lines.append("\n(Internal — transaction IDs for refund flow: " + ", ".join(tx_ids) + ")")
 
         return "\n".join(lines)
 
@@ -433,70 +602,61 @@ def check_global_system_status() -> str:
     system is down, experiencing an outage, or has degraded service.
 
     Fetches the live status page at https://setomaticsystems.com/status and parses
-    the current operational status. Falls back to https://www.cantaloupe.com/status
-    if the primary page is WAF-blocked. Takes NO arguments.
+    the current operational status. Takes NO arguments.
 
     Returns:
-        A plain-text string with the current system status, details, and date.
-        If the Cantaloupe fallback is used, incidents older than 7 days are clearly
-        labelled as HISTORICAL/RESOLVED so the LLM does not misreport them as current.
+        A plain-text string with the current system status and details.
     """
     import re
-    from datetime import datetime, timezone
 
-    # ── Helper: parse MM.DD.YY date strings ──────────────────────────────────
-    def _parse_incident_date(date_str: str):
-        """Return a datetime from 'MM.DD.YY' format, or None if unparseable."""
-        m = re.search(r"(\d{2})\.(\d{2})\.(\d{2})", date_str)
-        if not m:
-            return None
+    _STATUS_URL = "https://setomaticsystems.com/status/"
+
+    # ── Strategy 1: cloudscraper (handles Cloudflare JS challenges) ───────────
+    def _try_cloudscraper() -> str | None:
         try:
-            month, day, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
-            return datetime(2000 + year, month, day, tzinfo=timezone.utc)
-        except ValueError:
-            return None
+            import cloudscraper
+            scraper = cloudscraper.create_scraper(
+                browser={"browser": "chrome", "platform": "windows", "mobile": False}
+            )
+            logger.info("[check_global_system_status] Fetching %s via cloudscraper", _STATUS_URL)
+            resp = scraper.get(_STATUS_URL, timeout=15)
+            logger.info("[check_global_system_status] cloudscraper Response [%s]", resp.status_code)
+            if resp.status_code == 200:
+                return resp.text
+        except ImportError:
+            logger.warning("[check_global_system_status] cloudscraper not installed, skipping")
+        except Exception as e:
+            logger.error("[check_global_system_status] cloudscraper failed: %s", e)
+        return None
 
-    # ── Strategy 1: setomaticsystems.com via requests.Session ────────────────
-    def _try_setomatic() -> str | None:
-        """
-        Use a Session object to warm up cookies/headers before fetching the status page.
-        This improves WAF bypass success vs a cold single GET request.
-        Parses the 'STATUS:' heading specific to the Setomatic page structure.
-        """
+    # ── Strategy 2: requests.Session with full browser headers ────────────────
+    def _try_requests_session() -> str | None:
         session = requests.Session()
         session.headers.update(_BROWSER_HEADERS)
-        session.headers.update({
-            "Origin":  "https://setomaticsystems.com",
-            "Referer": "https://setomaticsystems.com/",
-        })
         try:
-            # Warm-up request to the homepage first (establishes session context)
             logger.info("[check_global_system_status] Warming up session at https://setomaticsystems.com/")
             session.get("https://setomaticsystems.com/", timeout=8)
-            # Now fetch the actual status page
-            logger.info("[check_global_system_status] Fetching https://setomaticsystems.com/status")
-            resp = session.get("https://setomaticsystems.com/status", timeout=10)
+            logger.info("[check_global_system_status] Fetching %s", _STATUS_URL)
+            resp = session.get(_STATUS_URL, timeout=10)
             logger.info("[check_global_system_status] Setomatic status page Response [%s]", resp.status_code)
+            if resp.status_code == 200:
+                return resp.text
         except Exception as e:
             logger.error("[check_global_system_status] Failed to fetch setomatic status: %s", e)
-            return None
+        return None
 
-        if resp.status_code != 200:
-            return None
-
+    # ── Parse the HTML response ───────────────────────────────────────────────
+    def _parse_status_html(html_text: str) -> str | None:
         try:
-            soup = BeautifulSoup(resp.text, "html.parser")
+            soup = BeautifulSoup(html_text, "html.parser")
             visible = soup.get_text(separator=" | ", strip=True)
 
-            # Setomatic page structure: h2 with "STATUS: <value>"
-            # e.g. "STATUS: No Issue" or "STATUS: Degraded"
             m_status = re.search(r"(STATUS:\s*[^\|]{2,60})", visible, re.IGNORECASE)
             if not m_status:
                 return None
 
             status_line = m_status.group(1).strip()
 
-            # Grab the descriptive paragraph that follows
             m_desc = re.search(
                 re.escape(status_line) + r"\s*\|?\s*(.{20,600}?)(?:\||\Z)",
                 visible, re.IGNORECASE | re.DOTALL,
@@ -507,96 +667,20 @@ def check_global_system_status() -> str:
             if description:
                 result += f" | Details: {description}"
             return result
-
         except Exception:
             return None
 
-    # ── Strategy 2: cantaloupe.com/status (fallback) ─────────────────────────
-    def _try_cantaloupe() -> str | None:
-        """
-        Fetch Cantaloupe's status page and extract the most recent incident.
-        Critically: check the incident date. If it is older than 7 days, mark it
-        as HISTORICAL so the LLM does not present a resolved past incident as
-        the current system status.
-        """
-        headers = {**_BROWSER_HEADERS, "Referer": "https://www.cantaloupe.com/", "DNT": "1"}
-        try:
-            logger.info("[check_global_system_status] Fetching fallback: https://www.cantaloupe.com/status")
-            resp = requests.get("https://www.cantaloupe.com/status", headers=headers, timeout=10)
-            logger.info("[check_global_system_status] Cantaloupe status page Response [%s]", resp.status_code)
-        except Exception as e:
-            logger.error("[check_global_system_status] Failed to fetch cantaloupe status: %s", e)
-            return None
-
-        if resp.status_code != 200:
-            return None
-
-        try:
-            soup = BeautifulSoup(resp.text, "html.parser")
-            visible = soup.get_text(separator=" | ", strip=True)
-
-            # Cantaloupe structure: "System Status | MM.DD.YY | HH:MMam TZ | Event | Update: | Details"
-            m = re.search(
-                r"System Status\s*\|?\s*"
-                r"(\d{2}\.\d{2}\.\d{2}[^|]*)"                   # date
-                r"\|?\s*"
-                r"(?:(\d{1,2}:\d{2}(?:am|pm)[^|]*)\|?\s*)?"     # optional time
-                r"([^|]{3,120})"                                  # event title
-                r"(?:\s*\|?\s*Update:\s*\|?\s*(.{10,500}))?",    # optional update body
-                visible,
-                re.IGNORECASE | re.DOTALL,
-            )
-
-            if not m:
-                return None
-
-            date_raw   = (m.group(1) or "").strip(" |")
-            time_raw   = (m.group(2) or "").strip(" |")
-            event_raw  = (m.group(3) or "").strip(" |")
-            update_raw = (m.group(4) or "").strip(" |")[:300]
-            date_str   = f"{date_raw} {time_raw}".strip() if time_raw else date_raw
-
-            # ── Staleness check ──────────────────────────────────────────────
-            incident_dt = _parse_incident_date(date_raw)
-            now_utc     = datetime.now(timezone.utc)
-            is_stale    = incident_dt and (now_utc - incident_dt).days > 7
-
-            if is_stale:
-                # This is a historical/resolved incident — label it clearly
-                prefix = (
-                    f"[Cantaloupe (backup)] HISTORICAL INCIDENT ({date_str}) — "
-                    f"This incident occurred {(now_utc - incident_dt).days} days ago and "
-                    f"is likely resolved. DO NOT report this as the current system status. "
-                    f"Event: {event_raw}"
-                )
-                if update_raw:
-                    prefix += f" | Last update: {update_raw}"
-                prefix += " | NOTE: Check https://setomaticsystems.com/status for current status."
-                return prefix
-
-            # Recent incident — report it as current
-            parts = [f"[Cantaloupe (backup)] System Status", f"Event: {event_raw}"]
-            if date_str:
-                parts.append(f"Date: {date_str}")
-            if update_raw:
-                parts.append(f"Details: {update_raw}")
-            return " | ".join(parts)
-
-        except Exception:
-            return None
-
-    # ── Execute cascade ───────────────────────────────────────────────────────
-    result = _try_setomatic()
-    if result:
-        return result
-
-    result = _try_cantaloupe()
-    if result:
-        return result
+    # ── Execute cascade ─────────────────────────────────────────────────────────
+    html_text = _try_cloudscraper() or _try_requests_session()
+    if html_text:
+        parsed = _parse_status_html(html_text)
+        if parsed:
+            logger.info("[check_global_system_status] Parsed result: %s", parsed)
+            return parsed
+        logger.warning("[check_global_system_status] Got 200 but failed to parse STATUS from HTML")
 
     return (
-        "SYSTEM STATUS CHECK FAILED: Could not reach setomaticsystems.com/status "
-        "(WAF-blocked) or cantaloupe.com/status. "
+        "SYSTEM STATUS CHECK FAILED: Could not reach setomaticsystems.com/status. "
         "Advise the user to check https://setomaticsystems.com/status directly in a browser."
     )
 
@@ -766,6 +850,501 @@ def execute_refund(transaction_detail_id: str) -> str:
         return f"Unexpected error during refund processing for '{transaction_detail_id}': {e}"
 
 
+# ---------------------------------------------------------------------------
+# Kiosk Purchases tool
+# ---------------------------------------------------------------------------
+
+_KIOSK_PURCHASES_URL = (
+    SETOMATIC_BASE_URL
+    + "/api/Kiosk/GetKioskPurchasedLoyaltyCarddetails"
+)
+_KIOSK_OPERATOR_ID = 4
+
+
+@tool(args_schema=KioskPurchasesSchema)
+def get_kiosk_purchases(
+    start_date: str,
+    end_date: str,
+    location_name: str | None = None,
+    imei: str | None = None,
+    page_size: int = 5,
+    page_no: int = 1,
+) -> str:
+    """
+    Use this tool when the operator asks about loyalty cards PURCHASED (sold/dispensed)
+    at a kiosk within a date range.
+
+    Returns details of loyalty cards that were purchased through kiosk machines,
+    including card numbers, amounts, timestamps, and kiosk/location info.
+
+    Args:
+        start_date: Start of the search window (YYYY-MM-DD).
+        end_date: End of the search window (YYYY-MM-DD).
+        location_name: Optional location filter.
+        imei: Optional kiosk IMEI filter.
+        page_size: Number of results per page (1-100, default 20).
+    """
+    try:
+        body = {
+            "UserId": _KIOSK_OPERATOR_ID,
+            "startFrom": start_date,
+            "ToEnd": end_date,
+            "locationName": location_name,
+            "IMEI": imei,
+            "PageNo": 1,
+            "PageSize": page_size,
+        }
+        logger.info("[get_kiosk_purchases] POST %s | Body: %s", _KIOSK_PURCHASES_URL, body)
+
+        response = requests.get(
+            _KIOSK_PURCHASES_URL,
+            params={"UserId": _KIOSK_OPERATOR_ID, "startFrom": start_date, "ToEnd": end_date},
+            json=body,
+            timeout=(10.0, 15.0),
+        )
+        logger.info("[get_kiosk_purchases] Response [%s]: %s", response.status_code, response.text[:500])
+
+        if response.status_code >= 500:
+            return (
+                f"System Error: Backend server failure ({response.status_code}). "
+                "Instruct the user that the system is temporarily down."
+            )
+
+        if 400 <= response.status_code < 500:
+            return f"API Error: The request was rejected. Details: {response.text}"
+
+        payload = response.json()
+        data = payload.get("data") or payload if isinstance(payload, list) else payload.get("data")
+
+        if not data:
+            return (
+                f"No kiosk purchase records found between {start_date} and {end_date}. "
+                "The date range may be too narrow or no purchases occurred in this period."
+            )
+
+        records = data if isinstance(data, list) else [data]
+        records.sort(
+            key=lambda r: r.get("transactionDate") or r.get("purchaseDate") or "",
+            reverse=True,
+        )
+
+        total = len(records)
+        start_idx = (page_no - 1) * page_size
+        page_records = records[start_idx : start_idx + page_size]
+
+        if not page_records:
+            return f"No more kiosk purchase records to show (page {page_no} is empty)."
+
+        shown = len(page_records)
+        lines = [f"**Kiosk Loyalty Card Purchases** ({start_date} to {end_date}):\n"]
+        for i, rec in enumerate(page_records, start=start_idx + 1):
+            card_no = rec.get("loyaltyCardNo") or rec.get("cardNo") or "N/A"
+            amount_raw = rec.get("transactionAmount") if rec.get("transactionAmount") is not None else rec.get("amount") if rec.get("amount") is not None else rec.get("cardValue")
+            amount = f"${float(amount_raw):.2f}" if amount_raw is not None else "N/A"
+            bonus_raw = rec.get("bonusAmount")
+            bonus = f" (bonus: ${float(bonus_raw):.2f})" if bonus_raw and float(bonus_raw) > 0 else ""
+            date_raw = rec.get("transactionDate") or rec.get("purchaseDate") or ""
+            date_val = date_raw.split("T")[0] if "T" in date_raw else (date_raw or "N/A")
+            location = rec.get("locationName") or rec.get("location") or "N/A"
+            device = rec.get("reloadCenterHubMacId") or rec.get("imei") or rec.get("deviceId") or "N/A"
+            payment = rec.get("cardName") or ""
+            payment_label = f" | Paid via: {payment}" if payment else ""
+            lines.append(
+                f"{i}. Card: {card_no} | Amount: {amount}{bonus} | Date: {date_val} | "
+                f"Location: {location} | Device: {device}{payment_label}"
+            )
+
+        remaining = total - (start_idx + shown)
+        if remaining > 0:
+            lines.append(
+                f"\nShowing {shown} of {total} records. "
+                f"{remaining} more records are available. "
+                f"Say \"show more\" to view the next {page_size} records."
+            )
+        else:
+            lines.append(f"\nShowing all {total} records.")
+
+        return "\n".join(lines)
+
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        return (
+            "System Error: Unable to connect to the backend API. "
+            "Instruct the user to try again in five minutes."
+        )
+    except (KeyError, ValueError, TypeError) as e:
+        return f"Failed to parse kiosk purchases response: {e}"
+    except Exception as e:
+        return f"Unexpected error fetching kiosk purchases: {e}"
+
+
+# ---------------------------------------------------------------------------
+# Kiosk Recharges tool
+# ---------------------------------------------------------------------------
+
+_KIOSK_RECHARGES_URL = (
+    SETOMATIC_BASE_URL
+    + "/api/Kiosk/GetKioskLoyaltyCardRechargedetails"
+)
+
+
+@tool(args_schema=KioskRechargesSchema)
+def get_kiosk_recharges(
+    start_date: str,
+    end_date: str,
+    location_name: str | None = None,
+    imei: str | None = None,
+    page_size: int = 5,
+    page_no: int = 1,
+) -> str:
+    """
+    Use this tool when the operator asks about loyalty card RECHARGES (top-ups)
+    performed at a kiosk within a date range.
+
+    Returns details of loyalty cards that were recharged/topped-up through kiosk
+    machines, including card numbers, recharge amounts, timestamps, and kiosk info.
+
+    Args:
+        start_date: Start of the search window (YYYY-MM-DD).
+        end_date: End of the search window (YYYY-MM-DD).
+        location_name: Optional location filter.
+        imei: Optional kiosk IMEI filter.
+        page_size: Number of results per page (1-100, default 20).
+    """
+    try:
+        body = {
+            "UserId": _KIOSK_OPERATOR_ID,
+            "startFrom": start_date,
+            "ToEnd": end_date,
+            "locationName": location_name,
+            "IMEI": imei,
+            "PageNo": 1,
+            "PageSize": page_size,
+        }
+        logger.info("[get_kiosk_recharges] GET %s | Body: %s", _KIOSK_RECHARGES_URL, body)
+
+        response = requests.get(
+            _KIOSK_RECHARGES_URL,
+            params={"UserId": _KIOSK_OPERATOR_ID, "startFrom": start_date, "ToEnd": end_date},
+            json=body,
+            timeout=(10.0, 15.0),
+        )
+        logger.info("[get_kiosk_recharges] Response [%s]: %s", response.status_code, response.text[:500])
+
+        if response.status_code >= 500:
+            return (
+                f"System Error: Backend server failure ({response.status_code}). "
+                "Instruct the user that the system is temporarily down."
+            )
+
+        if 400 <= response.status_code < 500:
+            return f"API Error: The request was rejected. Details: {response.text}"
+
+        payload = response.json()
+        data = payload.get("data") or payload if isinstance(payload, list) else payload.get("data")
+
+        if not data:
+            return (
+                f"No kiosk recharge records found between {start_date} and {end_date}. "
+                "The date range may be too narrow or no recharges occurred in this period."
+            )
+
+        records = data if isinstance(data, list) else [data]
+        records.sort(
+            key=lambda r: r.get("transactionDate") or r.get("rechargeDate") or "",
+            reverse=True,
+        )
+
+        total = len(records)
+        start_idx = (page_no - 1) * page_size
+        page_records = records[start_idx : start_idx + page_size]
+
+        if not page_records:
+            return f"No more kiosk recharge records to show (page {page_no} is empty)."
+
+        shown = len(page_records)
+        lines = [f"**Kiosk Loyalty Card Recharges** ({start_date} to {end_date}):\n"]
+        for i, rec in enumerate(page_records, start=start_idx + 1):
+            card_no = rec.get("loyaltyCardNo") or rec.get("cardNo") or "N/A"
+            amount_raw = rec.get("transactionAmount") if rec.get("transactionAmount") is not None else rec.get("amount") if rec.get("amount") is not None else rec.get("rechargeAmount")
+            amount = f"${float(amount_raw):.2f}" if amount_raw is not None else "N/A"
+            bonus_raw = rec.get("bonusAmount")
+            bonus = f" (bonus: ${float(bonus_raw):.2f})" if bonus_raw and float(bonus_raw) > 0 else ""
+            date_raw = rec.get("transactionDate") or rec.get("rechargeDate") or ""
+            date_val = date_raw.split("T")[0] if "T" in date_raw else (date_raw or "N/A")
+            location = rec.get("locationName") or rec.get("location") or "N/A"
+            device = rec.get("reloadCenterHubMacId") or rec.get("imei") or rec.get("deviceId") or "N/A"
+            payment = rec.get("cardName") or ""
+            payment_label = f" | Paid via: {payment}" if payment else ""
+            lines.append(
+                f"{i}. Card: {card_no} | Amount: {amount}{bonus} | Date: {date_val} | "
+                f"Location: {location} | Device: {device}{payment_label}"
+            )
+
+        remaining = total - (start_idx + shown)
+        if remaining > 0:
+            lines.append(
+                f"\nShowing {shown} of {total} records. "
+                f"{remaining} more records are available. "
+                f"Say \"show more\" to view the next {page_size} records."
+            )
+        else:
+            lines.append(f"\nShowing all {total} records.")
+
+        return "\n".join(lines)
+
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        return (
+            "System Error: Unable to connect to the backend API. "
+            "Instruct the user to try again in five minutes."
+        )
+    except (KeyError, ValueError, TypeError) as e:
+        return f"Failed to parse kiosk recharges response: {e}"
+    except Exception as e:
+        return f"Unexpected error fetching kiosk recharges: {e}"
+
+
+# ---------------------------------------------------------------------------
+# POS Transactions tool
+# ---------------------------------------------------------------------------
+
+_POS_TRANSACTIONS_URL = (
+    SETOMATIC_BASE_URL
+    + "/api/POS/GetPOSTransactionReport"
+)
+_POS_OPERATOR_ID = 4
+
+
+@tool(args_schema=POSTransactionsSchema)
+def get_pos_transactions(
+    start_date: str,
+    end_date: str,
+    card_code: int = 17,
+    order_type: int = 1,
+    account_type: int = 1,
+    card_no: str | None = None,
+    location_id: int | None = None,
+    pos_id: str | None = None,
+    page_size: int = 5,
+    page_no: int = 1,
+) -> str:
+    """
+    Use this tool when the operator asks about POS (Point of Sale) transactions,
+    sales reports, or order data within a date range.
+
+    Supports filtering by payment type (loyalty/credit/cash), order type
+    (all/sale/WDF-PUD), customer type (all/commercial/non-commercial),
+    specific card number, location, or POS terminal.
+
+    Args:
+        start_date: Start date (YYYY-MM-DD). Required.
+        end_date: End date (YYYY-MM-DD). Required.
+        card_code: Payment type — 17=Loyalty Card (default), 19=Credit Card, 20=Cash.
+        order_type: Order type — 1=All (default), 2=Sale only, 3=WDF and PUD.
+        account_type: Customer type — 1=All (default), 2=Commercial only, 3=Non-commercial only.
+        card_no: Optional filter by specific card number.
+        location_id: Optional filter by location ID.
+        pos_id: Optional filter by POS terminal ID.
+        page_size: Number of results per page (1-100, default 20).
+    """
+    try:
+        body = {
+            "UserId": _POS_OPERATOR_ID,
+            "StartDate": start_date,
+            "EndDate": end_date,
+            "CardCode": str(card_code),
+            "CardNo": card_no,
+            "LocationId": location_id,
+            "PageNo": page_no,
+            "PageSize": page_size,
+            "Ordertype": order_type,
+            "AccountType": account_type,
+            "POSID": pos_id,
+        }
+        params = {
+            "UserId": _POS_OPERATOR_ID,
+            "StartDate": start_date,
+            "EndDate": end_date,
+            "CardCode": card_code,
+            "Ordertype": order_type,
+            "AccountType": account_type,
+        }
+        logger.info("[get_pos_transactions] GET %s | Params: %s", _POS_TRANSACTIONS_URL, params)
+
+        response = requests.get(
+            _POS_TRANSACTIONS_URL,
+            params=params,
+            json=body,
+            timeout=(10.0, 15.0),
+        )
+        logger.info("[get_pos_transactions] Response [%s]: %s", response.status_code, response.text[:500])
+
+        if response.status_code >= 500:
+            return (
+                f"System Error: Backend server failure ({response.status_code}). "
+                "Instruct the user that the system is temporarily down."
+            )
+
+        if 400 <= response.status_code < 500:
+            return f"API Error: The request was rejected. Details: {response.text}"
+
+        payload = response.json()
+        data = payload.get("data") or payload if isinstance(payload, list) else payload.get("data")
+
+        if not data:
+            card_type_names = {17: "Loyalty Card", 19: "Credit Card", 20: "Cash"}
+            return (
+                f"No POS transactions found between {start_date} and {end_date} "
+                f"for payment type '{card_type_names.get(card_code, card_code)}'. "
+                "Try widening the date range or changing the filters."
+            )
+
+        records = data if isinstance(data, list) else [data]
+        records.sort(
+            key=lambda r: r.get("transactiondatetime") or r.get("transactionDate") or r.get("orderDate") or "",
+            reverse=True,
+        )
+
+        total = len(records)
+        start_idx = (page_no - 1) * page_size
+        page_records = records[start_idx : start_idx + page_size]
+
+        if not page_records:
+            return f"No more POS transaction records to show (page {page_no} is empty)."
+
+        card_type_names = {17: "Loyalty Card", 19: "Credit Card", 20: "Cash"}
+        order_type_names = {1: "All", 2: "Sale only", 3: "WDF & PUD"}
+        acct_type_names = {1: "All Customers", 2: "Commercial", 3: "Non-commercial"}
+
+        lines = [
+            f"**POS Transaction Report** ({start_date} to {end_date})\n"
+            f"Payment: {card_type_names.get(card_code, card_code)} | "
+            f"Order Type: {order_type_names.get(order_type, order_type)} | "
+            f"Customer: {acct_type_names.get(account_type, account_type)}\n"
+        ]
+        for i, rec in enumerate(page_records, start=start_idx + 1):
+            tx_date_raw = (
+                rec.get("transactiondatetime") or rec.get("transactionDate") or rec.get("orderDate") or ""
+            )
+            tx_date = tx_date_raw.split("T")[0] if "T" in tx_date_raw else (tx_date_raw or "N/A")
+            amount_raw = rec.get("transactionamount") if rec.get("transactionamount") is not None else rec.get("transactionAmount") if rec.get("transactionAmount") is not None else rec.get("amount") if rec.get("amount") is not None else rec.get("totalAmount")
+            amount = f"${float(amount_raw):.2f}" if amount_raw is not None else "N/A"
+            card = rec.get("cardno") or rec.get("cardNo") or rec.get("cardNumber") or "N/A"
+            location = rec.get("locationname") or rec.get("locationName") or rec.get("location") or "N/A"
+            tx_type = rec.get("transactiontype") or rec.get("transactionType") or ""
+            type_label = f" ({tx_type})" if tx_type else ""
+            lines.append(
+                f"{i}.{type_label} Amount: {amount} | Date: {tx_date} | "
+                f"Card: {card} | Location: {location}"
+            )
+
+        shown = len(page_records)
+        remaining = total - (start_idx + shown)
+        if remaining > 0:
+            lines.append(
+                f"\nShowing {shown} of {total} records. "
+                f"{remaining} more records are available. "
+                f"Say \"show more\" to view the next {page_size} records."
+            )
+        else:
+            lines.append(f"\nShowing all {total} records.")
+
+        return "\n".join(lines)
+
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        return (
+            "System Error: Unable to connect to the backend API. "
+            "Instruct the user to try again in five minutes."
+        )
+    except (KeyError, ValueError, TypeError) as e:
+        return f"Failed to parse POS transactions response: {e}"
+    except Exception as e:
+        return f"Unexpected error fetching POS transactions: {e}"
+
+
+# ---------------------------------------------------------------------------
+# Remote Device Command tool
+# ---------------------------------------------------------------------------
+
+_REMOTE_DEVICE_URL = (
+    SETOMATIC_BASE_URL
+    + "/api/Kiosk/SendCommondToRemoteDevice"
+)
+_REMOTE_OPERATOR_ID = 4
+
+
+@tool(args_schema=RemoteDeviceCommandSchema)
+def send_remote_device_command(
+    device_id: str,
+    command: str,
+    amount: float = 0,
+) -> str:
+    """
+    Use this tool to send a remote command to a kiosk device. Supports two commands:
+      - 'Reboot': Restart the target device (amount must be 0).
+      - 'Dispense': Dispense a loyalty card from the device (amount must be > 0).
+
+    IMPORTANT: This is a destructive action. The LLM MUST confirm with the operator
+    before calling this tool. Only call after receiving explicit operator confirmation
+    (e.g., "yes, reboot device ABC123").
+
+    Args:
+        device_id: The target device ID/IMEI to send the command to.
+        command: 'Dispense' or 'Reboot'.
+        amount: Dollar amount for card dispense (must be > 0 for Dispense, 0 for Reboot).
+    """
+    try:
+        if command == "Dispense" and amount <= 0:
+            return (
+                "Validation Error: For 'Dispense' command, amount must be greater than 0. "
+                "Please ask the operator for the card value to dispense."
+            )
+        if command == "Reboot" and amount != 0:
+            amount = 0
+
+        body = {
+            "operatorId": _REMOTE_OPERATOR_ID,
+            "deviceId": device_id,
+            "command": command,
+            "amount": amount,
+        }
+        logger.info("[send_remote_device_command] POST %s | Body: %s", _REMOTE_DEVICE_URL, body)
+
+        response = requests.post(
+            _REMOTE_DEVICE_URL,
+            json=body,
+            timeout=(10.0, 15.0),
+        )
+        logger.info("[send_remote_device_command] Response [%s]: %s", response.status_code, response.text[:500])
+
+        if response.status_code >= 500:
+            return (
+                f"System Error: Backend server failure ({response.status_code}). "
+                "The device command could not be sent. Instruct the user to try again later."
+            )
+
+        if 400 <= response.status_code < 500:
+            return f"API Error: The command was rejected. Details: {response.text}"
+
+        payload = response.json()
+        message = payload.get("message") or payload.get("Message") or "Command sent successfully."
+
+        action_desc = "reboot" if command == "Reboot" else f"dispense a loyalty card (${amount:.2f})"
+        return (
+            f"Successfully sent '{command}' command to device '{device_id}'. "
+            f"Action: {action_desc}. Server response: {message}"
+        )
+
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        return (
+            "System Error: Unable to connect to the backend API. "
+            "The device command could not be sent. Instruct the user to try again in five minutes."
+        )
+    except (KeyError, ValueError, TypeError) as e:
+        return f"Failed to process remote device command response: {e}"
+    except Exception as e:
+        return f"Unexpected error sending remote command to device '{device_id}': {e}"
+
+
 # Exported list for binding to LLM
 SETOMATIC_TOOLS = [
     get_loyalty_balance,
@@ -773,4 +1352,8 @@ SETOMATIC_TOOLS = [
     check_refund_eligibility,
     execute_refund,
     check_global_system_status,
+    get_kiosk_purchases,
+    get_kiosk_recharges,
+    get_pos_transactions,
+    send_remote_device_command,
 ]

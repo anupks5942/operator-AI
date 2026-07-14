@@ -95,15 +95,6 @@ def retrieve_and_generate(state: AgentState):
     response = rag_service.query(latest_message, metadata_filter=metadata_filter)
     answer = response.get("answer", "I'm sorry, I couldn't find an answer to your question.")
 
-    # Surface which sources were used (for transparency)
-    context_docs = response.get("context", [])
-    if context_docs:
-        source_tags = sorted({
-            f"{doc.metadata.get('source_file', 'Unknown')} [p.{doc.metadata.get('page', '?')}]"
-            for doc in context_docs
-        })
-        sources_note = "\n\n**Sources:** " + " | ".join(source_tags)
-        answer += sources_note
 
     return {"messages": [AIMessage(content=answer)]}
 
