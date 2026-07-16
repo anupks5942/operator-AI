@@ -178,6 +178,37 @@ _WORKFLOW_PROMPT_MARKERS = (
 )
 
 
+_RESOLUTION_PHRASES = (
+    "resolved", "fixed it", "fixed", "all good", "working now", "now working",
+    "working fine", "working again", "back up", "back online", "back to normal",
+    "up and running", "issue is fixed", "problem solved", "everything is working",
+    "machines are working", "it's working", "its working", "that worked",
+    "issue resolved", "problem fixed",
+)
+
+_TYPO_MAP = {
+    "wokring": "working", "workign": "working", "wrking": "working",
+    "machinse": "machines", "machiens": "machines", "machin": "machine",
+    "reesolved": "resolved", "resovled": "resolved", "resloved": "resolved",
+    "fixd": "fixed", "fixxed": "fixed",
+    "offine": "offline", "ofline": "offline",
+    "everthing": "everything", "evreything": "everything",
+}
+
+
+def _normalize_typos(text: str) -> str:
+    """Best-effort correction of common operator typos before phrase matching."""
+    words = text.lower().split()
+    return " ".join(_TYPO_MAP.get(w, w) for w in words)
+
+
+def _is_resolution_message(text: str) -> bool:
+    """Return True if the text clearly indicates an issue has been resolved.
+    Used to prevent resolution phrases from being misinterpreted as new outages."""
+    normalized = _normalize_typos(text.strip())
+    return any(phrase in normalized for phrase in _RESOLUTION_PHRASES)
+
+
 def _assistant_in_active_outage_workflow(prior_assistant_msg: Optional[str]) -> bool:
     if not prior_assistant_msg:
         return False
@@ -231,6 +262,7 @@ def infer_blast_radius(user_msg: str) -> Optional[str]:
     """Heuristic fallback when the LLM router omits blast_radius extraction.
 
     Strategy:
+    0. Bail out if the message is a resolution (e.g. "all machines are working fine")
     1. Check for "entire location" phrases first (all, everything, whole store, etc.)
     2. Check for a numeric count (digit or word-form number) → single_machine
        (a specific count means NOT the entire laundromat, regardless of typos)
@@ -238,6 +270,10 @@ def infer_blast_radius(user_msg: str) -> Optional[str]:
     4. Hub/gateway outages → entire_location
     """
     lower = user_msg.lower().strip()
+
+    # 0. Resolution language must never be interpreted as an outage scope.
+    if _is_resolution_message(user_msg):
+        return None
 
     # 1. Entire-location phrase markers (highest priority).
     if any(marker in lower for marker in _ENTIRE_MARKERS):
@@ -288,7 +324,7 @@ You will be given:
 - `escalation_request`        : User explicitly asks to speak with a human, supervisor, or on-call technician.
 - `loyalty_balance_query`     : User asks about their loyalty card balance, current dollar balance, points, or loyalty tier.
 - `transaction_lookup`        : User asks to see recent transactions, payment history, or wash history on a loyalty card.
-- `refund_request`            : User asks to refund a transaction, OR provides a card number / transaction ID / yes-no confirmation in direct response to the assistant asking for refund-related parameters.
+- `refund_request`            : User asks how to refund a transaction or process a refund. Route to RAG for SpyderWash portal guidance — the agent does NOT execute refunds. Set `api_action_required` = false.
 - `system_status_check`       : User asks if the SpyderWash/Setomatic GLOBAL SYSTEM is down, operational, or experiencing a service outage.
 - `kiosk_not_responding`      : User reports that a payment kiosk, touchscreen terminal, or card-reader kiosk is frozen, unresponsive, or rebooting unexpectedly. Route to RAG — do NOT call any API or refund tool.
 - `machines_not_starting`     : User reports that one or more washers or dryers will not start, accept a cycle, or respond to user input despite appearing powered on. Route to RAG — do NOT call any API or refund tool.
@@ -311,7 +347,7 @@ You will be given:
 3. If the user explicitly asks for a human or supervisor -> intent MUST be `escalation_request` AND `escalation_required` MUST be true.
 4. If the user asks about their loyalty card BALANCE, POINTS, or TIER -> intent MUST be `loyalty_balance_query` AND `api_action_required` MUST be true.
 5. If the user asks to see RECENT TRANSACTIONS, PAYMENT HISTORY, or WASH HISTORY -> intent MUST be `transaction_lookup` AND `api_action_required` MUST be true.
-6. If the user asks for a REFUND on a transaction -> intent MUST be `refund_request` AND `api_action_required` MUST be true.
+6. If the user asks for a REFUND (how to process / submit a refund) -> intent MUST be `refund_request` AND `api_action_required` MUST be false (portal guidance via RAG only — never execute refunds).
 7. If the user asks whether the GLOBAL SYSTEM is down/operational/experiencing outages -> intent MUST be `system_status_check` AND `api_action_required` MUST be true.
 
 ### HARDWARE EXCEPTION RULES (RAG-only — API tools are strictly forbidden):
@@ -370,7 +406,6 @@ explicitly asked the user for a missing piece of information, or a confirmation,
 [CURRENT USER MESSAGE] is a response to that question, then you MUST:
 
   a. Classify the intent as the ACTIVE WORKFLOW INTENT.
-     - If the assistant was handling a refund         -> intent = `refund_request`
      - If the assistant was looking up transactions   -> intent = `transaction_lookup`
      - If the assistant was checking a card balance   -> intent = `loyalty_balance_query`
      - If the assistant was checking system status    -> intent = `system_status_check`
@@ -408,8 +443,8 @@ explicitly asked the user for a missing piece of information, or a confirmation,
 ## Field rules:
 - `hardware_lookup_attempted`: true ONLY for `hardware_status` intent.
 - `escalation_required`      : true ONLY for `emergency_store_down` or `escalation_request` intents.
-- `api_action_required`      : true ONLY for `loyalty_balance_query`, `transaction_lookup`, `refund_request`, `system_status_check`, `kiosk_purchase_lookup`, `kiosk_recharge_lookup`, `pos_transaction_lookup`, or `remote_device_action` intents.
-                               MUST be false for `kiosk_not_responding`, `machines_not_starting`, `multiple_machines_offline`, and `out_of_domain`.
+- `api_action_required`      : true ONLY for `loyalty_balance_query`, `transaction_lookup`, `system_status_check`, `kiosk_purchase_lookup`, `kiosk_recharge_lookup`, `pos_transaction_lookup`, or `remote_device_action` intents.
+                               MUST be false for `refund_request`, `kiosk_not_responding`, `machines_not_starting`, `multiple_machines_offline`, and `out_of_domain`.
 - `extracted_entities`       : extract any card numbers, transaction IDs, machine IDs, error codes, location names, confirmation booleans, blast_radius, troubleshooting_failed indicators, start_date (YYYY-MM-DD), or end_date (YYYY-MM-DD) when the user specifies a date range for transactions.
 """
 

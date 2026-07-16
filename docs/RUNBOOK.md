@@ -8,19 +8,7 @@ Operational guide for local development, QA, and client demos.
 
 Open terminals from the repo root.
 
-### Terminal 1 — Mock refund backend (optional)
-
-Required when `USE_MOCK_REFUNDS=true` (default).
-
-```bash
-uv run uvicorn src.api.mock_server:mock_app --port 8001 --reload
-```
-
-Swagger: `http://localhost:8001/docs`
-
-Active mock endpoints used by tools: `RefundEligibility`, `RefundProcessing`. Loyalty/transaction mock routes exist but are **not** wired to tools.
-
-### Terminal 2 — Agent API (required for React / curl)
+### Terminal 1 — Agent API (required for React / curl)
 
 ```bash
 uv run uvicorn src.api.server:app --host 0.0.0.0 --port 8000 --reload
@@ -68,10 +56,10 @@ See [ENVIRONMENT.md](ENVIRONMENT.md) for all variables.
 
 | Environment | Agent API | Refunds | Notifications |
 |-------------|-----------|---------|---------------|
-| Local dev | `http://localhost:8000` | Mock `:8001` (default) | Usually mock |
-| QA React (dev2) | `:8000` or deployed | Mock until beta ready | Test recipients |
-| UAT | Deployed (infra vendor) | Live when unblocked | Client test |
-| Production | Deployed (infra vendor / Rackspace) | Live Setomatic | Client prod |
+| Local dev | `http://localhost:8000` | Portal guidance via RAG/Bible | Usually mock |
+| QA React (dev2) | `:8000` or deployed | Portal guidance via RAG/Bible | Test recipients |
+| UAT | Deployed (infra vendor) | Portal guidance via RAG/Bible | Client test |
+| Production | Deployed (infra vendor / Rackspace) | Portal guidance via RAG/Bible | Client prod |
 
 Production hosting not in this repo — [ROADMAP.md](ROADMAP.md) Phase 3; Rackspace preferred — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md).
 
@@ -112,7 +100,7 @@ Expected:
 | 500 on chat | Missing `OPENAI_API_KEY` | Set in `.env`, restart |
 | Empty RAG answers | Empty/missing `chroma_db/` | Add PDF/DOCX to `KB/`, delete `chroma_db/`, restart |
 | KB txt not in answers | stale `chroma_db/` or Streamlit not restarted after KB change | Delete `chroma_db/`, restart app so `.txt` files re-ingest |
-| Refund tool errors | Mock not running | Start `:8001` or `USE_MOCK_REFUNDS=false` when APIs ready |
+| Refund requests | Agent does not execute refunds | Guide operator to SpyderWash portal; ensure Bible refund section is ingested |
 | No email/SMS | `USE_LIVE_NOTIFICATIONS=false` | Set `true` + Twilio/SMTP vars |
 | Email/SMS failed | Bad credentials | Check server logs |
 | CORS error | Origin not allowed | Add origin in [server.py](../src/api/server.py) |

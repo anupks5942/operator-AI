@@ -1,6 +1,6 @@
 # Setomatic/SpyderWash Operator AI
 
-LangGraph-orchestrated technical support agent for SpyderWash operators: RAG over legacy manuals, live loyalty/transaction tools, refund workflows, global status checks, and Gregg's troubleshoot-first escalation path.
+LangGraph-orchestrated technical support agent for SpyderWash operators: RAG over manuals/Bible, live loyalty/transaction/kiosk/POS tools, portal-guided refund help, global status checks, and Gregg's troubleshoot-first escalation path.
 
 **Full documentation:** [docs/README.md](docs/README.md)
 
@@ -55,15 +55,7 @@ uv run uvicorn src.api.server:app --host 0.0.0.0 --port 8000 --reload
 - Chat: `POST http://localhost:8000/api/v1/agent/chat`
 - Swagger: `http://localhost:8000/docs`
 
-### 2. Mock refund backend (optional — default ON)
-
-```bash
-uv run uvicorn src.api.mock_server:mock_app --port 8001 --reload
-```
-
-Required when `USE_MOCK_REFUNDS=true` (default). Loyalty/transactions use live Setomatic API regardless.
-
-### 3. Streamlit demo UI (optional)
+### 2. Streamlit demo UI (optional)
 
 ```bash
 uv run streamlit run app.py

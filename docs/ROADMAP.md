@@ -15,9 +15,9 @@ Phased task backlog. Check items off as completed. Each phase builds on the prev
 | Environment | Ready? | Notes |
 |-------------|--------|-------|
 | Local demo / Streamlit | **Yes** | In-process graph; not deployable |
-| React QA → single `:8000` instance | **Partial** | No auth; mock refunds default; sessions in-memory |
+| React QA → single `:8000` instance | **Partial** | No auth; sessions in-memory |
 | Client demo (outage + escalation) | **Partial** | Configure live notifications + client escalation recipients |
-| UAT with live refunds | **No** | Beta refund APIs blocked; `USE_MOCK_REFUNDS=true` default |
+| UAT with portal-guided refunds (Bible) | **Partial** | Await Bible refund section; agent must not execute refunds |
 | Multi-replica / Rackspace prod | **No** | MemorySaver, local Chroma, no deploy artifacts |
 
 ### What is solid today (MVP)
@@ -35,7 +35,7 @@ Phased task backlog. Check items off as completed. Each phase builds on the prev
 | Phase | Owner | Scope |
 |-------|-------|-------|
 | **0** (demo) | **dev1** | Escalation workflow, tests, live notifications, demo prep |
-| **1** (QA/UAT integration) | **dev1** | API hardening, React QA integration, mock refunds until backend ready |
+| **1** (QA/UAT integration) | **dev1** | API hardening, React QA integration, portal-guided refunds |
 | **2** (pre-production) | **dev1** | Intent Matrix escalation routing, auth hookup, CI, legacy cleanup |
 | **3** (production infra) | **infra vendor** | Docker, Rackspace deploy, load test, secret store, multi-replica |
 | **4+** (voice, platform) | **infra vendor + product** | Twilio voice, KB admin, video/transcript pipeline |
@@ -70,7 +70,7 @@ Gaps from codebase audit, mapped to phases. Severity = impact if shipped to prod
 |-----|-------|-------|-------------|
 | No API authentication or authorization | 2 | dev1 + .NET team | [server.py](../src/api/server.py) |
 | `operator_id` hardcoded `4` in tool HTTP calls | 1 | dev1 | [tools.py](../src/agent/tools.py) |
-| `USE_MOCK_REFUNDS` defaults `true` | 1–2 | dev1 | [config.py](../src/config.py) — fail fast in prod |
+| Portal-guided refunds (no mock `:8001`) | 1 | **Done** — ADR-028; mock server removed |
 | `MemorySaver` — sessions lost on restart, not shared across replicas | 3 | infra vendor | [graph.py](../src/agent/graph.py) |
 | Local Chroma `./chroma_db` — not multi-replica safe | 3 | infra vendor | [rag_service.py](../src/services/rag_service.py) |
 | No Dockerfile / CI pipeline | 2–3 | dev1 + infra vendor | repo root |
@@ -103,7 +103,6 @@ Gaps from codebase audit, mapped to phases. Severity = impact if shipped to prod
 | CORS includes localhost origins | 2 | dev1 | Env-gate for prod |
 | No structured JSON log shipping | 2–3 | infra vendor | Datadog / CloudWatch / Loki |
 | No circuit breakers for OpenAI / Setomatic outages | 3 | dev1 | Retries + degraded responses |
-| Mock server `:8001` must never be exposed in prod | 3 | infra vendor | Network policy |
 
 ---
 
@@ -111,12 +110,12 @@ Gaps from codebase audit, mapped to phases. Severity = impact if shipped to prod
 
 | Blocker | Status | Impact | Workaround |
 |---------|--------|--------|------------|
-| **Refund APIs on beta** (`RefundEligibility` + `RefundProcessing`) | Not ready (Setomatic backend) | Only 2 of 4 core agent APIs remain; cannot flip `USE_MOCK_REFUNDS=false` | Keep mock server on `:8001` — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
+| **Refund APIs on beta** | **Not needed for agent** | Brandon approved portal-guided refunds (Jul 13, 2026) | Guide via Bible/RAG — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
 | **.NET auth contract** | Not started (web chat UI not begun) | No JWT/API-key for `operator_id` + contact fields | dev2 passes fields manually; auth Phase 2 |
 | **Production hosting** | Rackspace preferred; not deployed | Phase 3 | See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 | **`operator_id` in tools** | API accepts field; tools hardcode `4` | Wrong operator scope in prod | Wire `state.operator_id` — Phase 1 |
-| **Bible partially ready** | Brandon confirmed 250 pages done; sending PDF | RAG still on legacy `KB/` | Manual ingest when PDF received — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
-| **Video strategy undecided** | Transcripts vs links vs defer | Videos not in RAG | [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
+| **Bible partially ready** | Brandon confirmed content ownership + refund portal steps in Bible | RAG still on legacy `KB/` until PDF delivered | Manual ingest when PDF received — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
+| **Video timeline** | Option B preferred; timeline (24 videos before UAT vs phased) open | Ingest pipeline design | [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 
 ---
 
@@ -155,7 +154,7 @@ Gaps from codebase audit, mapped to phases. Severity = impact if shipped to prod
 | [ ] | Reuse `get_rag_service()` in `troubleshoot_first_node` (stop per-turn `RAGService()`) | **Major perf** — [graph.py](../src/agent/graph.py) |
 | [ ] | Add `.env.example` (no secrets) | [ENVIRONMENT.md](ENVIRONMENT.md) |
 | [ ] | Enforce canonical `/api/v1/agent/chat` only | Deprecate `/query` in docs |
-| [ ] | Set `USE_MOCK_REFUNDS=false` against beta Setomatic APIs | **Blocked** until backend ready |
+| [x] | Refund policy: portal guidance only (no agent-executed refund APIs) | Brandon Jul 13, 2026 — ADR-028 |
 | [ ] | Manual ingest SpyderWash Bible when PDF/DOCX delivered; RAG quality test | [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 | [ ] | Product decision: Bible **images** (captions vs OCR vs links) | [REQUIREMENTS_MAP.md](REQUIREMENTS_MAP.md) |
 | [ ] | Product decision: **bilingual** (English/Spanish) — in or out of scope | [REQUIREMENTS_MAP.md](REQUIREMENTS_MAP.md) |
@@ -186,7 +185,7 @@ Gaps from codebase audit, mapped to phases. Severity = impact if shipped to prod
 | [ ] | Generic 500 responses (no internal exception in `detail`) | [server.py](../src/api/server.py) |
 | [ ] | Add `/ready` probe (OpenAI, Chroma, Setomatic reachable) | Keep `/health` as liveness only |
 | [ ] | Escalation idempotency (skip re-dispatch if already sent) | [graph.py](../src/agent/graph.py) |
-| [ ] | Prod env: fail startup if `USE_MOCK_REFUNDS=true` | [config.py](../src/config.py) |
+| [ ] | Prod env: remove / ignore refund execute tools; portal-guide path only | ADR-028 |
 | [ ] | Remove or gate legacy `main.py`, `/query`, `/notify/*` | Deploy `server.py` only |
 | [ ] | CI: run `test_outage_workflow` + `test_security` on every PR | GitHub Actions / Azure Pipelines |
 | [ ] | Dockerfile for agent API | infra vendor review |
@@ -213,7 +212,7 @@ Gaps from codebase audit, mapped to phases. Severity = impact if shipped to prod
 | [ ] | Secrets in platform store (Mandrill, Twilio, OpenAI) | Never commit `.env` |
 | [ ] | KB re-ingest pipeline (CLI or webhook) | Before admin UI |
 | [ ] | Load testing on `/api/v1/agent/chat` | 10s SLA warning already in server |
-| [ ] | Network policy: mock `:8001` not reachable from prod | Refunds hit live Setomatic only |
+| [x] | Remove mock refund server (`:8001`) and refund execute tools | ADR-028 |
 | [ ] | .NET Super Admin widget → prod agent API | Setomatic frontend team |
 | [ ] | Circuit breakers / retries for external APIs | OpenAI, Setomatic |
 
@@ -246,7 +245,7 @@ Gaps from codebase audit, mapped to phases. Severity = impact if shipped to prod
 | [ ] | Pending updates queue + chunk editor (`chunk_id`, keywords) | Structured schema ADR-015 |
 | [ ] | Operator thumbs up/down → Feedback API | [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) Tier 2 |
 | [ ] | Upload + auto re-index (replace email/manual loop) | Super Admin / Rackspace webhook |
-| [ ] | Video strategy implementation (transcripts and/or link catalog) | [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
+| [ ] | Video Option B: Bible sections with embedded YouTube URLs; no transcript pipeline for MVP | [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md), ADR-029 |
 | [ ] | Bible image pipeline (OCR / figure links) if product rejects text-only MVP | [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 | [ ] | Bilingual prompts/responses if product confirms | [REQUIREMENTS_MAP.md](REQUIREMENTS_MAP.md) |
 | [ ] | Escalation rule management UI | Vendor SOW |
@@ -278,7 +277,6 @@ Phase 0 (demo) — dev1
 uv sync
 uv run python -m unittest tests.test_outage_workflow tests.test_security -v
 uv run uvicorn src.api.server:app --host 0.0.0.0 --port 8000 --reload
-uv run uvicorn src.api.mock_server:mock_app --port 8001 --reload
 ```
 
 See [RUNBOOK.md](RUNBOOK.md) for full local setup.

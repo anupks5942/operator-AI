@@ -31,3 +31,8 @@ dependencies = [
     "uvicorn>=0.25.0",
     "cloudscraper>=1.2.71",
 ]
+
+[dependency-groups]
+dev = [
+    "python-docx>=1.2.0",
+]

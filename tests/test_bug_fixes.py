@@ -122,7 +122,7 @@ class KBGapDetectionTests(unittest.TestCase):
         ))
 
     def test_symptom_detection(self) -> None:
-        self.assertTrue(_query_mentions_symptom("washer making loud noise"))
+        self.assertTrue(_query_mentions_symptom("washer making loud noise")) 
         self.assertTrue(_query_mentions_symptom("green light on machine"))
         self.assertTrue(_query_mentions_symptom("kiosk beeping continuously"))
         self.assertFalse(_query_mentions_symptom("check balance on lc-00000212"))

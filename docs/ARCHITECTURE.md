@@ -17,7 +17,6 @@ flowchart LR
   graph[LangGraph agent_app]
   chroma[ChromaDB]
   setomatic[Setomatic APIs live]
-  mock[mock_server.py :8001 refunds]
   notify[Mandrill and Twilio]
 
   streamlit -->|"in-process"| graph
@@ -26,24 +25,20 @@ flowchart LR
   agentAPI --> graph
   graph --> chroma
   graph --> setomatic
-  graph --> mock
   graph --> notify
 ```
 
-### Two servers, two roles
+### Single agent API
 
 | Port | Service | Role |
 |------|---------|------|
 | **8000** | [src/api/server.py](../src/api/server.py) | **Agent API** — LangGraph chat for all UIs |
-| **8001** | [src/api/mock_server.py](../src/api/mock_server.py) | **Mock Setomatic refunds** — used when `USE_MOCK_REFUNDS=true` |
 
-Port 8001 is **not** a second agent server. Only **refund** tools (`check_refund_eligibility`, `execute_refund`) call `:8001` when mock mode is on.
-
-**Note:** `mock_server.py` also exposes `/api/v1/loyalty/balance` and `/api/v1/transactions/lookup`, but [tools.py](../src/agent/tools.py) does **not** use them — loyalty and transaction tools always call live `SETOMATIC_BASE_URL`.
+Loyalty, transactions, kiosk/POS, and remote-device tools call live `SETOMATIC_BASE_URL`. There is **no** mock refund server.
 
 ### Target state (production)
 
-All UIs call **only** `:8000/api/v1/agent/chat`. Mock server replaced by live Setomatic refund APIs (`RefundEligibility` + `RefundProcessing`) in UAT/prod (`USE_MOCK_REFUNDS=false`). Full API scope: 4 core APIs (2 done, 2 blocked on backend) — see [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md).
+All UIs call **only** `:8000/api/v1/agent/chat`. **Refunds:** agent guides operators via Bible/RAG to the SpyderWash portal (Brandon Jul 2026) — no agent-executed refund APIs. Live tools: loyalty, transactions, kiosk/POS, remote device, system status — see [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md).
 
 ---
 
@@ -66,6 +61,7 @@ flowchart TD
   router -->|vague outage report| clarify[clarify_issue]
   router -->|outage workflow| troubleshoot[troubleshoot_first]
   router -->|outage workflow| esc
+  router -->|troubleshoot yes| success[troubleshoot_success]
   router -->|outage workflow| resolved[escalation_resolved]
   router -->|post ticket| ack[post_escalation_ack]
   router -->|api intents| tools[tool_node]
@@ -82,19 +78,20 @@ flowchart TD
   guard --> endNode
   ood --> endNode
   tools --> endNode
+  success --> endNode
   resolved --> endNode
   ack --> endNode
 ```
 
 ---
 
-## Graph nodes (16 + router)
+## Graph nodes (17 + router)
 
 | Node | File | Purpose |
 |------|------|---------|
 | `router` | [router.py](../src/agent/router.py) | Classify intent, extract entities, set flags |
 | `greeting_node` | [nodes.py](../src/agent/nodes.py) | Friendly response for greetings, thanks, and goodbyes (no RAG) |
-| `summarize_node` | [nodes.py](../src/agent/nodes.py) | Operator-friendly conversation recap on demand |
+| `summarize_node` | [nodes.py](../src/agent/nodes.py) | Operator-friendly conversation recap on demand; uses `all_session_tickets` |
 | `workflow_reminder_node` | [nodes.py](../src/agent/nodes.py) | Re-prompts Yes/No when user sends gibberish mid-outage-workflow |
 | `guardrail_node` | [nodes.py](../src/agent/nodes.py) | Refuse live hardware status requests |
 | `pci_guardrail_node` | [nodes.py](../src/agent/nodes.py) | Static refusal for CVV/CVC/track-data requests |
@@ -102,10 +99,11 @@ flowchart TD
 | `blast_radius_check` | [graph.py](../src/agent/graph.py) | Ask one machine vs entire laundromat |
 | `clarify_issue` | [graph.py](../src/agent/graph.py) | Ask for symptom details when outage report is too vague (skipped if message already contains action words like "down", "offline") |
 | `troubleshoot_first` | [graph.py](../src/agent/graph.py) | RAG KB steps + "Did this resolve?" |
+| `troubleshoot_success` | [graph.py](../src/agent/graph.py) | Ack when KB steps fixed the issue; optional open-ticket reminder (no resolve mail) |
 | `confirm_escalation` | [graph.py](../src/agent/graph.py) | Asks operator permission before escalating (single-machine only) |
 | `escalation_declined` | [graph.py](../src/agent/graph.py) | Provides direct contact info when operator declines escalation |
-| `escalation_node` | [graph.py](../src/agent/graph.py) | LLM summary generation + Email + SMS dispatch; sets `escalation_dispatched` |
-| `escalation_resolved` | [graph.py](../src/agent/graph.py) | Polite close when issue fixed; full workflow state reset |
+| `escalation_node` | [graph.py](../src/agent/graph.py) | LLM summary + Email/SMS; updates `dispatched_tickets`, `all_session_tickets`, `ticket_email_ids` |
+| `escalation_resolved` | [graph.py](../src/agent/graph.py) | Resolve open ticket(s); threaded resolution email; multi-ticket disambiguation |
 | `post_escalation_ack` | [graph.py](../src/agent/graph.py) | Ack after ticket sent; no workflow restart |
 | `new_issue_after_escalation` | [graph.py](../src/agent/graph.py) | Fresh blast-radius cycle after prior ticket dispatch |
 | `tool_node` | [graph.py](../src/agent/graph.py) | ReAct loop for Setomatic API tools |
@@ -132,23 +130,35 @@ Each turn ends at `END` after one node chain (router → one downstream node →
 - `messages` — `add_messages` (append)
 - `extracted_entities` — `merge_dicts` (preserve card numbers across refund turns)
 
+**Escalation ticket state** ([state.py](../src/agent/state.py)):
+
+| Field | Role |
+|-------|------|
+| `escalation_dispatched` | Dedup / post-escalation routing |
+| `dispatched_tickets` | Open tickets only (removed on resolve) |
+| `all_session_tickets` | Append-only history for conversation summary |
+| `ticket_email_ids` | `TKT-…` → email Message-ID for threaded resolution replies |
+
 ---
 
 ## Routing priority (`route_after_classifier`)
 
 1. `pci_sensitive_data` → PCI guardrail
 2. `conversation_summary` → `summarize_node` (honored even mid-workflow; does not reset outage state)
-3. **Workflow continuity guard**: if `out_of_domain`/`greeting` BUT `troubleshooting_done` or `blast_radius_asked` is active → `workflow_reminder_node` (re-prompts)
-4. `greeting` → greeting_node (pre-LLM heuristic; no RAG or API call)
-5. `out_of_domain` → refusal
-6. `hardware_lookup_attempted` → guardrail
-7. Post-escalation follow-ups → `post_escalation_ack` or `escalation_resolved` or `new_issue_after_escalation` (fresh cycle for new reports); API intents pass through
-8. **Post-resolution closure**: "no" / "no thanks" after "Glad to hear..." → friendly close (not new workflow)
-9. `critical_outage` → immediate escalation (skip troubleshoot; dedup guard prevents re-dispatch)
-10. Outage workflow intents → blast-radius → **entire_location: immediate escalation** / single_machine: `clarify_issue` (only if message lacks action words like "down"/"offline" AND is ≤3 words; fires once per cycle) → troubleshoot → escalate on failure
-11. **Escalation dedup**: if `escalation_dispatched` is set, "no" routes to `post_escalation_ack` (no duplicate tickets)
-12. `api_action_required` → tools (clears stale workflow flags on completion)
-13. Default → RAG
+3. Escalation confirmation gate (`escalation_confirmation_asked`) → escalate / decline / re-ask
+4. Ticket disambiguation follow-up (`ticket_resolution_asked`) → `escalation_resolved`
+5. **Workflow continuity guard**: if `out_of_domain`/`greeting` BUT `troubleshooting_done` or `blast_radius_asked` is active → `workflow_reminder_node` (re-prompts)
+6. `greeting` → greeting_node (pre-LLM heuristic; no RAG or API call)
+7. `out_of_domain` → refusal
+8. `hardware_lookup_attempted` → guardrail
+9. Post-escalation follow-ups → `post_escalation_ack` or `escalation_resolved` or `new_issue_after_escalation` (fresh cycle for new reports); API / substantive general queries may pass through
+10. **Post-resolution closure**: "no" / "no thanks" after "Glad to hear..." → friendly close (not new workflow)
+11. **Stateless resolution guard**: clear resolution phrases → `escalation_resolved` (or greeting if no tickets)
+12. `critical_outage` → immediate escalation (skip troubleshoot; dedup guard prevents re-dispatch)
+13. Outage workflow intents → blast-radius → **entire_location: immediate escalation** / single_machine: `clarify_issue` (only if message lacks action words like "down"/"offline" AND is ≤3 words; fires once per cycle) → troubleshoot → on "yes" → `troubleshoot_success`; on failure → escalate
+14. **Escalation dedup**: if `escalation_dispatched` is set, "no" routes to `post_escalation_ack` (no duplicate tickets)
+15. `api_action_required` → tools (clears stale workflow flags on completion)
+16. Default → RAG
 
 Outage intents (`_ESCALATION_WORKFLOW_INTENTS` in graph):
 
@@ -175,8 +185,8 @@ RAG-only intents (no outage workflow):
 **Target (production):**
 
 - **SpyderWash Bible** (~500 pages, Brandon mail) replaces legacy multi-manual `KB/` as the sole text source
-- **Operator videos** are not in RAG until transcript or link strategy is approved — agent cannot “watch” video files
-- Bible PDF (+ optional video transcripts) on **Rackspace Cloud Files** → scheduled ingest job → **Qdrant** (shared index) → agent API on Rackspace
+- **Operator videos:** Prefer YouTube URLs embedded in Bible/doc sections (Option B); no transcript RAG for MVP — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md), ADR-029.
+- Bible PDF (+ optional video URLs in sections) on **Rackspace Cloud Files** → scheduled ingest job → **Qdrant** (shared index) → agent API on Rackspace
 
 See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) and ADR-013 in [DECISIONS.md](DECISIONS.md).
 
@@ -187,14 +197,14 @@ See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) and ADR-013 in [DECISIONS.md](DECIS
 | Tool | Target | OperatorId |
 |------|--------|--------------|
 | `get_loyalty_balance` | Live `SETOMATIC_BASE_URL` | Hardcoded `4` (**agent-side fix**: pipe `operator_id` from ChatRequest) |
-| `get_transaction_history` | Live `SETOMATIC_BASE_URL` | Hardcoded `LoggedInUserId=4`; `PageSize` from `count` (default 5); `isRefund` from `include_refunds`; `page_no` for pagination; card pre-validated via balance API; LC-prefix stripped; IDs hidden from display (kept internal for refund) |
-| `check_refund_eligibility` | Mock or live per `USE_MOCK_REFUNDS` | Hardcoded `4` |
-| `execute_refund` | Mock or live per `USE_MOCK_REFUNDS` | Hardcoded `4` |
+| `get_transaction_history` | Live `SETOMATIC_BASE_URL` | Hardcoded `LoggedInUserId=4`; `PageSize` from `count` (default 5); `isRefund` from `include_refunds`; `page_no` for pagination; card pre-validated via balance API; LC-prefix stripped; IDs hidden from display |
 | `check_global_system_status` | Web scrape setomaticsystems.com/status | N/A |
 | `get_kiosk_purchases` | Live `SETOMATIC_BASE_URL` | Hardcoded `UserId=4`; requires date range; optional location/IMEI; client-side pagination (default 5/page) |
 | `get_kiosk_recharges` | Live `SETOMATIC_BASE_URL` | Hardcoded `UserId=4`; requires date range; optional location/IMEI; client-side pagination (default 5/page) |
-| `get_pos_transactions` | Live `SETOMATIC_BASE_URL` | Hardcoded `UserId=4`; requires date range + CardCode/OrderType/AccountType; optional CardNo/LocationId/POSID; client-side pagination (default 5/page) |
+| `get_pos_transactions` | Live `SETOMATIC_BASE_URL` | Hardcoded `UserId=4`; requires date range + CardCode/OrderType/AccountType; optional CardNo/LocationId/POSID; client-side pagination (default 5/page); client-side card last-4 filter so unmatched cards never return another card's rows |
 | `send_remote_device_command` | Live `SETOMATIC_BASE_URL` | Hardcoded `operatorId=4`; POST with 2-step confirmation; commands: Reboot (amount=0) or Dispense (amount>0) |
+
+**Refunds:** No refund execute tools. `refund_request` → RAG / Bible portal guidance (ADR-028).
 
 ### Pagination ("show more" flow)
 
@@ -206,12 +216,7 @@ All transaction-type tools display **5 records per page** by default. When more 
 
 **Execution:** The `_TOOL_SYSTEM_PROMPT` PAGINATION rule instructs the LLM to re-call the same tool with identical parameters but `page_no` incremented by 1.
 
-**Client-side slicing:** Kiosk and POS APIs return all records at once (ignore `PageSize`). The tool functions slice locally: `records[(page_no-1)*page_size : page_no*page_size]`. Transaction IDs are excluded from the operator-facing display but appended as an internal LLM-only note for refund flow.
-
-Refund mock endpoints on `:8001`:
-
-- `GET /api/Transactions/RefundEligibility`
-- `GET /api/Transactions/RefundProcessing`
+**Client-side slicing:** Kiosk and POS APIs return all records at once (ignore `PageSize`). The tool functions slice locally: `records[(page_no-1)*page_size : page_no*page_size]`. Transaction IDs are excluded from the operator-facing display.
 
 ---
 

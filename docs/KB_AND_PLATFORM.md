@@ -21,6 +21,8 @@ How the Operator Agent uses the SpyderWash knowledge base, operator videos, and 
 | Auto-sync when Bible updates | **Not implemented** |
 | Structured chunks (Brandon schema) | **Not implemented** — generic character splits only — ADR-015 |
 | Version tracking (“which Bible version?”) | **Not implemented** |
+| Content ownership | **Brandon / Setomatic** — Chetu must **not** invent KB source content. If gaps appear (e.g. refund portal steps), request Brandon to add them to the Bible (confirmed Jul 13, 2026) |
+| Refunds in Bible | Bible **will include** instructions for submitting a refund request on the SpyderWash portal (Brandon confirmed) |
 
 **MVP verdict:** Demo and UAT with a manually loaded Bible — **yes**. Production with automatic updates — **no** until ingest pipeline and portal upload exist.
 
@@ -51,26 +53,32 @@ The Bible will include **diagrams and screenshots**, not just text. Current inge
 
 ---
 
-## Operator videos
+## Operator videos (~24 YouTube guidance videos)
 
-Product owner also has **many operator guidance videos**. Storing files on cloud storage does **not** automatically make them searchable by the agent.
+Product has operator guidance videos (about **24** YouTube videos referenced in planning). Storing files/links alone does **not** make them searchable unless mapped into the KB ingest path.
 
 | Capability | Status |
 |------------|--------|
-| Play / host videos | **Out of agent scope** — portal or CDN serves files to operators |
-| Ingest video into RAG | **Not implemented** — no transcription pipeline |
-| Return video links in chat | **Not implemented** — possible future enhancement |
+| Play / host videos | **Out of agent scope** — YouTube / portal / CDN serves files to operators |
+| Ingest full video transcripts into RAG | **Not preferred** — complex, high token/ops cost |
+| Return video links in chat | **Planned** via doc-section mapping (Option B below) |
 | Multimodal “watch video” in agent | **Deferred** |
 
-### Video strategy options (decision required)
+### Video upload timeline (open with Brandon)
 
-| Option | Description | Effort | Quality |
-|--------|-------------|--------|---------|
-| **A — Transcripts in RAG** | Transcribe videos (e.g. Whisper) → ingest text like Bible sections | Medium–high | Best AI answers from video content |
-| **B — Link-only** | RAG from Bible; agent appends “Watch: [URL]” when relevant | Low | Operators still watch video manually |
-| **C — Deferred** | Bible text only for v1; videos in portal only | None now | Videos not in AI context |
+Chetu asked whether documentation for **all 24 videos** will be ready before UAT, or added **incrementally** (like other docs). This affects ingest-pipeline design. **Awaiting Brandon’s reply.**
 
-**Current code:** [rag_service.py](../src/services/rag_service.py) loads **PDF/DOCX text only**. No video or audio processing.
+### Video strategy (proposed — Option B preferred)
+
+| Option | Description | Effort | Decision |
+|--------|-------------|--------|----------|
+| **A — Transcript RAG** | Extract YouTube transcripts → embed/search → return video URL | Medium–high | **Not preferred** — complex; higher LLM token / ops cost |
+| **B — Documentation mapping (recommended)** | Place the relevant video URL **in the Bible/docs** next to the matching section (e.g. hub setup steps + YouTube link). Ingest maps content → link during RAG | Low | **Preferred** — simpler, more accurate, cost-effective |
+| **C — Defer** | Bible text only for v1; videos only on portal/YouTube | None now | Fallback until Bible sections include links |
+
+**Implementation implication (Option B):** When Brandon adds/updates Bible sections, each relevant section should include the YouTube URL inline. RAG retrieves that chunk; the agent surfaces the link with the answer. No separate Whisper/transcript pipeline required for MVP.
+
+**Current code:** [rag_service.py](../src/services/rag_service.py) loads **PDF/DOCX/TXT text only**. No video or audio processing.
 
 ---
 
@@ -117,7 +125,7 @@ Hosting target in [ROADMAP.md](ROADMAP.md) Phase 3 includes **Rackspace** as pri
 | Bible as only KB source (product direction) | **Aligned** — replace legacy `KB/` files when Bible ships | dev1 |
 | Auto re-index when Bible updates on Rackspace | **No** | 3–5 |
 | Super Admin KB upload → agent re-index | **No** — backend team building upload | 5 |
-| Video content in AI answers | **No** — strategy TBD | 4–5 |
+| Video content in AI answers | **Partial plan** — Option B: URLs embedded in Bible sections | 4–5 (after Brandon confirms timeline + adds links) |
 | Rackspace object storage → ingest pipeline | **No** | 3 |
 | Shared vector DB (multi-replica) | **No** | 3 |
 | Durable chat sessions | **No** | 3 |
@@ -132,12 +140,14 @@ Hosting target in [ROADMAP.md](ROADMAP.md) Phase 3 includes **Rackspace** as pri
 | [ ] | Receive Bible PDF when ready (~500 pp); manual ingest; RAG quality test | dev1 |
 | [ ] | Align ingest with Brandon chunk schema or section-aware splits | dev1 — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
 | [ ] | Decide Bible **image** strategy (captions vs OCR vs figure links vs multimodal) | Product + dev1 |
-| [ ] | Decide video strategy (transcripts vs links vs defer) | Product + dev1 |
+| [x] | Prefer video **Option B** (URL in Bible section) over transcript RAG | Proposed to Brandon (Shivansh); awaiting timeline confirmation |
+| [ ] | Confirm video upload timeline (all 24 before UAT vs incremental) | Brandon |
+| [ ] | When Bible sections include YouTube URLs, verify RAG returns link + steps | dev1 |
 | [ ] | Section-aware chunking for Bible headings | dev1 |
 | [ ] | KB re-ingest CLI reading from Rackspace Cloud Files | dev1 + infra vendor |
 | [ ] | Migrate Chroma → Qdrant on Rackspace | infra vendor (Phase 3) |
 | [ ] | Super Admin upload triggers re-index webhook | backend team + dev1 |
-| [ ] | Optional: video transcript ingest pipeline | dev1 (Phase 5) |
+| [ ] | Optional: video transcript ingest pipeline | **Deferred** — not preferred vs Option B |
 
 ---
 

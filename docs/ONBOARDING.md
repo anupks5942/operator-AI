@@ -10,7 +10,7 @@ Operator AI is a LangGraph technical support agent for laundry operators:
 
 - RAG over legacy manuals (ChromaDB)
 - Live loyalty and transaction tools (Setomatic beta API)
-- Refund tools (mock `:8001` until beta APIs ready)
+- Portal-guided refund help via RAG/Bible (no agent-executed refunds)
 - Global system status (web scrape)
 - Gregg's troubleshoot-first escalation (email + SMS)
 - Guardrails (no live hardware status, out-of-domain refusal)
@@ -43,7 +43,7 @@ Operator AI is a LangGraph technical support agent for laundry operators:
 |------|------|
 | [app.py](../app.py) | Streamlit demo — in-process graph streaming |
 | [src/api/server.py](../src/api/server.py) | **Production** REST API |
-| [src/api/mock_server.py](../src/api/mock_server.py) | Mock **refund** endpoints only (`:8001`) |
+| [src/api/server.py](../src/api/server.py) | Production agent API (`:8000`) |
 | [main.py](../main.py) | Legacy `/query` + console harness — avoid |
 | [src/api/routes.py](../src/api/routes.py) | Legacy router — deprecated |
 
@@ -91,7 +91,7 @@ Outage detail: [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md)
 ### Outage workflow (Gregg)
 
 ```
-blast_radius_check → troubleshoot_first → confirm → escalate OR resolve
+blast_radius_check → troubleshoot_first → (yes → troubleshoot_success) / (no → confirm → escalate OR resolve tickets)
 ```
 
 Not a single-shot RAG answer. See [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md).
@@ -107,7 +107,7 @@ Full business mapping: [INTENT_MATRIX.md](INTENT_MATRIX.md) (29 Brandon rows).
 [tools.py](../src/agent/tools.py):
 
 - Loyalty + transactions → **live** Setomatic API (hardcoded `OperatorId=4` — Phase 1 fix)
-- Refunds → mock `:8001` or live per `USE_MOCK_REFUNDS`
+- Refunds → RAG / Bible portal guidance (no mock server; no execute tools)
 - Sequential refund: history → eligibility → execute
 
 ### Session memory
@@ -130,7 +130,7 @@ Escalation sends email + SMS when `USE_LIVE_NOTIFICATIONS=true`. Per-intent rout
 2. Entry points — [server.py](../src/api/server.py), [app.py](../app.py)
 3. LangGraph — [graph.py](../src/agent/graph.py), [router.py](../src/agent/router.py), [state.py](../src/agent/state.py)
 4. Escalation — [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md), [notifications.py](../src/services/notifications.py)
-5. Tools — [tools.py](../src/agent/tools.py), [mock_server.py](../src/api/mock_server.py)
+5. Tools — [tools.py](../src/agent/tools.py)
 6. RAG — [rag_service.py](../src/services/rag_service.py), [KB/](../KB/), [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md)
 7. Tests — [tests/test_outage_workflow.py](../tests/test_outage_workflow.py)
 
@@ -140,7 +140,7 @@ Escalation sends email + SMS when `USE_LIVE_NOTIFICATIONS=true`. Per-intent rout
 
 | File | Why |
 |------|-----|
-| [tools.py](../src/agent/tools.py) | Live/mock APIs, refund ordering, status scrape, hardcoded operator ID |
+| [tools.py](../src/agent/tools.py) | Live Setomatic APIs, status scrape, hardcoded operator ID |
 | [graph.py](../src/agent/graph.py) | Routing table, outage workflow, ReAct tool loop |
 | [router.py](../src/agent/router.py) | Long system prompt, continuation rules |
 | [server.py](../src/api/server.py) | Production API, telemetry, CORS |

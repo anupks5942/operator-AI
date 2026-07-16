@@ -3,12 +3,11 @@ LangChain tool definitions for the Setomatic/SpyderWash support agent.
 
 Tools:
   - get_loyalty_balance:        Routes to SETOMATIC_BASE_URL (live production API, OperatorId=4)
-  - get_transaction_history:    Routes to SETOMATIC_BASE_URL (live production API) — includes transactionDetailId for refund flow
-  - check_refund_eligibility:   Routes to MOCK_BASE_URL when USE_MOCK_REFUNDS=True, else SETOMATIC_BASE_URL
-  - execute_refund:             Routes to MOCK_BASE_URL when USE_MOCK_REFUNDS=True, else SETOMATIC_BASE_URL
+  - get_transaction_history:    Routes to SETOMATIC_BASE_URL (live production API)
   - check_global_system_status: Live web scrape of setomaticsystems.com/status
+  - get_kiosk_purchases / get_kiosk_recharges / get_pos_transactions / send_remote_device_command
 
-URL routing is controlled by src/config.py — set environment variables in .env to override defaults.
+Refunds are portal-guided via RAG/Bible (no execute tools). URL routing is controlled by src/config.py.
 """
 # httpx replaced by requests across all tool HTTP calls for a unified error boundary interface.
 import requests
@@ -20,7 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 logger = logging.getLogger("setomatic.tools")
 
 # Import centralized URL config — all base URLs are defined in src/config.py
-from src.config import MOCK_BASE_URL, SETOMATIC_BASE_URL, USE_MOCK_REFUNDS
+from src.config import SETOMATIC_BASE_URL
 
 _BROWSER_HEADERS = {
     "User-Agent": (
@@ -52,9 +51,6 @@ _BROWSER_HEADERS = {
 
 # Card number pattern: alphanumeric characters and hyphens only (e.g. 'LC-5555', '00000212').
 _CARD_NUMBER_PATTERN = r"^[A-Za-z0-9\-]+$"
-
-# Transaction ID pattern: same character set, accommodating IDs like 'TX-12345ABC'.
-_TX_ID_PATTERN = r"^[A-Za-z0-9\-]+$"
 
 
 class LoyaltyBalanceSchema(BaseModel):
@@ -120,28 +116,6 @@ class TransactionHistorySchema(BaseModel):
         except (ValueError, TypeError):
             raise ValueError(f"Invalid date format '{v}'. Must be YYYY-MM-DD.")
         return v
-
-
-class RefundEligibilitySchema(BaseModel):
-    # transaction_detail_id supports alphanumeric IDs and hyphenated formats like 'TX-12345ABC'.
-    transaction_detail_id: str = Field(
-        ...,
-        min_length=1,
-        max_length=50,
-        pattern=_TX_ID_PATTERN,
-        description="Transaction detail ID (alphanumeric and hyphens, 1-50 characters).",
-    )
-
-
-class RefundExecuteSchema(BaseModel):
-    # Mirrors RefundEligibilitySchema — the same ID validated in step 2 is reused in step 3.
-    transaction_detail_id: str = Field(
-        ...,
-        min_length=1,
-        max_length=50,
-        pattern=_TX_ID_PATTERN,
-        description="Transaction detail ID confirmed eligible in step 2 (alphanumeric and hyphens).",
-    )
 
 
 class KioskPurchasesSchema(BaseModel):
@@ -576,7 +550,7 @@ def get_transaction_history(
         else:
             lines.append(f"\nShowing all {total_records} records.")
 
-        lines.append("\n(Internal — transaction IDs for refund flow: " + ", ".join(tx_ids) + ")")
+        lines.append("\n(Internal — transaction IDs: " + ", ".join(tx_ids) + ")")
 
         return "\n".join(lines)
 
@@ -683,171 +657,6 @@ def check_global_system_status() -> str:
         "SYSTEM STATUS CHECK FAILED: Could not reach setomaticsystems.com/status. "
         "Advise the user to check https://setomaticsystems.com/status directly in a browser."
     )
-
-
-# Refund tools route to MOCK_BASE_URL when USE_MOCK_REFUNDS is True, else fall back to production
-_REFUND_BASE = MOCK_BASE_URL if USE_MOCK_REFUNDS else SETOMATIC_BASE_URL
-_REFUND_OPERATOR_ID = 4
-
-
-# ---------------------------------------------------------------------------
-# Refund tools
-# ---------------------------------------------------------------------------
-
-# args_schema rejects transaction IDs that contain disallowed characters or exceed length bounds.
-@tool(args_schema=RefundEligibilitySchema)
-def check_refund_eligibility(transaction_detail_id: str) -> str:
-    """
-    Use this tool AFTER calling get_transaction_history to check whether a specific
-    transaction is eligible for a refund.
-
-    MUST be called as step 2 of the refund workflow:
-      1. get_transaction_history  → obtain transactionDetailId
-      2. check_refund_eligibility → verify the 30-day window (this tool)
-      3. execute_refund           → ONLY if isEligible is true
-
-    OperatorId is always 4 (hardcoded).
-
-    Args:
-        transaction_detail_id: The transactionDetailId string from the transaction
-                               history result (e.g. "12345").
-
-    Returns:
-        A plain-text string indicating whether the transaction is eligible for a
-        refund and the reason provided by the API, or a graceful error string.
-    """
-    try:
-        url = f"{_REFUND_BASE}/api/Transactions/RefundEligibility"
-        params = {
-            "transactionDetailId": transaction_detail_id,
-            "OperatorId":          _REFUND_OPERATOR_ID,
-        }
-        logger.info("[check_refund_eligibility] Calling API: GET %s | Params: %s", url, params)
-        # Network call: requests.get with explicit connect + read timeout pair.
-        response = requests.get(
-            url,
-            params=params,
-            timeout=(8.0, 10.0),
-        )
-        logger.info("[check_refund_eligibility] API Response [%s]: %s", response.status_code, response.text)
-
-        # Server-side failure: instruct the LLM to tell the user the system is temporarily down.
-        if response.status_code >= 500:
-            return (
-                f"System Error: Backend server failure ({response.status_code}). "
-                "Instruct the user that the system is temporarily down."
-            )
-
-        # Business logic rejection: surface raw API text so the LLM sees the actual reason.
-        if 400 <= response.status_code < 500:
-            return (
-                f"API Error: The request was rejected. Details: {response.text}"
-            )
-
-        data        = response.json().get("data", {})
-        is_eligible = data.get("isEligible")
-        reason      = data.get("reason", "No reason provided.")
-
-        if is_eligible is None:
-            return (
-                f"Refund eligibility check for transaction '{transaction_detail_id}' returned "
-                "an unexpected response structure. Please contact Setomatic support."
-            )
-
-        if is_eligible:
-            return (
-                f"Transaction ID '{transaction_detail_id}' IS eligible for a refund. "
-                f"Reason: {reason}. You may now proceed to process the refund."
-            )
-        else:
-            return (
-                f"Transaction ID '{transaction_detail_id}' is NOT eligible for a refund. "
-                f"Reason: {reason}. No refund can be issued."
-            )
-
-    # Network-level failure: the host is physically unreachable (DNS, TCP, or timeout).
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
-        return (
-            "System Error: Unable to connect to the backend API. "
-            "Instruct the user to try again in five minutes."
-        )
-    except (KeyError, ValueError, TypeError) as e:
-        return f"Failed to parse refund eligibility response for transaction '{transaction_detail_id}': {e}."
-    except Exception as e:
-        return f"Unexpected error during refund eligibility check for '{transaction_detail_id}': {e}"
-
-
-# args_schema mirrors RefundEligibilitySchema — the same validated ID flows from step 2 into step 3.
-@tool(args_schema=RefundExecuteSchema)
-def execute_refund(transaction_detail_id: str) -> str:
-    """
-    Use this tool ONLY after check_refund_eligibility confirms isEligible=True.
-    This is step 3 of the mandatory refund workflow:
-
-      1. get_transaction_history  → obtain transactionDetailId
-      2. check_refund_eligibility → must return isEligible=True
-      3. execute_refund           → this tool — processes the refund
-
-    WARNING: Do NOT call this tool if check_refund_eligibility returned
-    isEligible=False. The refund will be rejected.
-
-    OperatorId is always 4 (hardcoded).
-
-    Args:
-        transaction_detail_id: The transactionDetailId string confirmed as
-                               eligible in step 2 (e.g. "12345").
-
-    Returns:
-        A confirmation string with the refund receipt number on success,
-        or a graceful error string if the API fails.
-    """
-    try:
-        url = f"{_REFUND_BASE}/api/Transactions/RefundProcessing"
-        params = {
-            "transactionDetailId": transaction_detail_id,
-            "OperatorId":          _REFUND_OPERATOR_ID,
-        }
-        logger.info("[execute_refund] Calling API: GET %s | Params: %s", url, params)
-        # Network call: requests.get with explicit connect + read timeout pair.
-        response = requests.get(
-            url,
-            params=params,
-            timeout=(8.0, 10.0),
-        )
-        logger.info("[execute_refund] API Response [%s]: %s", response.status_code, response.text)
-
-        # Server-side failure: instruct the LLM to tell the user the system is temporarily down.
-        if response.status_code >= 500:
-            return (
-                f"System Error: Backend server failure ({response.status_code}). "
-                "Instruct the user that the system is temporarily down."
-            )
-
-        # Business logic rejection: surface raw API text so the LLM sees the actual reason.
-        if 400 <= response.status_code < 500:
-            return (
-                f"API Error: The request was rejected. Details: {response.text}"
-            )
-
-        payload = response.json()
-        message = payload.get("message", "Refund processed.")
-        receipt = payload.get("data", {}).get("refundReceipt", "N/A")
-
-        return (
-            f"Refund successfully processed for transaction ID '{transaction_detail_id}'. "
-            f"{message} Receipt number: {receipt}."
-        )
-
-    # Network-level failure: the host is physically unreachable (DNS, TCP, or timeout).
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
-        return (
-            "System Error: Unable to connect to the backend API. "
-            "Instruct the user to try again in five minutes."
-        )
-    except (KeyError, ValueError, TypeError) as e:
-        return f"Failed to parse refund processing response for transaction '{transaction_detail_id}': {e}."
-    except Exception as e:
-        return f"Unexpected error during refund processing for '{transaction_detail_id}': {e}"
 
 
 # ---------------------------------------------------------------------------
@@ -1204,6 +1013,21 @@ def get_pos_transactions(
             reverse=True,
         )
 
+        # Client-side card filter: the API may ignore CardNo or match loosely,
+        # so we enforce exact suffix matching when card_no is provided.
+        if card_no:
+            filter_suffix = card_no.strip().lstrip("0")
+            records = [
+                r for r in records
+                if (r.get("cardno") or r.get("cardNo") or r.get("cardNumber") or "").endswith(filter_suffix)
+            ]
+            if not records:
+                return (
+                    f"No POS transactions found for card ending in '{card_no}' "
+                    f"between {start_date} and {end_date}. "
+                    "Please verify the card number and try again."
+                )
+
         total = len(records)
         start_idx = (page_no - 1) * page_size
         page_records = records[start_idx : start_idx + page_size]
@@ -1349,8 +1173,6 @@ def send_remote_device_command(
 SETOMATIC_TOOLS = [
     get_loyalty_balance,
     get_transaction_history,
-    check_refund_eligibility,
-    execute_refund,
     check_global_system_status,
     get_kiosk_purchases,
     get_kiosk_recharges,

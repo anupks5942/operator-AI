@@ -20,7 +20,7 @@ There is **no live human transfer** in the chat UI. Escalation means email and/o
 
 | Persona | Needs |
 |---------|-------|
-| **Operator** | Troubleshoot machines, check loyalty/transactions, request refunds, report outages |
+| **Operator** | Troubleshoot machines, check loyalty/transactions, get portal guidance for refunds, report outages |
 | **After-hours support** | Receive escalation email/SMS with conversation transcript |
 | **On-call technician** | SMS alert for critical failures after troubleshooting fails |
 | **Portal integrator (dev2 / frontend team)** | Stable REST API, session memory, operator contact fields |
@@ -65,8 +65,9 @@ Product direction (July 2026):
 
 1. **The Bible of SpyderWash** — single KB document (**~500 pages** per Brandon mail) replacing legacy multi-manual `KB/` when delivered.
 2. **Structured KB chunks** — Brandon prototype uses `chunk_id`, keywords, `common_queries` — target retrieval model; MVP uses generic splits — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md).
-3. **Operator videos** — many guidance videos exist; hosting on **Rackspace** alongside SpyderWash frontend/backend is the recommended alignment.
-4. **Agent consumption** — Bible text via RAG (PDF/DOCX ingest today); videos **not in RAG** until transcript or link strategy is chosen.
+3. **Operator videos** — ~24 YouTube guidance videos; preferred approach is embed video URLs in matching Bible/doc sections (Option B), not transcript RAG.
+4. **Agent consumption** — Bible text via RAG (PDF/DOCX/TXT ingest today); video links surface when present in retrieved chunks.
+5. **KB content ownership** — Brandon / Setomatic owns Bible content (including refund portal steps). Chetu does not invent source KB material.
 5. **Production gap** — files on cloud storage do not auto-index; needs ingest pipeline + shared vector DB (Phase 3); interim = email notify + manual re-index.
 
 Full analysis: [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md).
@@ -80,7 +81,7 @@ Confirm with product before Phase 2+. Traceability: [REQUIREMENTS_MAP.md](REQUIR
 | Topic | MVP default | Status |
 |-------|-------------|--------|
 | **Bible embedded images** | Text captions in source doc; text-only RAG ingest | **Decision pending** — OCR / figure links / multimodal Phase 2+ |
-| **Operator videos** | Bible text first; videos in portal only | **Decision pending** — see [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
+| **Operator videos** | YouTube URLs in Bible sections (Option B) | Timeline (all 24 before UAT vs phased) open with Brandon |
 | **Bilingual (English/Spanish)** | English-only prompts and responses | **Deferred** until product confirms operator need |
 | **Low-confidence AI escalation** | Not used — Gregg troubleshoot-first + Intent Matrix routing instead | **By design** — ADR-014 |
 
@@ -94,11 +95,14 @@ Confirm with product before Phase 2+. Traceability: [REQUIREMENTS_MAP.md](REQUIR
 **Flow:** Router → RAG node → answer with KB sources.  
 **Acceptance:** Answer cites manual content; admits when KB lacks information.
 
-### 5.2 Loyalty / transactions / refunds (tools)
+### 5.2 Loyalty / transactions / refunds (tools + RAG)
 
-**Trigger:** Balance lookup, transaction history, refund request, global system status.  
-**Flow:** Router → tool node (ReAct loop) → live Setomatic API or mock refund API.  
-**Acceptance:** Refund workflow is sequential: history → eligibility → execute (never skip eligibility).
+**Trigger:** Balance lookup, transaction history (including refunded history lookup), refund *how-to*, global system status.
+**Flow:**  
+
+- Balance / transactions / status → Router → tool_node → live Setomatic APIs.  
+- **Refund processing** → Router → RAG (Bible portal steps). Agent does **not** execute refunds (Brandon Jul 13, 2026).
+**Acceptance:** Operator receives clear portal instructions for refunds; agent never calls refund execute APIs in the production path.
 
 ### 5.3 Outage workflow (Gregg TC1 / TC2)
 
@@ -166,10 +170,10 @@ Automated coverage: [tests/test_outage_workflow.py](../tests/test_outage_workflo
 | Structured KB chunks + admin feedback loop | **Planned** | Phase 5 — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
 | Bible images in RAG | **Not implemented** | Text-only ingest — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 | Bilingual (English/Spanish) | **Deferred** | Decision pending — [REQUIREMENTS_MAP.md](REQUIREMENTS_MAP.md) |
-| Video content in agent | **Not implemented** | Strategy TBD — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
+| Video content in agent | **Planned (Option B)** | URLs in Bible sections — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 | Rackspace KB/video hosting + ingest | **Planned** | Phase 3 — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 | Live loyalty / transactions | **Implemented** | [src/agent/tools.py](../src/agent/tools.py) |
-| Refunds (mock or live) | **Partial** — mock only in practice | 2 refund APIs (`RefundEligibility`, `RefundProcessing`) not ready from backend; keep `USE_MOCK_REFUNDS=true` — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
+| Refunds | **Portal guidance** | Bible/RAG portal steps; no agent-executed refund APIs — ADR-028 |
 | Global system status scrape | **Implemented** | [src/agent/tools.py](../src/agent/tools.py) |
 | Production REST API | **Implemented** | [src/api/server.py](../src/api/server.py) |
 | Live escalation email (Mandrill) | **Implemented** | [src/services/notifications.py](../src/services/notifications.py) |
@@ -190,14 +194,14 @@ Automated coverage: [tests/test_outage_workflow.py](../tests/test_outage_workflo
 
 | Item | Owner | Notes |
 |------|-------|-------|
-| **Refund APIs** (`RefundEligibility` + `RefundProcessing`) | Setomatic backend | Only 2 of 4 core agent APIs remain; mock server required until delivered — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
+| **Refund execute APIs** | N/A (portal path) | Brandon approved portal-guided refunds (Jul 2026) — ADR-028 |
 | .NET auth → agent API | Setomatic backend | Web chat UI not started |
 | Production hosting target | infra vendor + product | **Rackspace preferred** — see [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 | Escalation email template sign-off | Product owner | Feedback pending |
-| Bible PDF delivery | Product owner (Brandon) | 250 pages done; sending PDF; blocks RAG cutover |
+| Bible PDF delivery | Product owner (Brandon) | Includes refund portal instructions; Chetu does not author KB |
 | Bible image strategy (captions vs OCR vs links) | Product + dev1 | Text-only RAG today |
 | Bilingual support | Product | Vendor doc mentions; not in code |
-| Video strategy (transcripts vs links) | Product + dev1 | Blocks video-aware answers |
+| Video timeline + section URL mapping | Brandon + Shivansh | Option B preferred; confirm 24-video schedule |
 
 Full phase owners: [ROADMAP.md](ROADMAP.md).
 
@@ -209,8 +213,9 @@ Full phase owners: [ROADMAP.md](ROADMAP.md).
 - Live machine/port/hub telemetry in chat
 - Real-time voice in web chat (REST-only for text)
 - KB upload UI (manual `KB/` folder + re-ingest until Bible + Rackspace pipeline)
-- Video ingestion / transcription in agent (until strategy approved)
+- Video transcript / Whisper pipeline (prefer Bible-section YouTube URLs — Option B)
 - Bible image OCR / multimodal RAG (until strategy approved)
+- Agent-executed refunds via Setomatic refund APIs (portal guidance only — ADR-028)
 - Bilingual operator support (until product confirms)
 - Immediate on-call **phone call** (SMS/email only)
 - Customer Agent (separate product — vendor dual-agent vision)

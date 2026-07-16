@@ -30,7 +30,6 @@ operator-AI/
     │   └── state.py            # AgentState TypedDict
     ├── api/
     │   ├── server.py           # Production API :8000
-    │   ├── mock_server.py      # Mock refunds :8001
     │   ├── routes.py           # Legacy /query, /notify/* — deprecated
     │   └── schemas.py          # Legacy Pydantic models
     ├── services/
@@ -47,7 +46,6 @@ operator-AI/
 | Command | File | Purpose |
 |---------|------|---------|
 | `uv run uvicorn src.api.server:app --port 8000` | server.py | **Canonical** agent API |
-| `uv run uvicorn src.api.mock_server:mock_app --port 8001` | mock_server.py | Mock refunds (when `USE_MOCK_REFUNDS=true`) |
 | `uv run streamlit run app.py` | app.py | Local demo UI |
 | `uv run python main.py` | main.py | Legacy streaming console test |
 | `uv run uvicorn main:app` | main.py | Legacy `/query` API — **do not use** |
@@ -61,7 +59,7 @@ operator-AI/
 | `graph.py` | `uv run python -m unittest tests.test_outage_workflow -v` |
 | `router.py` | Same tests + manual TC1/TC2 |
 | `notifications.py` | Same tests + live escalation smoke |
-| `tools.py` | Refund flow with mock :8001; loyalty/tx against beta API |
+| `tools.py` | Loyalty/tx/kiosk/POS against live beta API; portal-guided refunds via RAG |
 | `rag_service.py` | Delete `chroma_db/` to re-ingest; test RAG answers |
 | `server.py` | curl `/health` and `/api/v1/agent/chat`; CORS for React |
 | `KB/` (new docs) | Delete `chroma_db/` and restart |
@@ -92,7 +90,7 @@ Full variable list: [ENVIRONMENT.md](ENVIRONMENT.md)
 |------|--------|
 | `main.py` `/query` | Deprecated — use `server.py` |
 | `routes.py` `/notify/sms`, `/notify/email` | Deprecated — escalation via graph only |
-| `mock_server.py` loyalty/transaction endpoints | Present but **not called** by tools.py |
+| `mock_server.py` | **Removed** — portal-guided refunds (ADR-028); no agent refund execute |
 
 ---
 

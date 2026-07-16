@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 class EscalationResult:
     email_sent: bool
     sms_sent: bool
+    message_id: str | None = None
 
 
 class NotificationService:
@@ -59,7 +60,15 @@ class NotificationService:
             return False
 
     @staticmethod
-    def send_email_html(to_email: str, subject: str, html_body: str) -> bool:
+    def send_email_html(
+        to_email: str,
+        subject: str,
+        html_body: str,
+        *,
+        message_id: str | None = None,
+        in_reply_to: str | None = None,
+        references: str | None = None,
+    ) -> bool:
         if not USE_LIVE_NOTIFICATIONS:
             logger.info(
                 "[Mock Email] To %s | Subject: %s | Body length: %d",
@@ -67,7 +76,12 @@ class NotificationService:
                 subject,
                 len(html_body),
             )
-            print(f"[Mock Email] To {to_email} | Subject: {subject}")
+            threading_info = ""
+            if message_id:
+                threading_info += f" | Message-ID: {message_id}"
+            if in_reply_to:
+                threading_info += f" | In-Reply-To: {in_reply_to}"
+            print(f"[Mock Email] To {to_email} | Subject: {subject}{threading_info}")
             return True
 
         if not all((SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD, FROM_EMAIL, to_email)):
@@ -79,6 +93,12 @@ class NotificationService:
             msg["Subject"] = subject
             msg["From"] = FROM_EMAIL
             msg["To"] = to_email
+            if message_id:
+                msg["Message-ID"] = message_id
+            if in_reply_to:
+                msg["In-Reply-To"] = in_reply_to
+            if references:
+                msg["References"] = references
             msg.attach(MIMEText(html_body, "html"))
 
             with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as server:
@@ -100,6 +120,16 @@ class NotificationService:
         return NotificationService.send_email_html(to_email, subject, html_body)
 
     @staticmethod
+    def _parse_location_from_summary(summary: str) -> str | None:
+        """Extract the LOCATION value from the structured escalation summary."""
+        for line in summary.splitlines():
+            if line.strip().upper().startswith("LOCATION:"):
+                value = line.split(":", 1)[1].strip()
+                if value and value.lower() != "not specified":
+                    return value
+        return None
+
+    @staticmethod
     def _build_escalation_html(
         *,
         ticket_id: str,
@@ -107,6 +137,7 @@ class NotificationService:
         email: str,
         phone: str,
         summary: str,
+        is_critical: bool = False,
     ) -> str:
         from datetime import datetime, timezone
 
@@ -114,9 +145,22 @@ class NotificationService:
         safe_summary = html.escape(summary)
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-        is_critical = "entire location" in summary.lower() or "Critical" in summary
         severity_label = "CRITICAL" if is_critical else "STANDARD"
         severity_color = "#dc3545" if is_critical else "#fd7e14"
+
+        # Location section — only rendered when the operator mentioned a site/location
+        location_section = ""
+        location = NotificationService._parse_location_from_summary(summary)
+        if location:
+            safe_location = html.escape(location)
+            location_section = f"""
+                <tr>
+                    <td style="padding:16px 24px; border-bottom:1px solid #e9ecef;">
+                        <h3 style="margin:0 0 8px 0; color:#495057; font-size:14px; text-transform:uppercase; letter-spacing:0.5px;">Location</h3>
+                        <p style="margin:4px 0;">{safe_location}</p>
+                    </td>
+                </tr>
+            """
 
         # Operator contact section — only rendered when real data is available
         contact_section = ""
@@ -166,6 +210,8 @@ class NotificationService:
                         <pre style="margin:0; padding:16px; background:#f8f9fa; border-radius:6px; font-family:'SF Mono', Consolas, monospace; font-size:13px; line-height:1.6; white-space:pre-wrap; word-wrap:break-word; color:#212529;">{safe_summary}</pre>
                     </td>
                 </tr>
+                <!-- Location (conditional) -->
+                {location_section}
                 <!-- Operator Contact (conditional) -->
                 {contact_section}
                 
@@ -189,22 +235,28 @@ class NotificationService:
         phone: str,
         conversation: str,
         summary: str,
+        is_critical: bool = False,
     ) -> EscalationResult:
         safe_summary = sanitize_outbound_text(summary)
-        is_critical = "entire location" in safe_summary.lower() or "Critical" in safe_summary
         severity_tag = "[CRITICAL]" if is_critical else "[STANDARD]"
         subject = f"{severity_tag} SpyderWash Escalation {ticket_id}"
+        stable_message_id = f"<{ticket_id}@spyderwash.operator>"
         html_body = NotificationService._build_escalation_html(
             ticket_id=ticket_id,
             name=name,
             email=email,
             phone=phone,
             summary=safe_summary,
+            is_critical=is_critical,
         )
-        email_sent = NotificationService.send_email_html(ESCALATION_EMAIL, subject, html_body)
+        email_sent = NotificationService.send_email_html(
+            ESCALATION_EMAIL, subject, html_body, message_id=stable_message_id,
+        )
 
         sms_issue = safe_summary.split("\n")[0].replace("ISSUE: ", "")[:120]
-        sms_body = f"SpyderWash {severity_tag} {ticket_id}: {sms_issue}"
+        location = NotificationService._parse_location_from_summary(safe_summary)
+        sms_location = f" @ {location}" if location else ""
+        sms_body = f"SpyderWash {severity_tag} {ticket_id}: {sms_issue}{sms_location}"
         sms_sent = NotificationService.send_sms(ESCALATION_SMS_TO, sms_body)
 
         if not email_sent:
@@ -212,17 +264,22 @@ class NotificationService:
         if not sms_sent:
             logger.warning("Escalation SMS dispatch failed for ticket %s", ticket_id)
 
-        return EscalationResult(email_sent=email_sent, sms_sent=sms_sent)
+        return EscalationResult(email_sent=email_sent, sms_sent=sms_sent, message_id=stable_message_id)
 
     @staticmethod
-    def send_resolution(*, ticket_id: str = "", issue_summary: str) -> bool:
-        """Send a resolution notification (email + SMS) so the on-call technician can stand down."""
+    def send_resolution(
+        *,
+        ticket_id: str = "",
+        issue_summary: str,
+        original_message_id: str | None = None,
+    ) -> bool:
+        """Send a resolution notification as a reply to the original escalation thread."""
         from datetime import datetime, timezone
 
         safe_summary = sanitize_outbound_text(issue_summary)
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         ticket_ref = f" — {html.escape(ticket_id)}" if ticket_id else ""
-        subject = f"[RESOLVED] SpyderWash Escalation {ticket_id}".strip()
+        subject = f"Re: SpyderWash Escalation {ticket_id}".strip()
 
         html_body = f"""
         <html>
@@ -260,7 +317,13 @@ class NotificationService:
         </html>
         """
 
-        email_sent = NotificationService.send_email_html(ESCALATION_EMAIL, subject, html_body)
+        email_sent = NotificationService.send_email_html(
+            ESCALATION_EMAIL,
+            subject,
+            html_body,
+            in_reply_to=original_message_id,
+            references=original_message_id,
+        )
         if not email_sent:
             logger.warning("Resolution email dispatch failed for %s", ticket_id)
 

@@ -89,12 +89,12 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 
 ---
 
-## ADR-010: Mock server on :8001 for refund development
+## ADR-010: Mock server on :8001 for refund development (removed)
 
-**Status:** Accepted  
-**Context:** Setomatic refund APIs may be unavailable or risky during early dev.  
-**Decision:** [mock_server.py](../src/api/mock_server.py) on port **8001** simulates loyalty/transaction/refund endpoints when `USE_MOCK_REFUNDS=true`.  
-**Consequences:** Two processes in local dev when testing refunds. Port 8001 loyalty/transaction routes are unused by tools — only refund endpoints are called. See [ARCHITECTURE.md](ARCHITECTURE.md).
+**Status:** Superseded / removed — see ADR-028  
+**Context:** Early dev used a local mock refund API on port 8001.  
+**Decision (historical):** [mock_server.py](../src/api/mock_server.py) simulated refund endpoints when `USE_MOCK_REFUNDS=true`.  
+**Current:** File and env flags removed. Agent does not execute refunds — portal guidance via Bible (ADR-028).
 
 ---
 
@@ -120,7 +120,7 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 
 **Status:** Accepted (planning)  
 **Context:** Product owner is compiling “The Bible of SpyderWash” (~500 pages per Brandon mail) as the only Operator Agent KB. Operator guidance videos will exist separately. Planning recommends hosting Bible and videos on Rackspace alongside SpyderWash frontend/backend. Brandon’s KB Admin prototype defines structured chunks and feedback loop — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md).  
-**Decision:** **Target:** single Bible document for RAG; legacy multi-manual `KB/` is interim only. Rackspace Cloud Files for Bible + video assets; agent consumes via **ingest pipeline → shared vector DB**, not direct filesystem reads in production. Videos require a separate strategy (transcripts in RAG vs portal links only) — not in MVP code.  
+**Decision:** **Target:** single Bible document for RAG; legacy multi-manual `KB/` is interim only. Rackspace Cloud Files for Bible + video assets; agent consumes via **ingest pipeline → shared vector DB**, not direct filesystem reads in production. Videos: prefer **URLs embedded in Bible sections** (Option B) over transcript RAG — ADR-029.  
 **Consequences:** Manual `KB/` ingest OK for demo. Production needs Phase 3 ingest + Qdrant + Rackspace deploy. See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md).
 
 ---
@@ -243,6 +243,47 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 **Context:** `troubleshoot_first_node` appended a "Sources: filename [p.X] | filename [p.Y]" line to KB troubleshooting responses. PM requested removal — operators do not need to see internal document references.  
 **Decision:** Remove the `context_docs` → `sources_note` block from `troubleshoot_first_node`. Troubleshooting responses now show only the KB answer followed by "Did this resolve the issue? (Yes/No)".  
 **Consequences:** Cleaner operator-facing output. Source provenance is still available in ChromaDB metadata for debugging but not surfaced in responses.
+
+---
+
+## ADR-026: Troubleshoot success vs ticket resolution
+
+**Status:** Accepted  
+**Context:** After "Did this resolve the issue?", a "yes" was routed to `escalation_resolved_node`. When the session already had open tickets from prior escalations, that node asked "Which ticket is resolved?" instead of acknowledging that KB troubleshooting fixed the *current* issue (which had no ticket).  
+**Decision:** Route positive post-troubleshooting confirmations to `troubleshoot_success_node`. That node says "Glad to hear…" first and only then reminds about remaining open tickets. `escalation_resolved_node` is reserved for resolving dispatched tickets (by ID / "all" / single open ticket).  
+**Consequences:** Operators get a clear success ack before any ticket reminder. Resolve emails are not sent for issues fixed by troubleshooting alone. See [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md).
+
+---
+
+## ADR-027: Multi-ticket tracking and already-resolved guard
+
+**Status:** Accepted  
+**Context:** Multi-ticket sessions needed reliable open-ticket lists, threaded resolution emails, and protection against resolving an already-closed ticket silently closing every remaining open ticket. Conversation summaries also dropped or duplicated ticket IDs because they only saw the mutable open list.  
+**Decision:**  
+
+- Track `dispatched_tickets` (open), `all_session_tickets` (append-only), and `ticket_email_ids` (Message-ID map).  
+- If the operator names a `TKT-…` not in the open list, warn and do not bulk-resolve.  
+- Summary injects all session tickets with OPEN/RESOLVED status.  
+- Incident summary boundary uses `"escalation ticket"` so both critical and standard ticket messages close the prior incident window.  
+**Consequences:** Safer multi-ticket resolve UX; accurate summaries; STEPS no longer bleed across incidents. See [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md).
+
+---
+
+## ADR-028: Portal-guided refunds (no agent-executed refund APIs)
+
+**Status:** Accepted (Jul 13, 2026 — Brandon)  
+**Context:** Backend refund APIs need many payment-gateway parameters; executing refunds from chat risks wrong-transaction refunds.  
+**Decision:** Agent **guides** operators to submit refunds on the **SpyderWash portal**. Do **not** integrate `RefundEligibility` / `RefundProcessing` into the production agent path. Bible will contain refund-request instructions; Chetu does not invent KB content — gaps go back to Brandon.  
+**Consequences:** `refund_request` intent routes to RAG/Bible portal guidance (not tool refund execute). Refund execute tools and mock `:8001` server removed from the repo. Read-only refund history via `ViewAllTransactionSearch` (`isRefund=true`) is still allowed. See [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md).
+
+---
+
+## ADR-029: Operator videos via Bible-section URL mapping (not transcript RAG)
+
+**Status:** Proposed / preferred (awaiting Brandon video timeline)  
+**Context:** ~24 YouTube operator videos. Transcript→LLM→semantic match is complex and costly.  
+**Decision:** Prefer embedding each relevant **YouTube URL in the matching Bible/doc section** so ingest maps content → link (Option B). Do not build Whisper/transcript RAG for MVP. Timeline (all videos before UAT vs incremental) still TBD with Brandon.  
+**Consequences:** Video answers depend on Bible/doc quality; no separate video pipeline until product confirms. See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md).
 
 ---
 

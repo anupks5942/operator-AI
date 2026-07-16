@@ -13,7 +13,7 @@ from src.agent.nodes import (
     summarize_conversation_node,
     _extract_metadata_filter,
 )
-from src.agent.router import semantic_router, infer_blast_radius
+from src.agent.router import semantic_router, infer_blast_radius, _is_resolution_message
 from src.agent.tools import SETOMATIC_TOOLS
 from src.services.notifications import NotificationService
 from src.services.rag_service import RAGService
@@ -58,7 +58,7 @@ def _extract_escalation_context(messages) -> str:
     trivial = frozenset({"no", "yes", "nope", "nah", "wait yes", "wait, yes"})
     boundary_markers = (
         "glad to hear the issue is resolved",
-        "critical escalation ticket",
+        "escalation ticket",
         "no problem. if you need further assistance, you can reach the support team directly",
     )
     start_after = 0
@@ -91,13 +91,21 @@ Given the conversation between an operator and the AI support agent, produce a s
 RULES:
 - Be factual and concise. No filler language.
 - Only include fields where information is available in the conversation.
-- The "Steps Attempted" should list what troubleshooting the agent recommended.
+- The ISSUE and EQUIPMENT fields must ONLY contain information the OPERATOR explicitly stated.
+  Do NOT infer root causes, equipment types, or technical details from the Agent's troubleshooting
+  suggestions or knowledge base content. If the operator only said "everything is offline", the
+  issue is "everything is offline" — do not add causes the operator never mentioned.
+- STEPS ATTEMPTED must ONLY list steps that the AGENT explicitly recommended in the conversation.
+  Do NOT infer or invent steps from general knowledge.
+- If SEVERITY is Critical (entire location offline) and the agent did NOT offer any troubleshooting
+  steps in this incident, set STEPS ATTEMPTED to "None — immediate escalation (entire location offline)".
 - The "Outcome" should state what the operator reported after trying those steps.
 
 OUTPUT FORMAT (plain text, no markdown):
-ISSUE: [1-2 sentence description of the problem]
-EQUIPMENT: [Machine type, ID, position, location if mentioned — or "Not specified"]
-STEPS ATTEMPTED: [Bullet list of troubleshooting steps offered]
+ISSUE: [1-2 sentence description of the problem using ONLY the operator's own words]
+LOCATION: [Laundromat name, site, or address if the operator mentioned it — or "Not specified"]
+EQUIPMENT: [Machine type, ID, or position if the operator mentioned it — or "Not specified"]
+STEPS ATTEMPTED: [Bullet list of troubleshooting steps the agent offered, or "None" if immediate escalation]
 OUTCOME: [What the operator reported — still down, didn't work, etc.]
 SEVERITY: [Critical (entire location offline) OR Standard (single/few machines)]
 """
@@ -110,7 +118,7 @@ def _generate_escalation_summary(messages, blast_radius: str | None = None) -> s
 
     boundary_markers = (
         "glad to hear the issue is resolved",
-        "critical escalation ticket",
+        "escalation ticket",
         "no problem. if you need further assistance, you can reach the support team directly",
     )
     start_after = 0
@@ -125,16 +133,39 @@ def _generate_escalation_summary(messages, blast_radius: str | None = None) -> s
     for msg in relevant_messages:
         if not msg.content or not str(msg.content).strip():
             continue
-        role = "Operator" if msg.type == "human" else "Agent"
-        conversation_text.append(f"{role}: {msg.content.strip()}")
+        content = msg.content.strip()
+        if msg.type == "human":
+            conversation_text.append(f"Operator: {content}")
+        elif msg.type == "ai":
+            # Condense long KB/RAG troubleshooting dumps to reduce hallucination
+            # of ISSUE/EQUIPMENT, while preserving enough for STEPS ATTEMPTED.
+            if len(content) > 300 and content.count("\n") > 3:
+                lines = content.split("\n")
+                kept: list[str] = []
+                for ln in lines:
+                    stripped = ln.strip()
+                    if not stripped:
+                        continue
+                    kept.append(stripped)
+                    if len(kept) >= 5:
+                        break
+                condensed = "; ".join(kept)
+                conversation_text.append(f"Agent (troubleshooting): {condensed}")
+            else:
+                conversation_text.append(f"Agent: {content}")
 
     if not conversation_text:
-        return "ISSUE: Unknown issue\nEQUIPMENT: Not specified\nSTEPS ATTEMPTED: None\nOUTCOME: Unknown\nSEVERITY: Standard"
+        return "ISSUE: Unknown issue\nLOCATION: Not specified\nEQUIPMENT: Not specified\nSTEPS ATTEMPTED: None\nOUTCOME: Unknown\nSEVERITY: Standard"
 
     severity_hint = "Critical (entire location offline)" if blast_radius == "entire_location" else "Standard (single/few machines)"
+    troubleshooting_skipped = blast_radius == "entire_location" and not any(
+        line.startswith("Agent (troubleshooting):")
+        for line in conversation_text
+    )
     user_input = (
         f"CONVERSATION:\n" + "\n".join(conversation_text[-20:]) +
-        f"\n\nSEVERITY CONTEXT: {severity_hint}"
+        f"\n\nSEVERITY CONTEXT: {severity_hint}" +
+        (f"\nNOTE: Troubleshooting was skipped — immediate escalation for entire location." if troubleshooting_skipped else "")
     )
 
     try:
@@ -145,11 +176,32 @@ def _generate_escalation_summary(messages, blast_radius: str | None = None) -> s
         ])
         summary = response.content.strip()
         if summary:
+            summary = _postprocess_summary(summary, blast_radius)
             return sanitize_outbound_text(summary)
     except Exception as exc:
         _logger.warning("LLM escalation summary failed, falling back to heuristic: %s", exc)
 
     return sanitize_outbound_text(_extract_escalation_context(messages))
+
+
+def _postprocess_summary(summary: str, blast_radius: str | None) -> str:
+    """Fix LLM summary inconsistencies that the prompt alone can't prevent."""
+    lines = summary.split("\n")
+    fixed: list[str] = []
+    for line in lines:
+        upper = line.strip().upper()
+        # STEPS: strip "entire location offline" text from non-entire-location tickets.
+        if upper.startswith("STEPS ATTEMPTED:") and blast_radius != "entire_location":
+            if "entire location" in line.lower():
+                line = "STEPS ATTEMPTED: None"
+        # SEVERITY: force correct value based on actual blast_radius.
+        if upper.startswith("SEVERITY:"):
+            if blast_radius == "entire_location":
+                line = "SEVERITY: Critical (entire location offline)"
+            else:
+                line = "SEVERITY: Standard (single/few machines)"
+        fixed.append(line)
+    return "\n".join(fixed)
 
 
 def _get_prior_assistant_content(messages) -> str | None:
@@ -160,15 +212,7 @@ def _get_prior_assistant_content(messages) -> str | None:
 
 
 def _user_indicates_resolved(text: str) -> bool:
-    lower = text.lower()
-    return any(
-        marker in lower
-        for marker in (
-            "resolved", "fixed it", "fixed", "all good", "working now", "now working",
-            "working fine", "working again", "back up", "back online", "back to normal",
-            "up and running", "issue is fixed", "problem solved",
-        )
-    )
+    return _is_resolution_message(text)
 
 
 def _format_conversation_for_email(messages) -> str:
@@ -215,23 +259,41 @@ def escalation_node(state: AgentState):
     name, email, phone = _resolve_operator_contact(state)
     ticket_number = f"TKT-{uuid.uuid4().hex[:8].upper()}"
 
-    NotificationService.send_escalation(
+    is_critical = blast_radius == "entire_location"
+    result = NotificationService.send_escalation(
         ticket_id=ticket_number,
         name=name,
         email=email,
         phone=phone,
         conversation=conversation,
         summary=structured_summary,
+        is_critical=is_critical,
     )
 
+    # Accumulate ticket IDs across the session so resolve/summary nodes can reference them.
+    existing_tickets = list(state.get("dispatched_tickets") or [])
+    existing_tickets.append(ticket_number)
+
+    # Permanent append-only list for summary node (never removed from).
+    all_tickets = list(state.get("all_session_tickets") or [])
+    all_tickets.append(ticket_number)
+
+    existing_email_ids = dict(state.get("ticket_email_ids") or {})
+    if result.message_id:
+        existing_email_ids[ticket_number] = result.message_id
+
     short_issue = structured_summary.split("\n")[0].replace("ISSUE: ", "") if structured_summary else "Unknown issue"
+    severity_word = "critical " if is_critical else ""
     response_content = (
-        f'A critical escalation ticket ({ticket_number}) has been created and dispatched '
+        f'A {severity_word}escalation ticket ({ticket_number}) has been created and dispatched '
         f'to the on-call technician. They will contact you shortly regarding: "{short_issue}"'
     )
     return {
         "messages": [AIMessage(content=response_content)],
         "escalation_dispatched": True,
+        "dispatched_tickets": existing_tickets,
+        "all_session_tickets": all_tickets,
+        "ticket_email_ids": existing_email_ids,
         "extracted_entities": {
             "troubleshooting_done": True,
             "blast_radius_asked": False,
@@ -374,16 +436,64 @@ def troubleshoot_first_node(state: AgentState):
 
 
 def escalation_resolved_node(state: AgentState):
-    # Route to resolution response since initial troubleshooting resolved the system issue.
-    # Reset all workflow flags so subsequent messages are treated as fresh conversations
-    # rather than being trapped in the completed workflow's state.
+    """Resolves one or all open escalation tickets. If the user mentions a specific
+    ticket ID (TKT-XXXX), resolves that one; if multiple tickets exist and no ID is
+    specified, asks the user which one to resolve."""
+    import re as _re
 
-    # If an escalation ticket was dispatched, notify the team that the issue is now resolved.
-    if state.get("escalation_dispatched"):
+    messages = state.get("messages", [])
+    dispatched = list(state.get("dispatched_tickets") or [])
+    latest_text = messages[-1].content if messages else ""
+
+    ticket_match = _re.search(r"TKT-[A-F0-9]+", latest_text, _re.IGNORECASE)
+    resolved_ticket = ticket_match.group(0).upper() if ticket_match else None
+
+    # "all" explicitly resolves every open ticket
+    _resolves_all = latest_text.strip().lower() in ("all", "all of them", "all tickets", "resolve all")
+
+    # Multi-ticket disambiguation: ask which ticket to resolve
+    if not resolved_ticket and not _resolves_all and len(dispatched) > 1:
         entities = state.get("extracted_entities") or {}
-        ticket_id = entities.get("escalation_ticket_id", "")
-        issue_context = _extract_escalation_context(state.get("messages", []))
-        NotificationService.send_resolution(ticket_id=ticket_id, issue_summary=issue_context)
+        if not entities.get("ticket_resolution_asked"):
+            ticket_list = "\n".join(f"- {tid}" for tid in dispatched)
+            msg = AIMessage(content=(
+                f"You have {len(dispatched)} open tickets:\n{ticket_list}\n\n"
+                "Which ticket is resolved? You can say the ticket number, or 'all' to resolve everything."
+            ))
+            return {
+                "messages": [msg],
+                "extracted_entities": {"ticket_resolution_asked": True},
+            }
+
+    issue_context = _extract_escalation_context(messages)
+    email_ids = state.get("ticket_email_ids") or {}
+
+    if resolved_ticket and resolved_ticket not in dispatched:
+        open_list = ", ".join(dispatched) if dispatched else "none"
+        msg = AIMessage(content=(
+            f"Ticket {resolved_ticket} is not in your open tickets — it may already be resolved. "
+            f"Your open tickets are: {open_list}."
+        ))
+        return {"messages": [msg]}
+
+    if dispatched:
+        if resolved_ticket and resolved_ticket in dispatched:
+            NotificationService.send_resolution(
+                ticket_id=resolved_ticket,
+                issue_summary=issue_context,
+                original_message_id=email_ids.get(resolved_ticket),
+            )
+            dispatched.remove(resolved_ticket)
+        else:
+            for tid in dispatched:
+                NotificationService.send_resolution(
+                    ticket_id=tid,
+                    issue_summary=issue_context,
+                    original_message_id=email_ids.get(tid),
+                )
+            dispatched = []
+
+    still_active = bool(dispatched)
 
     msg = AIMessage(content="Glad to hear the issue is resolved! Let me know if there is anything else I can help you with.")
     return {
@@ -395,11 +505,46 @@ def escalation_resolved_node(state: AgentState):
             "blast_radius_asked": False,
             "clarify_asked": False,
             "escalation_ticket_id": None,
+            "ticket_resolution_asked": False,
         },
         "blast_radius": None,
         "escalation_required": None,
         "troubleshooting_failed": None,
-        "escalation_dispatched": None,
+        "escalation_dispatched": True if still_active else None,
+        "dispatched_tickets": dispatched if still_active else None,
+    }
+
+
+def troubleshoot_success_node(state: AgentState):
+    """Acknowledges that troubleshooting resolved the current issue (no ticket was created).
+
+    Unlike escalation_resolved_node, this does NOT resolve any open tickets — it only
+    resets the troubleshooting workflow state.  If there are open tickets from prior
+    escalations, it appends a reminder so the operator is aware.
+    """
+    dispatched = list(state.get("dispatched_tickets") or [])
+
+    response = "Glad to hear the issue is resolved! Let me know if there is anything else I can help you with."
+    if dispatched:
+        ticket_list = "\n".join(f"- {tid}" for tid in dispatched)
+        response += (
+            f"\n\nYou still have the following open tickets:\n{ticket_list}\n\n"
+            "If any of these are also resolved, just let me know the ticket number."
+        )
+
+    return {
+        "messages": [AIMessage(content=response)],
+        "extracted_entities": {
+            "troubleshooting_done": False,
+            "troubleshooting_failed": False,
+            "blast_radius": None,
+            "blast_radius_asked": False,
+            "clarify_asked": False,
+        },
+        "blast_radius": None,
+        "escalation_required": None,
+        "troubleshooting_failed": None,
+        "escalation_dispatched": True if dispatched else None,
     }
 
 
@@ -475,20 +620,10 @@ _TOOL_SYSTEM_PROMPT = (
     "end_date in YYYY-MM-DD format. If no dates are mentioned, omit them — the tool defaults to a "
     "rolling 6-month window. ALWAYS prefer the operator's explicit dates over the default.\n\n"
 
-    "CRITICAL REFUND RULE: If the user asks for a refund on any transaction, you MUST follow this "
-    "exact 3-step sequential workflow. Do NOT skip or reorder any step:\n\n"
-    "  STEP 1 — Call get_transaction_history with the user's loyalty card number to retrieve recent "
-    "transactions. If the operator specified a date range, include start_date and end_date. "
-    "Each transaction line includes its ID in the format [ID:xxxx]. Identify the "
-    "transactionDetailId for the transaction the user wants refunded. If the user has not provided "
-    "a card number, ask for it before proceeding.\n\n"
-    "  STEP 2 — Call check_refund_eligibility with that transactionDetailId. Parse the result:\n"
-    "    - If the result says 'IS eligible': inform the user and proceed to Step 3.\n"
-    "    - If the result says 'is NOT eligible': inform the user of the reason and STOP. "
-    "Do NOT call execute_refund under any circumstances if eligibility is false.\n\n"
-    "  STEP 3 — ONLY if Step 2 confirmed eligibility: call execute_refund with the same "
-    "transactionDetailId. Report the refund confirmation message and receipt number "
-    "(e.g. REF-998877) back to the user.\n\n"
+    "REFUND RULE: This agent does NOT process refunds. If the operator asks to refund a transaction, "
+    "do NOT call any refund tools. Guide them to submit the refund request on the SpyderWash portal. "
+    "Use KB/Bible guidance when available. You may still look up transaction history (including "
+    "refunded history via include_refunds) as read-only support.\n\n"
 
     "REMOTE DEVICE RULE: The send_remote_device_command tool performs a DESTRUCTIVE action "
     "(reboot or card dispense). You MUST follow a 2-step confirmation flow:\n"
@@ -506,6 +641,9 @@ _TOOL_SYSTEM_PROMPT = (
     "  - Order type (order_type): 'all orders' = 1, 'sales only' or 'sale' = 2, 'WDF and PUD' = 3. Default: 1.\n"
     "  - Customer type (account_type): 'all customers' = 1, 'commercial' or 'commercial only' = 2, "
     "'non-commercial' or 'residential' = 3. Default: 1.\n"
+    "  - Card number (card_no): If the user mentions a card number — even in masked format like "
+    "'--****-1234', 'XXXX1234', 'ending in 1234', or 'last 4: 1234' — extract the last 4 digits "
+    "and pass them as card_no. This ensures only that card's transactions are returned.\n"
     "  If the operator does not specify these filters, use the defaults (17, 1, 1). "
     "Always require a date range — ask the operator if not provided.\n\n"
 
@@ -538,12 +676,9 @@ def tool_node(state: AgentState):
     Tool_Node: Executes tools via a ReAct-style loop until the LLM produces
     a plain-text response (no more tool_calls).
 
-    WHY A LOOP: The refund workflow requires sequential tool calls:
-      get_transaction_history → check_refund_eligibility → execute_refund
-    A single-shot implementation (invoke → tool → summarize) causes the
-    "summarize" LLM call to itself return tool_calls=[...] for the next step.
-    That AIMessage gets persisted to state WITHOUT a ToolMessage response,
-    causing OpenAI 400 errors on subsequent turns.
+    WHY A LOOP: Some workflows require sequential tool calls (e.g. confirm then
+    send_remote_device_command). A single-shot implementation can leave AIMessages
+    with tool_calls persisted without ToolMessages, causing API errors on later turns.
 
     The loop guarantees that every AIMessage with tool_calls is ALWAYS
     followed by its ToolMessages before the next LLM call — maintaining a
@@ -639,7 +774,6 @@ def tool_node(state: AgentState):
         },
         "blast_radius": None,
         "troubleshooting_failed": None,
-        "escalation_dispatched": None,
     }
 
 
@@ -666,13 +800,22 @@ def route_after_classifier(state: AgentState) -> str:
     messages = state.get("messages", [])
     _last_text = messages[-1].content.strip().lower() if messages else ""
 
-    if entities.get("escalation_confirmation_asked") and not state.get("escalation_dispatched"):
+    if entities.get("escalation_confirmation_asked"):
         _confirm_positive = {"yes", "yeah", "yep", "yup", "ya", "yaa", "y", "si", "sí", "sure", "please", "ok", "okay"}
         _confirm_negative = {"no", "nope", "nah", "n", "cancel", "nevermind"}
         _confirm_phrases_yes = ("yes please", "go ahead", "escalate", "please escalate", "do it")
         _confirm_phrases_no = ("no thanks", "i'll call", "ill call", "contact them myself", "no need", "no,", "no.")
-        # Strip punctuation from words for reliable matching (e.g., "no," → "no")
-        _cleaned_words = {w.rstrip(".,!?;:") for w in _last_text.split()}
+        # Strip punctuation and trailing letters from words for typo tolerance
+        # (e.g., "no," → "no", "yese" → "yes", "yess" → "yes")
+        _cleaned_words = set()
+        for w in _last_text.split():
+            cleaned = w.rstrip(".,!?;:")
+            _cleaned_words.add(cleaned)
+            # Strip trailing junk letters from common yes/no typos
+            if cleaned.startswith("yes") and len(cleaned) <= 5:
+                _cleaned_words.add("yes")
+            if cleaned.startswith("no") and len(cleaned) <= 4 and cleaned not in ("none", "note", "norm"):
+                _cleaned_words.add("no")
         if (
             _cleaned_words & _confirm_positive
             or any(phrase in _last_text for phrase in _confirm_phrases_yes)
@@ -684,6 +827,11 @@ def route_after_classifier(state: AgentState) -> str:
         ):
             return "escalation_declined"
         return "confirm_escalation"
+
+    # Ticket disambiguation follow-up: the user was asked "Which ticket is resolved?"
+    # and is now providing a ticket ID or "all". Route back to escalation_resolved.
+    if entities.get("ticket_resolution_asked"):
+        return "escalation_resolved"
 
     # Mid-workflow interruption guard: if the outage workflow is active (troubleshooting_done
     # or blast_radius_asked) and the user sends gibberish/greeting/off-topic, re-prompt.
@@ -731,12 +879,23 @@ def route_after_classifier(state: AgentState) -> str:
 
     messages = state.get("messages", [])
     prior_ai = _get_prior_assistant_content(messages)
-    if prior_ai and any(
+
+    # Post-escalation routing: check BOTH the state flag AND prior message content
+    # to catch resolution/new-issue messages after a ticket was dispatched.
+    _escalation_active = state.get("escalation_dispatched")
+    _prior_mentions_ticket = prior_ai and any(
         marker in prior_ai.lower()
-        for marker in ("critical escalation ticket", "already been dispatched")
-    ):
+        for marker in ("critical escalation ticket", "already been dispatched", "escalation ticket", "dispatched to the on-call")
+    )
+    if _escalation_active or _prior_mentions_ticket:
+        import re as _re_route
         latest = messages[-1].content if messages else ""
         if _user_indicates_resolved(latest):
+            return "escalation_resolved"
+        # A bare ticket ID (or ticket ID with resolution text) means the operator
+        # is resolving a specific ticket — route to the resolve node.
+        _has_open_tickets = bool(state.get("dispatched_tickets"))
+        if _has_open_tickets and _re_route.search(r"TKT-[A-F0-9]+", latest, _re_route.IGNORECASE):
             return "escalation_resolved"
         # Allow API-action intents (balance, transactions, refund, status) to proceed
         # normally — operators shouldn't be trapped after escalation for unrelated actions.
@@ -745,12 +904,31 @@ def route_after_classifier(state: AgentState) -> str:
         # Allow new issue reports to start a fresh cycle instead of trapping them.
         if intent in _ESCALATION_WORKFLOW_INTENTS and len(latest.split()) >= 3:
             return "new_issue_after_escalation"
+        # Allow non-outage intents to proceed to their normal nodes instead of trapping,
+        # but only when the message is substantive (>3 words) — short ambiguous text
+        # like "wait yes" should still get the ack reminder.
+        if intent == "conversation_summary":
+            return "summarize"
+        _passthrough_intents = {"general_query", "technical_support", "greeting", "out_of_domain"}
+        if intent in _passthrough_intents and len(latest.split()) > 3:
+            if intent == "greeting":
+                return "greeting"
+            if intent == "out_of_domain":
+                return "out_of_domain"
+            return "rag"
         return "post_escalation_ack"
 
-    # Post-resolution closure: after "Glad to hear..." if the user replies with a simple
-    # negative/closure ("no", "no thanks", "I'm good"), treat it as conversation end.
+    # Post-resolution closure: after "Glad to hear..." if the user replies with another
+    # ticket ID, route to escalation_resolved so they can resolve the next ticket.
     if prior_ai and "glad to hear the issue is resolved" in prior_ai.lower():
-        latest = messages[-1].content.strip().lower() if messages else ""
+        import re as _re_closure
+        latest_raw = messages[-1].content if messages else ""
+        _has_remaining = bool(state.get("dispatched_tickets"))
+        if _has_remaining and _re_closure.search(r"TKT-[A-F0-9]+", latest_raw, _re_closure.IGNORECASE):
+            return "escalation_resolved"
+        if _is_resolution_message(latest_raw) and _has_remaining:
+            return "escalation_resolved"
+        latest = latest_raw.strip().lower()
         _closure_words = {"no", "nope", "nah", "nothing", "bye", "thanks", "thank", "gracias", "adios"}
         _closure_phrases = (
             "no thanks", "no thank", "i'm good", "im good", "that's all",
@@ -761,6 +939,16 @@ def route_after_classifier(state: AgentState) -> str:
             or any(phrase in latest for phrase in _closure_phrases)
         ) and len(latest.split()) <= 5:
             return "greeting"
+
+    # Stateless resolution guard: if the user's message is clearly positive/resolved,
+    # never let it fall through to the outage or escalation paths — regardless of state.
+    # Skip when the troubleshooting_done flow is active (it has its own resolution handling).
+    _latest_user = messages[-1].content if messages else ""
+    if _is_resolution_message(_latest_user) and not entities.get("troubleshooting_done"):
+        _has_any_tickets = bool(state.get("dispatched_tickets")) or state.get("escalation_dispatched")
+        if _has_any_tickets:
+            return "escalation_resolved"
+        return "greeting"
 
     # Critical outage is a confirmed production failure — skip troubleshooting and dispatch immediately.
     # But respect the deduplication guard: don't re-escalate if already dispatched.
@@ -919,7 +1107,7 @@ def route_after_classifier(state: AgentState) -> str:
                 "yes it did", "it's working", "its working", "fixed it",
             )
             if user_words & _positive_words or any(phrase in user_text for phrase in _positive_phrases):
-                return "escalation_resolved"
+                return "troubleshoot_success"
             # Ambiguous or gibberish reply — re-prompt for a clear Yes/No.
             return "workflow_reminder"
 
@@ -987,6 +1175,7 @@ def create_agent_graph():
     workflow.add_node("clarify_issue",       clarify_issue_node)
     workflow.add_node("troubleshoot_first",  troubleshoot_first_node)
     workflow.add_node("escalation_resolved", escalation_resolved_node)
+    workflow.add_node("troubleshoot_success", troubleshoot_success_node)
     workflow.add_node("post_escalation_ack", post_escalation_ack_node)
     # Tiered escalation: asks single-machine operators to confirm before dispatching.
     workflow.add_node("confirm_escalation", confirm_escalation_node)
@@ -1015,6 +1204,7 @@ def create_agent_graph():
             "troubleshoot_first":   "troubleshoot_first",
             "clarify_issue":        "clarify_issue",
             "escalation_resolved":  "escalation_resolved",
+            "troubleshoot_success": "troubleshoot_success",
             "post_escalation_ack":  "post_escalation_ack",
             "confirm_escalation":   "confirm_escalation",
             "escalation_declined":  "escalation_declined",
@@ -1046,6 +1236,7 @@ def create_agent_graph():
     workflow.add_edge("clarify_issue",       END)
     workflow.add_edge("troubleshoot_first",  END)
     workflow.add_edge("escalation_resolved", END)
+    workflow.add_edge("troubleshoot_success", END)
     workflow.add_edge("post_escalation_ack", END)
     workflow.add_edge("confirm_escalation",  END)
     workflow.add_edge("escalation_declined", END)

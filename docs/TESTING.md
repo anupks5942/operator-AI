@@ -58,12 +58,6 @@ cp .env.example .env
 uv run uvicorn src.api.server:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Optional mock refunds:
-
-```bash
-uv run uvicorn src.api.mock_server:mock_app --port 8001 --reload
-```
-
 ### Streamlit TC1 / TC2
 
 ```bash

@@ -30,7 +30,7 @@ Current MVP choices (as implemented in this repo) vs target production stack. Se
 | Process | Port | File |
 |---------|------|------|
 | Agent API (canonical) | 8000 | [src/api/server.py](../src/api/server.py) |
-| Mock refund backend | 8001 | [src/api/mock_server.py](../src/api/mock_server.py) — refund tools only |
+| Agent API | 8000 | [src/api/server.py](../src/api/server.py) |
 | Streamlit UI | 8501 (default) | [app.py](../app.py) |
 
 ### Frontends

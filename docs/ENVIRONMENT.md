@@ -41,23 +41,13 @@ ROUTER_OPENAI_MODEL=gpt-4o-mini
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `SETOMATIC_BASE_URL` | `https://betasetomaticposwebapplication.spyderwash.com` | Live loyalty, transactions, refunds (when mock off) |
-| `MOCK_BASE_URL` | `http://localhost:8001` | Local mock server |
-| `USE_MOCK_REFUNDS` | `true` | `true` = refund tools use mock; `false` = live Setomatic |
-
-Local refund development:
+| `SETOMATIC_BASE_URL` | `https://betasetomaticposwebapplication.spyderwash.com` | Live loyalty, transactions, kiosk/POS, remote device |
 
 ```env
-USE_MOCK_REFUNDS=true
-MOCK_BASE_URL=http://localhost:8001
-```
-
-UAT/production refunds:
-
-```env
-USE_MOCK_REFUNDS=false
 SETOMATIC_BASE_URL=https://betasetomaticposwebapplication.spyderwash.com
 ```
+
+**Refunds:** No mock server and no agent-executed refund tools. Operators are guided to the SpyderWash portal via RAG/Bible (ADR-028).
 
 ---
 
@@ -116,7 +106,6 @@ Revert to client addresses before client demo — see [RUNBOOK.md](RUNBOOK.md).
 
 These accept `true`/`1`/`yes` vs `false`/`0`/`no` (case insensitive):
 
-- `USE_MOCK_REFUNDS`
 - `USE_LIVE_NOTIFICATIONS`
 
 ---

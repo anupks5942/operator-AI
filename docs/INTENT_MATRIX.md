@@ -77,7 +77,7 @@ Source: client Intent Matrix spreadsheet (Brandon), June 2026.
 | Machine Availability; live machine/port status questions | `hardware_status` | guardrail |
 | Balance Lookup | `loyalty_balance_query` | tool_node |
 | Transaction lookup / card history (normal or refunded) | `transaction_lookup` | tool_node (`isRefund` false/true) |
-| Customer Refunds | `refund_request` | tool_node |
+| Customer Refunds | `refund_request` | RAG (Bible/portal how-to) — **not** refund execute tools |
 | Global/platform outage | `system_status_check` | tool_node |
 | Portal login, pricing, activation, receipt printer, recharge failure | `technical_support` (no dedicated label) | RAG; conditional Email **not wired** |
 | Human Escalation | `escalation_request` | outage workflow |
@@ -94,7 +94,7 @@ Source: client Intent Matrix spreadsheet (Brandon), June 2026.
 | Receipt Printer Issue | `technical_support` → RAG | Add intent or map → troubleshoot + Email-only escalate |
 | Recharge Failure | `loyalty_balance_query` or RAG | Add router examples / dedicated intent |
 | Operator Portal Login, Machine Pricing, Activation Timing | RAG only | Conditional Email after KB failure |
-| Customer Refunds (Email on failure) | Tool workflow only | Email when refund API fails |
+| Customer Refunds | RAG portal guidance (Bible) | Agent does not execute refunds (ADR-028) |
 
 ---
 
@@ -110,7 +110,7 @@ Source: client Intent Matrix spreadsheet (Brandon), June 2026.
 | `out_of_domain` | refusal | No | None | None |
 | `loyalty_balance_query` | tool_node | No | None | None |
 | `transaction_lookup` | tool_node | No | None | None |
-| `refund_request` | tool_node | No | None | Email on failure (**not wired**) |
+| `refund_request` | RAG (portal guidance) | No | None | None — Bible/portal steps (ADR-028) |
 | `system_status_check` | tool_node | No | None | None |
 | `kiosk_not_responding` | RAG direct | No (user must escalate manually) | None | Email/SMS |
 | `machines_not_starting` | outage workflow | Yes | Email+SMS | Email/SMS |
@@ -142,7 +142,7 @@ Set by [router.py](../src/agent/router.py) `semantic_router`:
 | Flag | Set when | Effect |
 |------|----------|--------|
 | `hardware_lookup_attempted` | `hardware_status` | → guardrail_node |
-| `api_action_required` | loyalty, transaction, refund, system_status | → tool_node |
+| `api_action_required` | loyalty, transaction, system_status, kiosk/POS/remote | → tool_node (`refund_request` → RAG portal guidance) |
 | `escalation_required` | `emergency_store_down`, `escalation_request` (initial classification) | Enters outage workflow |
 
 Outage/hardware intents must keep all three flags **false** on first classification — graph handles escalation after `troubleshooting_done`.
@@ -169,7 +169,7 @@ RAG-only (no outage workflow): `kiosk_not_responding`, `technical_support`
 |------------------------|----------------|------------------|
 | Blast-radius question | "one machine", "entire laundromat offline" | `blast_radius` |
 | Did this resolve? | "no", "still down" | `troubleshooting_failed: true` |
-| Did this resolve? | "yes", "fixed" | `troubleshooting_failed: false` |
+| Did this resolve? | "yes", "fixed" | `troubleshooting_failed: false` → `troubleshoot_success` (not ticket resolve) |
 | Refund workflow | card number, "yes proceed" | `card_number`, `confirmation` |
 | Ticket already dispatched | any follow-up | `general_query` — no workflow restart |
 | Summarise / recap request | "summarise this chat", "recap", "tl;dr" | `conversation_summary` — honored mid-workflow |

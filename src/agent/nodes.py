@@ -183,6 +183,8 @@ _SUMMARY_SYSTEM_PROMPT = (
     "  - **Actions taken:** troubleshooting steps provided, lookups performed (balance/transactions), etc.\n"
     "  - **Tickets / refunds:** any escalation tickets dispatched or refunds processed (include IDs if present)\n"
     "  - **Current status:** resolved, escalated, or pending\n\n"
+    "IMPORTANT: If a [SYSTEM NOTE] at the end lists active escalation ticket IDs, you MUST "
+    "include ALL of them in the Tickets / refunds section. Do not omit any ticket ID.\n\n"
     "Keep it concise and factual. Only include sections that apply. Do NOT invent details "
     "that are not in the conversation. Never include full card numbers or sensitive payment data."
 )
@@ -227,6 +229,16 @@ def summarize_conversation_node(state: AgentState):
         }
 
     transcript = "\n".join(transcript_lines)
+
+    all_tickets = state.get("all_session_tickets") or []
+    open_tickets = set(state.get("dispatched_tickets") or [])
+    if all_tickets:
+        lines = []
+        for tid in all_tickets:
+            status = "OPEN" if tid in open_tickets else "RESOLVED"
+            lines.append(f"- {tid} ({status})")
+        transcript += f"\n\n[SYSTEM NOTE — All escalation tickets this session:\n" + "\n".join(lines) + "]"
+
     llm = create_chat_model(temperature=0)
     response = llm.invoke([
         {"role": "system", "content": _SUMMARY_SYSTEM_PROMPT},

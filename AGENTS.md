@@ -1,13 +1,12 @@
 # AGENTS.md — Setomatic/SpyderWash Operator AI
 
 ## Project Overview
-LangGraph-orchestrated technical support agent for SpyderWash laundromat operators. RAG over legacy manuals (PDF/DOCX), live loyalty/transaction API tools, refund workflows, global status checks, and Gregg's troubleshoot-first escalation path. Consumed by a .NET frontend (production), React (QA), and Streamlit (dev demo).
+LangGraph-orchestrated technical support agent for SpyderWash laundromat operators. RAG over manuals/Bible (PDF/DOCX/TXT), live loyalty/transaction/kiosk/POS tools, portal-guided refund help (no agent-executed refunds), global status checks, and Gregg's troubleshoot-first escalation path. Consumed by a .NET frontend (production), React (QA), and Streamlit (dev demo).
 
 ## Key Commands
 ```bash
 uv sync                                  # Install dependencies (uv is the package manager)
 uv run uvicorn src.api.server:app --host 0.0.0.0 --port 8000 --reload   # Production API
-uv run uvicorn src.api.mock_server:mock_app --port 8001 --reload      # Mock refund backend
 uv run streamlit run app.py                                                 # Streamlit dev UI
 uv run python -m unittest tests.test_outage_workflow tests.test_security -v  # Run tests
 ```
@@ -22,14 +21,13 @@ src/
     router.py   — semantic_router node: LLM intent classifier + entity extraction
     nodes.py    — RAG, guardrail, greeting, summary, PCI, and out-of-domain nodes
     graph.py    — StateGraph definition, conditional edges, escalation/tool/blast-radius nodes
-    tools.py    — LangChain @tool definitions (loyalty, transactions, refund, system status, kiosk purchases/recharges, POS transactions, remote device commands)
+    tools.py    — LangChain @tool definitions (loyalty, transactions, system status, kiosk purchases/recharges, POS transactions, remote device commands)
   api/
     server.py   — Production FastAPI app: POST /api/v1/agent/chat, GET /health
     routes.py   — Legacy /query endpoint (do NOT extend)
     schemas.py  — Legacy Pydantic schemas
-    mock_server.py — Mock refund endpoints on port 8001
   services/
-    rag_service.py    — ChromaDB + HuggingFace embeddings + retrieval chain
+    rag_service.py    — ChromaDB + OpenAI embeddings + retrieval chain
     notifications.py  — Twilio SMS + Mandrill email escalation dispatch
   utils/
     security.py  — PCI masking, sanitize_user_text, sanitize_outbound_text
@@ -45,7 +43,7 @@ Root files: `app.py` (Streamlit demo with persisted routing diagnostics sidebar)
 2. **Router → Conditional Edge → Node.** The `router` node classifies intent and sets flags; `route_after_classifier()` dispatches to the correct node. Add new intents by extending `IntentClassification` in `router.py` and the edge map in `graph.py`.
 3. **Tool node uses ReAct loop** (max 6 iterations). Every AIMessage with tool_calls MUST be followed by ToolMessages. Never single-shot the tool node.
 4. **Escalation workflow order:** blast_radius_check → clarify_issue (if vague) → troubleshoot_first → tiered escalation. `entire_location` skips troubleshoot and auto-escalates. `single_machine` failure routes to `confirm_escalation_node` (asks operator permission) before dispatching. This prevents alert fatigue on routine single-machine issues.
-5. **RAG-only intents** (`kiosk_not_responding`, `technical_support`): `api_action_required` must always be `false`. Do NOT route these to the tool node. Outage intents (`machine_down`, `machines_not_starting`, etc.) enter the outage workflow, not direct RAG.
+5. **RAG-only intents** (`refund_request`, `kiosk_not_responding`, `technical_support`): `api_action_required` must always be `false`. Do NOT route these to the tool node. Outage intents (`machine_down`, `machines_not_starting`, etc.) enter the outage workflow, not direct RAG.
 6. **Conversation summary** (`conversation_summary`): honored mid-workflow via early routing; does not reset outage state.
 7. **Out-of-domain and PCI guardrails** are static/hardcoded responses — never delegate to LLM or external APIs.
 8. **NotificationService** uses `USE_LIVE_NOTIFICATIONS` env var. Default `false` = mock/logging only.
@@ -53,8 +51,8 @@ Root files: `app.py` (Streamlit demo with persisted routing diagnostics sidebar)
 ## Configuration (src/config.py)
 - All URLs, flags, and credentials come from `.env` via `src/config.py`.
 - `LLM_PROVIDER`: `"groq"` (default) or `"openai"`. Set in `.env`.
-- `USE_MOCK_REFUNDS`: `"true"` (default) routes refund tools to localhost:8001 mock.
-- Loyalty/transaction tools always hit the live Setomatic production API regardless of mock flag.
+- **Refunds:** portal guidance only (ADR-028). No mock refund server; no agent-executed refund tools. Bible owns refund how-to content.
+- Loyalty/transaction/kiosk/POS tools always hit the live Setomatic API.
 
 ## State Management
 - `MemorySaver` (in-process, not durable). Thread memory keyed by `session_id` / `thread_id`.
@@ -92,7 +90,7 @@ Full docs in `docs/`. Key files for agents making changes:
 - `docs/ARCHITECTURE.md` — system design
 - `docs/ESCALATION_WORKFLOW.md` — Gregg's outage workflow (TC1/TC2)
 - `docs/INTENT_MATRIX.md` — Brandon matrix → router intent mapping
-- `docs/SETOMATIC_BACKEND_APIS.md` — final Setomatic POS API scope: 7 APIs (4 core + 3 future platform)
+- `docs/SETOMATIC_BACKEND_APIS.md` — Setomatic API scope: balance + transactions + kiosk/POS; refunds = portal guidance (no agent execute)
 - `docs/ENVIRONMENT.md` — all env var descriptions
 - `docs/API.md` — REST contract for integrators
 - `docs/DECISIONS.md` — architectural decision records

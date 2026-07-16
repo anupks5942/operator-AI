@@ -28,6 +28,12 @@ class AgentState(TypedDict):
     troubleshooting_failed:    Optional[bool]
     # Set True when escalation_node dispatches email/SMS for this session turn.
     escalation_dispatched:     Optional[bool]
+    # Accumulates every TKT-… created during this session so resolve/summary nodes can reference them.
+    dispatched_tickets:        Optional[list]
+    # Maps TKT-… → email Message-ID so resolve emails can thread as replies.
+    ticket_email_ids:          Optional[dict]
+    # Append-only list of every TKT-… created this session (never removed from).
+    all_session_tickets:       Optional[list]
     # Operator contact info passed from the frontend API (optional).
     operator_id:               Optional[int]
     operator_name:             Optional[str]

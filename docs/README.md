@@ -75,12 +75,12 @@ Root [README.md](../README.md) — install and run commands. Copy [`.env.example
 | **Phase 3+ infra** | **infra vendor** (Rackspace deploy, vector DB) |
 | **QA UI** | **dev2** — React for QA/UAT only |
 | **Prod UI** | .NET Super Admin portal (Setomatic frontend team) |
-| **Refund APIs** | Not ready on beta — use mock `:8001` |
+| **Refunds** | Portal-guided only (ADR-028); mock server removed |
 | **Auth contract** | TBD — backend web chat not started |
 | **`operator_id` in tools** | Hardcoded `4` — Phase 1 fix |
 | **SpyderWash Bible** | ~500 pages (Brandon mail); manual RAG ingest — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md), [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
 | **KB Admin / feedback loop** | Brandon prototype — Phase 5 — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
-| **Operator videos** | Not in RAG; strategy TBD (transcripts vs links) — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
+| **Operator videos** | Option B: YouTube URLs in Bible sections (not transcript RAG) — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 | **Production hosting** | Rackspace preferred (alongside SpyderWash FE/BE) — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 
 See [ROADMAP.md](ROADMAP.md) for full blocker table.

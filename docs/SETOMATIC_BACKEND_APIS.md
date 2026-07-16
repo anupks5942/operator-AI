@@ -17,29 +17,24 @@
 | # | API | Endpoint | Purpose | Description | Status | Notes for Backend |
 |---|-----|----------|---------|-------------|--------|-------------------|
 | 1 | Loyalty Balance API | `GET /api/Transactions/CheckLoyaltyCardBalance` | Fetch loyalty card balance | Returns current balance, bonus balance, and total used amount for a loyalty card number scoped to an operator. Agent sends `OperatorId` + `LoyaltyCardNo`. | **DONE** | |
-| 2 | Transaction Search API | `GET /api/Transactions/ViewAllTransactionSearch` | Search & fetch transactions | Returns a paginated list of transactions filtered by card number, date range, refund status, location, and amount. Agent sends `LoggedInUserId`, `LoyaltyCardNo`, `StartDate`, `EndDate`, `PageNo`, `PageSize`, `isRefund`, `IsFundAmountUsed`. Default 5 records/page with "show more" continuation. Each result must include `transactionDetailId` (required for refund flow; hidden from operator display). | **DONE** | |
-| 3 | Refund Validation API | `GET /api/Transactions/RefundEligibility` | Validate refund eligibility | Checks if a specific transaction is eligible for refund (e.g., within 30-day window, not already refunded). Returns eligibility status (`isEligible`) and reason. Agent sends `transactionDetailId` + `OperatorId`. | | |
-| 4 | Refund Transaction API | `GET /api/Transactions/RefundProcessing` | Execute refund | Processes the actual refund for a validated transaction. Returns a refund receipt identifier. Agent sends `transactionDetailId` + `OperatorId`. Must only succeed after `RefundEligibility` confirmed `isEligible=true`. | | |
+| 2 | Transaction Search API | `GET /api/Transactions/ViewAllTransactionSearch` | Search & fetch transactions | Returns a paginated list of transactions filtered by card number, date range, refund status, location, and amount. Agent sends `LoggedInUserId`, `LoyaltyCardNo`, `StartDate`, `EndDate`, `PageNo`, `PageSize`, `isRefund`, `IsFundAmountUsed`. Default 5 records/page with "show more" continuation. `transactionDetailId` kept internal only (not shown to operators). | **DONE** | |
 
 ---
 
-## How the Agent Uses These 4 APIs
+## Refund policy (Brandon — Jul 13, 2026) — NO agent-executed refunds
 
-The agent has a strict 3-step sequential refund workflow. Steps cannot be skipped or reordered.
+Backend stated that live refund processing needs many payment-gateway parameters and is too complex/risky for the chat agent. **Brandon approved** the following approach:
 
-```
-Step 1: get_transaction_history  →  ViewAllTransactionSearch
-        Fetches recent transactions for a loyalty card.
-        Each row includes a transactionDetailId.
+> The agent must **only guide** operators with instructions to process a refund on the **SpyderWash portal**. The agent must **not** call refund APIs or execute refunds itself (avoids wrong-transaction refunds).
 
-Step 2: check_refund_eligibility →  RefundEligibility
-        Validates whether that transactionDetailId can be refunded.
-        If isEligible=false → agent tells the operator and STOPS.
+| Decision | Detail |
+|----------|--------|
+| Agent role | RAG / Bible guidance → portal steps for refund submission |
+| Agent must NOT | Call `RefundEligibility` / `RefundProcessing` or any refund execute tools |
+| KB source | Bible will include refund-request instructions — **Brandon owns KB content**; Chetu must not invent portal how-to docs |
+| Code | Refund execute tools and mock `:8001` server **removed** from the repo |
 
-Step 3: execute_refund           →  RefundProcessing
-        ONLY called if Step 2 returned isEligible=true.
-        Returns refundReceipt number to the operator.
-```
+`ViewAllTransactionSearch` with `isRefund=true` may still be used to **look up** refunded transaction history (read-only). That is not the same as processing a refund.
 
 Balance lookups (`CheckLoyaltyCardBalance`) are independent — called whenever an operator asks about a card balance. The agent also uses this API to pre-validate that a card exists before fetching transactions.
 
@@ -66,7 +61,7 @@ These are code changes on our side, not new APIs for the backend team:
 | 5 | Kiosk Purchases API | `GET /api/Kiosk/GetKioskPurchasedLoyaltyCarddetails` | Fetch kiosk card purchase records | Returns loyalty cards purchased/sold at kiosks within a date range. Filters by UserId, date range, location, IMEI. API returns all records; agent paginates client-side (5/page). | **DONE** | Agent tool: `get_kiosk_purchases` |
 | 6 | Kiosk Recharges API | `GET /api/Kiosk/GetKioskLoyaltyCardRechargedetails` | Fetch kiosk card recharge records | Returns loyalty cards recharged/topped-up at kiosks within a date range. Same filters as purchases. API returns all records; agent paginates client-side (5/page). | **DONE** | Agent tool: `get_kiosk_recharges` |
 | 7 | Remote Device Command API | `POST /api/Kiosk/SendCommondToRemoteDevice` | Send remote command to kiosk device | Sends a 'Reboot' or 'Dispense' command to a target device. Dispense requires amount > 0. Agent uses 2-step confirmation flow before execution. | **DONE** | Agent tool: `send_remote_device_command` |
-| 8 | POS Transaction Report API | `GET /api/POS/GetPOSTransactionReport` | Fetch POS transaction/order data | Returns POS transactions filtered by date range, CardCode (17=Loyalty/19=Credit/20=Cash), OrderType (1=All/2=Sale/3=WDF-PUD), AccountType (1=All/2=Commercial/3=Non-commercial). Optional: CardNo, LocationId, POSID. API returns all records; agent paginates client-side (5/page). | **DONE** | Agent tool: `get_pos_transactions` |
+| 8 | POS Transaction Report API | `GET /api/POS/GetPOSTransactionReport` | Fetch POS transaction/order data | Returns POS transactions filtered by date range, CardCode (17=Loyalty/19=Credit/20=Cash), OrderType (1=All/2=Sale/3=WDF-PUD), AccountType (1=All/2=Commercial/3=Non-commercial). Optional: CardNo, LocationId, POSID. API returns all records; agent paginates client-side (5/page). When a card filter is provided (including masked last-4), agent also filters client-side so unmatched cards never show another card's rows. | **DONE** | Agent tool: `get_pos_transactions` |
 
 ---
 
@@ -103,7 +98,7 @@ These were in the original `API_Requirements.docx` but are **not needed** by the
 | API | Reason |
 |-----|--------|
 | Operator Profile API | Portal already sends `operator_id`, `operator_name`, `operator_email`, `operator_phone` in every chat request. |
-| Role / Permission API | Backend should enforce permissions on its own refund APIs. Portal controls which operators access the chatbot. |
+| Role / Permission API | Portal controls which operators access the chatbot. Refunds are portal-owned (not agent APIs). |
 | Operator Details API | Portal has operator account data. Agent doesn't need a separate lookup. |
 | Location List / Details APIs | Portal has location data. Agent answers location/pricing questions via RAG from operator manuals. |
 
@@ -114,8 +109,9 @@ These were in the original `API_Requirements.docx` but are **not needed** by the
 | Transaction Details API | `ViewAllTransactionSearch` already returns `transactionDetailId`, datetime, amount, type, and location per row. |
 | Transaction Status API | Transaction state is included in `ViewAllTransactionSearch` results. |
 | Transaction History API | Same endpoint as `ViewAllTransactionSearch` — redundant. |
-| Refund Status API | Refund result is returned in real-time during the same session. `ViewAllTransactionSearch` with `isRefund=true` shows completed refunds. |
-| Refund History API | `ViewAllTransactionSearch` with `isRefund=true` already returns refunded transactions. |
+| Refund Eligibility / Processing APIs | **Not required for the agent** — Brandon approved portal-guided refunds only (Jul 2026). |
+| Refund Status API | Operators track refunds on the portal. Agent may show refund history via `ViewAllTransactionSearch` (`isRefund=true`) as read-only lookup. |
+| Refund History API | `ViewAllTransactionSearch` with `isRefund=true` already returns refunded transactions (read-only). |
 | Loyalty Card Lookup API | `CheckLoyaltyCardBalance` returns data for valid cards and empty for invalid ones — sufficient for card validation. |
 | Loyalty Transaction History API | Redundant with `ViewAllTransactionSearch` filtered by `LoyaltyCardNo`. |
 
@@ -144,9 +140,9 @@ These were in the original `API_Requirements.docx` but are **not needed** by the
 
 | Tier | APIs | Done | To Build |
 |------|------|------|----------|
-| Tier 1 — Core Agent | 4 | 2 | **2** |
+| Tier 1 — Core Agent (balance + transaction search) | 2 | 2 | **0** |
 | Tier 1B — Kiosk & POS (July 2026) | 4 | 4 | 0 |
 | Tier 2 — Future Platform (Phase 5) | 3 | 0 | 3 |
-| **Total** | **11** | **6** | **5** |
+| **Total** | **9** | **6** | **3** |
 
-**Immediate action for backend team:** Deliver `RefundEligibility` and `RefundProcessing` on beta. Once ready, agent switches from mock server to live (`USE_MOCK_REFUNDS=false`) and refund workflow is fully operational.
+**Refunds:** No agent refund APIs. Guide operators via Bible/RAG to the SpyderWash portal. Bible refund content owned by Brandon (Jul 13, 2026).

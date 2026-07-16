@@ -17,6 +17,7 @@ sequenceDiagram
   participant W as workflow_reminder
   participant E as escalation_node
   participant P as post_escalation_ack
+  participant TS as troubleshoot_success
   participant Res as escalation_resolved
   participant New as new_issue_after_escalation
   participant N as Notifications
@@ -35,8 +36,8 @@ sequenceDiagram
     T->>Op: KB steps + Did this resolve?
     alt Yes / y
       Op->>R: Yes
-      R->>Res: positive confirmation
-      Res->>Op: Glad to hear resolved (state reset)
+      R->>TS: troubleshooting succeeded (no ticket for this issue)
+      TS->>Op: Glad to hear resolved (+ open-ticket reminder if any)
     else Gibberish / off-topic
       Op->>R: random text
       R->>W: workflow active + out_of_domain
@@ -66,9 +67,10 @@ sequenceDiagram
     Op->>R: No / still down / gibberish
     R->>P: dedup guard
     P->>Op: Ticket already dispatched
-  else Confirms resolved
-    Op->>R: Yes / fixed
-    R->>Res: state fully reset
+  else Confirms ticket resolved
+    Op->>R: working fine / TKT-xxx resolved
+    R->>Res: resolve open ticket(s)
+    Res->>N: Resolution email (threaded reply)
     Res->>Op: Glad to hear resolved
   end
 ```
@@ -129,10 +131,12 @@ If `blast_radius == "entire_location"`: **skip troubleshooting** and route to `e
 
 | Operator reply | Blast radius | Route |
 |----------------|-------------|-------|
-| yes / fixed / resolved | any | `escalation_resolved_node` |
+| yes / fixed / resolved | any | `troubleshoot_success_node` (not ticket resolve) |
 | no / still down / didn't work | `entire_location` | `escalation_node` (auto-escalate) |
 | no / still down / didn't work | `single_machine` | `confirm_escalation_node` (ask first) |
 | gibberish / off-topic (while workflow active) | any | `workflow_reminder_node` (re-prompts Yes/No) |
+
+**Important:** "Yes" after "Did this resolve the issue?" means **troubleshooting succeeded for the current issue** — no ticket was created for that cycle. Route to `troubleshoot_success_node`, which says "Glad to hear..." and, if prior escalations left open tickets, appends a reminder listing them. Do **not** jump straight to "Which ticket is resolved?"
 
 **Tiered escalation rationale:** Entire-location outages are inherently critical and auto-escalate. Single-machine failures are routine — the operator may prefer to call support directly or try their own fix. Asking for confirmation prevents alert fatigue (email pile-up).
 
@@ -154,11 +158,12 @@ Sets `escalation_confirmation_asked: true` in entities.
 
 **Node:** `escalation_node`
 
-1. `_generate_escalation_summary` — LLM-generated structured technical handoff summary (Issue, Equipment, Steps Attempted, Outcome, Severity). Falls back to heuristic `_extract_escalation_context` if LLM call fails.
-2. `_format_conversation_for_email` — full transcript (sanitized, PCI-masked)
-3. `_resolve_operator_contact` — from API fields (conditional: only rendered in email when real data available)
-4. `NotificationService.send_escalation` — Professional HTML email + Twilio SMS (both today; Brandon matrix targets per-intent channels — [INTENT_MATRIX.md](INTENT_MATRIX.md))
-5. Sets `escalation_dispatched: true`
+1. `_generate_escalation_summary` — LLM-generated structured technical handoff summary (Issue, Equipment, Location, Steps Attempted, Outcome, Severity). Falls back to heuristic `_extract_escalation_context` if LLM call fails.
+2. Incident window is bounded by markers including `"escalation ticket"` (matches both critical and standard ticket messages) so STEPS from a prior incident do not bleed into the new ticket.
+3. `_format_conversation_for_email` — full transcript (sanitized, PCI-masked)
+4. `_resolve_operator_contact` — from API fields (conditional: only rendered in email when real data available)
+5. `NotificationService.send_escalation` — Professional HTML email + Twilio SMS; returns `message_id` for threading
+6. Sets `escalation_dispatched: true`; appends ticket to `dispatched_tickets` (open) and `all_session_tickets` (append-only); stores email Message-ID in `ticket_email_ids`
 
 **Ticket format:** `TKT-{8 hex chars}`
 
@@ -166,7 +171,7 @@ Sets `escalation_confirmation_asked: true` in entities.
 
 **Email structure:**
 - Header: ticket ID, timestamp, severity badge (CRITICAL = red, STANDARD = orange)
-- Technical Summary: LLM-generated structured summary (Issue, Equipment, Steps, Outcome, Severity)
+- Technical Summary: LLM-generated structured summary (Issue, Equipment, Location, Steps, Outcome, Severity)
 - Operator Contact: conditional — only shown when portal sends real operator data
 - Full Transcript: complete conversation history (sanitized)
 
@@ -177,19 +182,45 @@ Sets `escalation_confirmation_asked: true` in entities.
 Once `escalation_node` fires, `escalation_dispatched: true` is set in state. This flag prevents duplicate tickets:
 
 - Any subsequent negative reply ("no", "still down") → `post_escalation_ack_node` (ticket already active)
-- "resolved" / "fixed" → `escalation_resolved_node` (clears all workflow state)
+- Resolution phrases ("working fine", "issue resolved") or a bare `TKT-…` ID → `escalation_resolved_node`
 - Gibberish / ambiguous → `post_escalation_ack_node`
-- **New issue report** (outage intent + ≥3 words) → `new_issue_after_escalation_node` (resets all state, starts fresh blast-radius cycle)
+- Substantive non-outage queries (e.g. "what is SpyderWash") → RAG / normal nodes (passthrough)
+- **New issue report** (outage intent + ≥3 words) → `new_issue_after_escalation_node` (resets workflow flags, starts fresh cycle)
 
-If assistant message contains "critical escalation ticket" or "already been dispatched":
+If assistant message contains `"escalation ticket"` or `"already been dispatched"`:
 
 - Short follow-up / ambiguous → `post_escalation_ack_node` (no blast-radius restart)
-- "resolved" / "fixed" → `escalation_resolved_node`
+- Resolution language / ticket ID → `escalation_resolved_node`
 - New descriptive issue report → fresh cycle
 
-### Step 6 — State reset on resolution
+### Step 6 — Ticket resolution (multi-ticket aware)
 
-`escalation_resolved_node` clears all workflow flags (`troubleshooting_done`, `blast_radius`, `escalation_dispatched`, `troubleshooting_failed`) so subsequent messages are treated as fresh conversations — not trapped in the completed workflow's state.
+**Node:** `escalation_resolved_node`
+
+Used when the operator confirms an **escalated ticket** is fixed (not when KB troubleshooting alone fixed the issue).
+
+| Situation | Behavior |
+|-----------|----------|
+| Multiple open tickets, no ID / no "all" | Ask: "Which ticket is resolved?" (list open tickets) |
+| Specific `TKT-…` in open list | Resolve that ticket; send threaded resolution email; remove from `dispatched_tickets` |
+| Specific `TKT-…` **not** in open list | Warn "already resolved / not open" — do **not** bulk-resolve remaining tickets |
+| Single open ticket, or operator says "all" | Resolve remaining open ticket(s); send resolution email(s) |
+
+Resolution emails use `In-Reply-To` / `References` from `ticket_email_ids` so they thread under the original escalation.
+
+### Step 7 — Troubleshoot success (no ticket for current issue)
+
+**Node:** `troubleshoot_success_node`
+
+After "Did this resolve?" → Yes:
+
+1. Reply: "Glad to hear the issue is resolved!…"
+2. If `dispatched_tickets` is non-empty, append: "You still have the following open tickets…" and invite the operator to name a ticket ID
+3. Does **not** call `send_resolution` or remove tickets
+
+### Conversation summary tickets
+
+`summarize_conversation_node` injects `all_session_tickets` (append-only) with OPEN/RESOLVED status derived from `dispatched_tickets`, so summaries include every ticket created in the session without duplicates/omissions.
 
 ---
 
@@ -201,7 +232,7 @@ If assistant message contains "critical escalation ticket" or "already been disp
 |------|---------------|----------|
 | 1 | My washer won't start. | Blast-radius question |
 | 2 | Just one machine. | KB troubleshooting + "Did this resolve?" |
-| 3 | Yes, that fixed it. | "Glad to hear..." — **no** email/SMS |
+| 3 | Yes, that fixed it. | "Glad to hear..." via `troubleshoot_success` — **no** email/SMS |
 
 ### TC2 — Troubleshoot then escalate (same session as TC1)
 
@@ -251,6 +282,11 @@ Automated tests: [tests/test_outage_workflow.py](../tests/test_outage_workflow.p
 | "lc-00000212" card number fails but "00000212" works | `_normalize_card_number()` strips LC-/lc- prefixes in tools before API call |
 | "summarise this chat" mid-workflow ignored or breaks outage state | `conversation_summary` routed early to `summarize_node`; workflow flags preserved |
 | Streamlit sidebar diagnostics flash then disappear | `routing_diagnostics` persisted in `st.session_state`; rendered on every run |
+| "Yes" after troubleshoot asks "Which ticket?" when open tickets exist | `troubleshoot_success_node` acknowledges first; open-ticket reminder is secondary |
+| Escalation email STEPS from prior incident | Boundary marker is `"escalation ticket"` (covers standard + critical wording) |
+| Resolving already-resolved TKT bulk-closes others | Guard when ticket ID not in `dispatched_tickets` |
+| Summary drops/duplicates ticket IDs | `all_session_tickets` append-only list + OPEN/RESOLVED in summary system note |
+| Resolution phrases create new tickets | Stateless resolution guard + `infer_blast_radius` bails on resolution language |
 
 ---
 

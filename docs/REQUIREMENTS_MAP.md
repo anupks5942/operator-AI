@@ -50,7 +50,7 @@ These are **deliberate** gaps vs the vendor end-state doc — not oversights.
 |-------------|--------|-------------------------|
 | Customer Agent (24/7, bilingual, POS) | **N/A** | Out of scope — [PRD.md](PRD.md) §9 |
 | Operator Agent (24/7, KB-driven) | **Partial** | LangGraph + RAG + tools + escalation MVP |
-| POS / Setomatic API integration | **Partial** | 4 core APIs total: 2 done (loyalty balance, transaction search), 2 blocked (refund eligibility, refund processing) — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
+| POS / Setomatic API integration | **Partial** | Core live APIs: loyalty balance, transaction search, kiosk/POS, remote device. Refunds = portal guidance (no agent execute) — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
 | ~6 month full dual-agent timeline | **Planned** | Mapped to Phase 0–5 — not a committed calendar in this repo |
 
 ---
@@ -119,7 +119,7 @@ These are **deliberate** gaps vs the vendor end-state doc — not oversights.
 | Vector DB | **Partial** | Chroma MVP; Qdrant Phase 3 |
 | Continuous ingestion pipeline | **Planned** | Phase 3 Rackspace → ingest job |
 | **Bible embedded images** | **Planned** | Text-only ingest today — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) § Bible images |
-| Operator videos | **Planned** | Strategy TBD — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
+| Operator videos | **Planned (Option B)** | YouTube URLs in Bible sections — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
 
 ### 2. Technical & system
 
@@ -149,7 +149,7 @@ These are **deliberate** gaps vs the vendor end-state doc — not oversights.
 |-------------|--------|-------|
 | Admin portal KB upload | **Deferred** | Phase 5 — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
 | Continuous learning / feedback loop | **Planned** | Brandon KB Admin — Phase 5 |
-| POS / internal tool API integration | **Partial** | 2 of 4 core APIs live (loyalty balance, transactions); refund APIs blocked on backend — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
+| POS / internal tool API integration | **Partial** | Balance + transactions + kiosk/POS live; refunds portal-guided — [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) |
 
 ---
 
@@ -173,7 +173,7 @@ These are **deliberate** gaps vs the vendor end-state doc — not oversights.
 | Topic | Options | Default for MVP | Doc |
 |-------|---------|-------------------|-----|
 | **Bible images** | Text captions / OCR at ingest / figure links / multimodal RAG | Text captions + manual ingest | [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
-| **Operator videos** | Transcripts / link-only / defer | Defer (Bible text first) | [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
+| **Operator videos** | Transcripts / section URL mapping / defer | **Option B preferred** (URL in Bible section); timeline TBD | [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md), ADR-029 |
 | **Bilingual operators** | English-only / Spanish prompts / detect language | **English-only** until product confirms | [PRD.md](PRD.md) §4c |
 | **Low-confidence escalation** | LLM confidence score / intent-only (current) | Intent + Gregg workflow | ADR-014 |
 
