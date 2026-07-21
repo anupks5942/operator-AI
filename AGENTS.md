@@ -27,7 +27,7 @@ src/
     routes.py   — Legacy /query endpoint (do NOT extend)
     schemas.py  — Legacy Pydantic schemas
   services/
-    rag_service.py    — ChromaDB + OpenAI embeddings + retrieval chain
+    rag_service.py    — Article-aware v2.2 parser + selective Bible ingest + ChromaDB + FlashRank reranking + co-retrieval
     notifications.py  — Twilio SMS + Mandrill email escalation dispatch
   utils/
     security.py  — PCI masking, sanitize_user_text, sanitize_outbound_text
@@ -65,10 +65,13 @@ Root files: `app.py` (Streamlit demo with persisted routing diagnostics sidebar)
 - Outbound text (escalation emails/SMS) is sanitized via `sanitize_outbound_text()`.
 
 ## Knowledge Base
-- `KB/` contains PDF, DOCX, and TXT source documents (SpyderWash manuals, troubleshooting guides, product overview).
+- `KB/` contains the two active KB documents: **v2.2** (171 structured articles for AI) and **Setomatic Bible** (raw troubleshooting source). v1.8 is superseded.
 - Ingested into ChromaDB at `./chroma_db/` with OpenAI `text-embedding-3-small` embeddings (configurable via `OPENAI_EMBEDDING_MODEL` env var). Delete `chroma_db/` and restart the app after adding new KB files.
-- Chunking: 500 chars / 50 overlap. MMR retrieval with k=3, fetch_k=20, lambda=0.6.
-- Metadata: `brand`, `doc_type`, `source_file`, `page` enriched per chunk.
+- **v2.2 ingestion:** Article-aware parser respects `ARTICLE START`/`ARTICLE END` boundaries. Each article = one atomic chunk with structured metadata (article_id, category, product, intent, search_terms, status, co_retrieval_ids).
+- **Bible ingestion:** Selective — only Sections 1-14 (troubleshooting). Installation/wiring content (82.5% of doc) excluded per v2.2 rules.
+- **Retrieval:** MMR k=8, fetch_k=30, lambda=0.5 → FlashRank rerank to top 4 → co-retrieval of mandatory companion articles.
+- **System prompt:** v2.2 Section 0 "AI Retrieval and Response Rules" injected into LLM prompt (not stored as chunks).
+- Metadata: `article_id`, `category`, `product`, `intent`, `search_terms`, `status`, `source_priority`, `brand`, `doc_type`, `co_retrieval_ids`.
 
 ## Testing
 - `tests/test_outage_workflow.py` — outage escalation workflow tests

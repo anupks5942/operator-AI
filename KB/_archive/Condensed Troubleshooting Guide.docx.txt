@@ -1,0 +1,258 @@
+For real-time updates on system performance, maintenance, or outages, we recommend reviewing the SpyderWash System Status Page (https://setomaticsystems.com/status) and the Cantaloupe Device and Software Status Updates (https://www.cantaloupe.com/status) page. Our YouTube Support channel (https://www.youtube.com/@SpyderWashSupport) also offers a wide range of videos, including a comprehensive self-service Troubleshooting Guide for the SpyderWash System (https://www.youtube.com/watch?v=DeHNx1HgIO8).
+
+As most issues are related to local network conditions, we have outlined the recommended steps below to help restore your system as quickly as possible.
+
+
+Section 1
+Common Error Messages
+
+
+The following messages are typically indicative of network-related issues:
+
+"No Connection"
+
+"Offline"
+
+"Network Error"
+
+These errors generally indicate that the SpyderWash Hub has lost communication with either the internet or the connected machines.
+
+Common contributing factors include:
+
+Unstable or interrupted internet service
+
+Incorrect network configuration (particularly Static IP usage)
+
+Router or firewall restrictions
+
+Faulty Ethernet cables or network ports
+
+Temporary power interruptions
+
+It is important to note that "Network Error" is a broad, generic message that may represent a variety of underlying conditions, most of which are external to the SpyderWash hardware itself.
+
+
+
+
+
+
+
+Section 2
+Network Connectivity
+
+
+Most SpyderWash-related issues originate from local network conditions rather than hardware or system outages. A stable and properly configured internet connection is essential for all transaction processing and system communication.
+
+Please verify the following:
+
+The SpyderWash Hub is connected via a direct Ethernet connection to the modem or router
+
+The internet connection is stable and not experiencing intermittent interruptions
+
+The Hub is configured with a Dynamic IP address (DHCP or PPPoE)
+
+Important: Static IP configurations are a leading cause of "No Connection," "Offline," and "Network Error" messages. If a Static IP is in use, the Hub may intermittently disconnect or fail to reconnect entirely.
+
+If your internet equipment has recently been replaced or your Internet Service Provider (ISP) has been changed, it is strongly recommended to confirm that the network has been properly configured for SpyderWash.
+
+
+
+
+
+
+Section 3
+
+Immediate Troubleshooting Steps
+
+
+Before proceeding with advanced diagnostics, please complete the following steps:
+
+Confirm that all network and power cables are securely connected
+
+Restart the modem and router, allowing sufficient time for full reboot
+
+Restart the SpyderWash Hub
+
+Perform a test transaction
+
+Following a successful reboot, card readers should display:
+
+"Profile==Acquired"
+
+If "Profile==Default" is displayed, the system has not successfully synchronized with the SpyderWash servers, which typically indicates a network or configuration issue.
+
+
+
+
+
+
+
+Section 4
+
+Restarting and Re-Pairing Procedures
+
+
+If connectivity issues persist:
+
+Restart the modem/router first, followed by the SpyderWash Hub
+
+Attempt a transaction after reboot
+
+If needed, connect the Hub to a different router port
+
+
+
+If machines are not communicating properly after a restart, re-pairing may be required.
+
+Place the SpyderWash Hub in Discovery Mode: Unplug the power cord from the Hub or electrical outlet, then plug it back in and wait for the solid light on the Hub to begin flashing.
+
+If the Hub has blue lights (2nd Generation), you must wait 90 seconds.
+
+
+If the Hub has green lights (1st Generation), you must wait 30 seconds.
+
+
+The Hub will stay in Discovery Mode for 7 minutes.
+
+Pair the SpyderWash Control Board with the Hub: Unplug the power cord or use a circuit breaker to power off both the machine and the SpyderWash Control Board. After a few seconds, power them on and observe the card reader as it initializes. You must ensure that you obtain 'HubData=Acquired' and 'Profile=Acquired'.
+
+If you see 'HubData=Default', then the SpyderWash Board did not pair with the Hub.
+
+If you see 'Profile=Default', then the SpyderWash Board was unable to reach our servers.
+
+Verify that the SpyderWash Control Board is Online: The price of the machine will be displayed on the card reader shortly after you obtain 'Profile=Acquired'. Now you can use a SpyderWash Loyalty Card or a Credit/Debit Card to perform a test transaction.
+
+
+
+If re-pairing is required:
+
+Only one Hub should be placed in Discovery Mode at a time (approximately 7 minutes)
+
+Pair machines in small groups (no more than two at a time)
+
+Confirm the reader displays:
+
+"HubData==Acquired"
+
+"Profile==Acquired"
+
+
+
+
+
+
+Section 5
+
+Hub Placement and Environmental Considerations
+
+
+Proper placement of the SpyderWash Hub is critical for reliable operation:
+
+Install Hubs on walls or columns facing outward toward machines
+
+Maintain clear line-of-sight to all connected machines (up to approximately 40 feet)
+
+Avoid installation in ceilings, back rooms, or obstructed areas
+
+Position at least 3 feet away from Wi-Fi access points (15–20 feet recommended)
+
+Avoid mounting directly on metal surfaces, which may interfere with signal quality
+
+
+
+For optimal performance:
+
+Limit each Hub to approximately 35–40 machines in high-usage environments
+
+Consider adding additional Hubs to distribute load where necessary
+
+
+
+
+
+Section 6
+
+Network Configuration Requirements
+
+
+When working with your Internet Service Provider or Network Administrator, ensure the following requirements are met:
+
+Dynamic IP configuration (DHCP or PPPoE)
+
+Outbound ports: 9353, 9354, 9355, 9356, 9363, 9364
+
+Outbound connections:
+
+204.232.133.26 on port 8394 (transaction processing)
+
+162.243.43.21 on port 22 (remote updates)
+
+TLS 1.2 encryption support
+
+No outbound firewall restrictions blocking required traffic
+
+
+Bandwidth Recommendations:
+
+Minimum: 2 Mbps download / 1 Mbps upload
+
+Recommended: 6 Mbps download / 2 Mbps upload
+
+Average Usage: 512 Kbps per device
+
+
+
+
+
+Section 7
+
+Equipment and System Considerations
+
+Older Hubs (green LEDs) may experience reduced performance; upgrading to the SpyderWash Smart Hub (blue LEDs) is recommended
+
+While hardware failures are uncommon, recurring issues tied to a specific Hub may indicate a defective unit
+
+In many cases, persistent connectivity issues can be traced to a single Hub or network segment
+
+
+
+
+
+Section 8
+
+Preventative Measures and Best Practices
+
+
+To improve long-term system reliability:
+
+Utilize battery backups (UPS) to protect against power interruptions
+
+Maintain spare network and system components for rapid replacement
+
+Consider implementing redundant internet connections for critical operations
+
+For locations with an unstable internet connection, cellular-based solutions such as OptConnect may provide enhanced stability and failover capability.
+
+
+
+
+
+
+Section 9
+
+Identifying the Issue
+
+
+To assist in further diagnosis, please gather the following details:
+
+Payment Type Affected: Loyalty Card, Credit/Debit Card, or both
+
+Card Type/Method: Tap, insert, swipe, or mobile pay
+
+Reader Model:
+
+EMV (Spyder-EMV-100)
+
+Legacy (Spyder-0T01 or Spyder-VS01)
+
+Observed Behavior: Specific error messages or transaction outcomes

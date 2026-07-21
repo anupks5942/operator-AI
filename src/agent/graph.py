@@ -16,7 +16,6 @@ from src.agent.nodes import (
 from src.agent.router import semantic_router, infer_blast_radius, _is_resolution_message
 from src.agent.tools import SETOMATIC_TOOLS
 from src.services.notifications import NotificationService
-from src.services.rag_service import RAGService
 from src.utils.security import mask_credit_cards, sanitize_outbound_text
 from src.llm import create_chat_model
 
@@ -403,10 +402,6 @@ def troubleshoot_first_node(state: AgentState):
         str(blast_radius) in ("entire_location", "entire location")
         or intent in ("emergency_store_down", "multiple_machines_offline")
     )
-    if is_entire_location and not entities.get("doc_type"):
-        entities["doc_type"] = "troubleshooting_guide"
-    if intent in ("machines_not_starting", "machine_down", "kiosk_not_responding") and not entities.get("doc_type"):
-        entities["doc_type"] = "troubleshooting_guide"
 
     # Bias location-wide outages toward hub/gateway/network KB chunks, not single-machine power steps.
     if is_entire_location:
@@ -418,7 +413,8 @@ def troubleshoot_first_node(state: AgentState):
         combined_query = f"{query} affecting {blast_radius_str}"
 
     metadata_filter = _extract_metadata_filter({**state, "extracted_entities": entities})
-    rag_service = RAGService()
+    from src.agent.nodes import get_rag_service
+    rag_service = get_rag_service()
     response = rag_service.query(combined_query, metadata_filter=metadata_filter)
     answer = response.get("answer", "Please verify local network connections and power cycle your devices.")
 
@@ -904,18 +900,31 @@ def route_after_classifier(state: AgentState) -> str:
         # Allow new issue reports to start a fresh cycle instead of trapping them.
         if intent in _ESCALATION_WORKFLOW_INTENTS and len(latest.split()) >= 3:
             return "new_issue_after_escalation"
-        # Allow non-outage intents to proceed to their normal nodes instead of trapping,
-        # but only when the message is substantive (>3 words) — short ambiguous text
-        # like "wait yes" should still get the ack reminder.
         if intent == "conversation_summary":
             return "summarize"
-        _passthrough_intents = {"general_query", "technical_support", "greeting", "out_of_domain"}
-        if intent in _passthrough_intents and len(latest.split()) > 3:
+        # Any substantive new query (>3 words) passes through to normal routing
+        # regardless of intent — operators shouldn't be trapped after escalation.
+        if len(latest.split()) > 3:
             if intent == "greeting":
                 return "greeting"
             if intent == "out_of_domain":
                 return "out_of_domain"
+            if state.get("hardware_lookup_attempted"):
+                return "guardrail"
+            if state.get("api_action_required"):
+                return "tool"
+            if intent in _ESCALATION_WORKFLOW_INTENTS:
+                return "new_issue_after_escalation"
             return "rag"
+        # Short messages: check for yes/no to "Did this resolve?" from prior RAG troubleshooting
+        if entities.get("troubleshooting_done") and intent not in _ESCALATION_WORKFLOW_INTENTS:
+            _pe_last = latest.strip().lower()
+            _pe_pos = {"yes", "yeah", "yep", "yup", "ya", "yaa", "yah", "y", "si", "sí"}
+            if _pe_last in _pe_pos or _user_indicates_resolved(latest):
+                return "troubleshoot_success"
+            _pe_neg_words = {"no", "nope", "nah"}
+            if set(_pe_last.split()) & _pe_neg_words:
+                return "confirm_escalation"
         return "post_escalation_ack"
 
     # Post-resolution closure: after "Glad to hear..." if the user replies with another
@@ -1111,6 +1120,26 @@ def route_after_classifier(state: AgentState) -> str:
             # Ambiguous or gibberish reply — re-prompt for a clear Yes/No.
             return "workflow_reminder"
 
+    # RAG-based troubleshooting follow-up: handle yes/no to "Did this resolve?"
+    # for non-outage intents (technical_support routed through RAG, not the outage workflow).
+    if (
+        entities.get("troubleshooting_done")
+        and intent not in _ESCALATION_WORKFLOW_INTENTS
+        and not state.get("escalation_dispatched")
+    ):
+        _rag_pos = {"yes", "yeah", "yep", "yup", "ya", "yaa", "yah", "y", "si", "sí"}
+        _rag_neg = {"no", "nope", "nah", "n"}
+        if _last_text in _rag_pos or _user_indicates_resolved(_last_text):
+            return "troubleshoot_success"
+        _rag_neg_words = {"no", "nope", "nah", "not", "still", "broken", "failed", "down"}
+        _rag_neg_phrases = ("not resolved", "not working", "still down", "didn't work", "same issue", "not fixed")
+        if set(_last_text.split()) & _rag_neg_words or any(p in _last_text for p in _rag_neg_phrases):
+            return "confirm_escalation"
+        if len(_last_text.split()) > 3:
+            pass  # Fall through to normal routing for unrelated new queries
+        else:
+            return "workflow_reminder"
+
     # API workflows: loyalty balance, transaction lookup, refund, system status check.
     if state.get("api_action_required"):
         return "tool"
@@ -1121,21 +1150,32 @@ def route_after_classifier(state: AgentState) -> str:
 
 
 def route_after_rag(state: AgentState) -> str:
-    # Only escalate after RAG if we're in an active troubleshooting workflow where the
-    # prior AI asked "Did this resolve?" — NOT for general RAG queries that happen to
-    # contain words like "not" or "down" (e.g., "light not blinking", "machine is down").
     entities = state.get("extracted_entities") or {}
     if not entities.get("troubleshooting_done"):
         return "__end__"
 
+    # Only intercept when the user is replying to a PRIOR "Did this resolve?"
+    # prompt. Walk backwards past the RAG AIMessage to find the AI message
+    # BEFORE the current RAG response — if that prior AI didn't ask
+    # "Did this resolve?", the current RAG just generated a fresh answer and
+    # we must show it (return __end__).
     messages = state.get("messages", [])
-    last_human_text = ""
+    human_text = ""
+    prior_ai_text = ""
+    ai_count = 0
     for msg in reversed(messages):
-        if msg.type == "human":
-            last_human_text = msg.content.lower()
-            break
+        if msg.type == "human" and not human_text:
+            human_text = msg.content.lower()
+        elif msg.type == "ai" and msg.content and str(msg.content).strip():
+            ai_count += 1
+            if ai_count == 2:
+                prior_ai_text = msg.content.lower()
+                break
 
-    user_words = set(last_human_text.split())
+    if "did this resolve" not in prior_ai_text:
+        return "__end__"
+
+    user_words = set(human_text.split())
     _negative_words = {"no", "nope", "nah", "not", "still", "broken", "failed", "offline", "down", "unresolved", "didn't", "didnt", "doesn't", "doesnt"}
     if user_words & _negative_words:
         blast_radius = state.get("blast_radius") or entities.get("blast_radius")

@@ -23,25 +23,46 @@ _BRAND_FILTER_MAP = {
     "setomatic":   "SpyderWash",
 }
 
+# Router intent → v2.2 article category mapping for metadata-boosted retrieval.
+# These map our router intents to the v2.2 METADATA category values for precise filtering.
+_INTENT_TO_CATEGORY_MAP = {
+    "machine_down": "Machines Not Working",
+    "machines_not_starting": "Machines Not Working",
+    "emergency_store_down": "Entire Store Down",
+    "multiple_machines_offline": "No Connection Error",
+    "kiosk_not_responding": "Kiosk Troubleshooting",
+    "refund_request": "Refund Request",
+    "loyalty_balance": "Loyalty Card Balance",
+    "transaction_lookup": "Transaction Lookup",
+    "technical_support": "No Connection Error",
+}
+
+
 def _extract_metadata_filter(state: AgentState) -> dict | None:
     """
     Build an optional Chroma metadata filter from the router's extracted_entities
     and the raw user message.
 
     Priority:
-      1. If extracted_entities contains a 'brand' key, use it directly.
-      2. Otherwise scan the latest message for known brand keywords.
-      3. If a doc_type hint exists in extracted_entities, layer that in too.
+      1. If extracted_entities specifies a target article_id, use it directly.
+      2. If extracted_entities contains a 'brand' key, use it.
+      3. Otherwise scan the latest message for known brand keywords.
+      4. If a doc_type hint or intent-to-category mapping exists, layer it in.
+      5. Always prefer primary-source articles over bible supplements.
 
     Returns a Chroma-compatible filter dict or None if no filter applies.
     """
     entities: dict = state.get("extracted_entities") or {}
     messages = state.get("messages", [])
     latest_text = messages[-1].content.lower() if messages else ""
+    current_intent = state.get("current_intent") or ""
 
     filters = {}
 
-    # Brand detection
+    target_article = entities.get("article_id")
+    if target_article:
+        return {"article_id": {"$eq": target_article}}
+
     brand = entities.get("brand")
     if not brand:
         for keyword, canonical in _BRAND_FILTER_MAP.items():
@@ -52,23 +73,54 @@ def _extract_metadata_filter(state: AgentState) -> dict | None:
     if brand:
         filters["brand"] = {"$eq": brand}
 
-    # Product-overview questions (what is SpyderWash, components, features) retrieve better
-    # from overview docs than from large operator manuals.
     if _is_product_overview_query(latest_text):
         filters["doc_type"] = {"$eq": "overview"}
 
-    # Doc-type hint (e.g. router could set extracted_entities["doc_type"])
     doc_type = entities.get("doc_type")
     if doc_type:
         filters["doc_type"] = {"$eq": doc_type}
 
+    category = _INTENT_TO_CATEGORY_MAP.get(current_intent)
+    if category and "doc_type" not in filters:
+        filters["category"] = {"$eq": category}
+
     if not filters:
         return None
 
-    # Chroma supports $and for multiple filters
     if len(filters) == 1:
         return filters
     return {"$and": [{k: v} for k, v in filters.items()]}
+
+
+_TROUBLESHOOT_MARKERS = (
+    "recommended steps",
+    "resolution confirmed when",
+    "escalate when",
+    "if the issue persists",
+    "if you have completed all the above steps",
+    "if you are still unable",
+    "please follow these steps",
+    "please follow these recommended",
+    "try logging in",
+    "power-cycle",
+    "restart the",
+    "contact spyderwash support",
+    "reach out to spyderwash support",
+    "reset your password",
+    "reset password",
+    "clear your browser",
+    "try a different browser",
+    "check credentials",
+    "double-check",
+    "ensure caps lock",
+    "incognito",
+)
+
+
+def _answer_contains_troubleshooting(answer: str) -> bool:
+    """Detect troubleshooting content in a RAG answer regardless of intent."""
+    lower = answer.lower()
+    return sum(1 for m in _TROUBLESHOOT_MARKERS if m in lower) >= 2
 
 
 def retrieve_and_generate(state: AgentState):
@@ -95,6 +147,12 @@ def retrieve_and_generate(state: AgentState):
     response = rag_service.query(latest_message, metadata_filter=metadata_filter)
     answer = response.get("answer", "I'm sorry, I couldn't find an answer to your question.")
 
+    if _answer_contains_troubleshooting(answer):
+        answer += "\n\nDid this resolve the issue? (Yes/No)"
+        return {
+            "messages": [AIMessage(content=answer)],
+            "extracted_entities": {"troubleshooting_done": True},
+        }
 
     return {"messages": [AIMessage(content=answer)]}
 

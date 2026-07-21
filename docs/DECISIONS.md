@@ -118,20 +118,18 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 
 ## ADR-013: SpyderWash Bible as sole KB; Rackspace asset hosting
 
-**Status:** Accepted (planning)  
-**Context:** Product owner is compiling “The Bible of SpyderWash” (~500 pages per Brandon mail) as the only Operator Agent KB. Operator guidance videos will exist separately. Planning recommends hosting Bible and videos on Rackspace alongside SpyderWash frontend/backend. Brandon’s KB Admin prototype defines structured chunks and feedback loop — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md).  
-**Decision:** **Target:** single Bible document for RAG; legacy multi-manual `KB/` is interim only. Rackspace Cloud Files for Bible + video assets; agent consumes via **ingest pipeline → shared vector DB**, not direct filesystem reads in production. Videos: prefer **URLs embedded in Bible sections** (Option B) over transcript RAG — ADR-029.  
-**Consequences:** Manual `KB/` ingest OK for demo. Production needs Phase 3 ingest + Qdrant + Rackspace deploy. See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md).
-
+**Status:** Accepted (planning) — updated Jul 18, 2026 per Brandon email  
+**Context:** Product owner is compiling “The Bible of SpyderWash” (**261 pages / 47.9 MB** per Brandon Jul 17, 2026 — previously estimated at ~500 pages). v2.2 (171 structured articles) was created specifically for AI chatbot integration and is the primary RAG source. Brandon confirmed to maintain v2.2 alongside the Bible until Bible is complete (pending: company/product overview, redesigned site/app content). Brandon’s KB Admin prototype defines structured chunks and feedback loop — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md).  
+**Decision:** **Current:** dual-doc strategy — v2.2 as primary article-structured source + Bible troubleshooting sections as supplement (ADR-030). **Target:** single Bible document when complete; retire v2.2. Rackspace Cloud Files for Bible + video assets; agent consumes via **ingest pipeline → shared vector DB**, not direct filesystem reads in production. Videos: prefer **URLs embedded in Bible sections** (Option B) over transcript RAG — ADR-029.  
+**Consequences:** Article-aware ingest (ADR-030) handles current dual-doc state. Production needs Phase 3 ingest + Qdrant + Rackspace deploy. Bible installation/wiring content excluded from RAG per v2.2’s own rules. See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md).
 ---
 
 ## ADR-015: Structured KB chunks vs generic RAG splits
 
-**Status:** Accepted (planning)  
-**Context:** Brandon’s [Mail.pdf](../SendAnywhere_546287/Mail.pdf) and local KB Admin prototype use **structured chunks** (`chunk_id`, `section_id`, `keywords`, `common_queries`) for retrieval and human-in-the-loop updates. Current [rag_service.py](../src/services/rag_service.py) uses **500-char RecursiveCharacterTextSplitter** on PDF/DOCX with filename metadata only.  
-**Decision:** **MVP:** generic splits acceptable for demo/UAT with manually loaded Bible. **Target (Phase 1–5):** migrate toward Brandon chunk schema or section-aware splits; KB Admin approve workflow before applying AI-suggested updates. Intent Matrix remains the **routing/escalation** layer; chunks are the **retrieval** layer — see [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md).  
-**Consequences:** Do not conflate router intents with `sw_`* chunk IDs. Phase 5 builds admin UI + feedback loop; interim = email notification + manual re-ingest.
-
+**Status:** Implemented (ADR-030)  
+**Context:** Brandon’s KB Admin prototype uses **structured chunks** (chunk_id, section_id, keywords, common_queries). v2.2 provides 171 articles with ARTICLE START/ARTICLE END boundaries and explicit metadata. Previous [rag_service.py](../src/services/rag_service.py) used 500-char RecursiveCharacterTextSplitter on PDF/DOCX with filename metadata only.  
+**Decision:** **Implemented (ADR-030):** v2.2 articles ingested as atomic chunks with structured metadata (article_id, category, product, intent, search_terms, status, co_retrieval_ids). Bible selectively ingested (troubleshooting only). FlashRank reranking + co-retrieval. **Target (Phase 5):** KB Admin approve workflow; Brandon’s full chunk schema with feedback loop.  
+**Consequences:** Article-aware ingestion operational. Phase 5 builds admin UI + feedback loop; interim = email notification + manual re-ingest. See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md), [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md).
 ---
 
 ## ADR-014: Vendor requirements doc vs Operator Agent repo scope
@@ -295,9 +293,25 @@ When making a significant architectural choice:
 
 ---
 
+## ADR-030: Article-aware RAG ingestion with FlashRank reranking
+
+**Status:** Accepted (Jul 18, 2026)  
+**Context:** v2.2 KB document (324K chars) contains 171 structured articles with `ARTICLE START`/`ARTICLE END` delimiters, explicit metadata (ARTICLE ID, category, product, intent, search_terms), co-retrieval rules, and Brandon's own "Recommended RAG ingestion settings." The Bible (222K chars) is 82.5% brand-specific wiring/installation content that v2.2 explicitly excludes from the operator chatbot. Previous generic 500-char `RecursiveCharacterTextSplitter` destroyed article boundaries and mixed technician-only installation content into retrieval.  
+**Decision:**
+
+- **v2.2 articles as atomic chunks:** Regex-parse each article as one Document (~1550 chars avg). Extract ARTICLE ID, category, product, intent, search_terms, status, co_retrieval_ids into Chroma metadata fields.
+- **Bible selective ingest:** Only Sections 1-14 (troubleshooting, 34.8K chars / 57 chunks). Exclude installation/wiring content (82.5% of doc). Tagged `source_priority=secondary`.
+- **Section 0 → system prompt:** v2.2's "AI Retrieval and Response Rules" (17.8K chars) injected into the LLM system prompt, not stored as retrievable chunks.
+- **FlashRank reranking:** Initial MMR retrieval k=8/fetch_k=30; FlashRank rank-T5-flan reranks to top 4. Eliminates near-duplicate v2.2/Bible overlap.
+- **Co-retrieval:** 17 articles specify mandatory companion articles. After reranking, companion articles are fetched by `article_id` filter and prepended to context.
+- **Metadata-aware filtering:** Router intent maps to v2.2 category for precise pre-filtering. Direct `article_id` targeting supported.
+
+**Consequences:** Respects Brandon's explicit RAG ingestion instructions. Eliminates technician-only content from retrieval. Structured metadata enables intent-aware and article-specific retrieval. Reranking improves precision over pure vector similarity. Co-retrieval ensures multi-domain answers include required companion context. Requires `chroma_db/` deletion and re-ingest when upgrading. See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md).
+
+---
+
 ## Related documents
 
 - [PRD.md](PRD.md) — product scope
 - [REQUIREMENTS_MAP.md](REQUIREMENTS_MAP.md) — vendor doc traceability
 - [ROADMAP.md](ROADMAP.md) — implementation phases
-

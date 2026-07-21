@@ -918,7 +918,7 @@ def get_kiosk_recharges(
 
 _POS_TRANSACTIONS_URL = (
     SETOMATIC_BASE_URL
-    + "/api/POS/GetPOSTransactionReport"
+    + "/api/POSController/GetPOSTransactionReport"
 )
 _POS_OPERATOR_ID = 4
 

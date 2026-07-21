@@ -2,42 +2,92 @@
 
 How the Operator Agent uses the SpyderWash knowledge base, operator videos, and Rackspace-hosted assets — current state vs production target.
 
-**Last updated:** July 2026
+**Last updated:** July 18, 2026
 
 ---
 
-## SpyderWash Bible (single KB document)
+## KB Source Documents (dual-doc strategy)
 
-**Source:** Product owner is compiling **“The Bible of SpyderWash”** — intended as the **only** KB document for this Operator Agent. Brandon (April 2026 mail) estimates **~500 pages** when complete; consolidates Portal Manual (103 pp), troubleshooting guides, and new content.
+**Per Brandon (Jul 17, 2026):** The RAG corpus uses **two co-primary documents** until the Bible is complete:
+
+1. **SpyderWash_AI_Support_Knowledge_Base (v2.2)** — the AI-optimized, article-structured version (171 articles with ARTICLE START/END boundaries, structured metadata, and explicit RAG ingestion rules). Created specifically for chatbot integration.
+2. **Setomatic Bible** — raw source material (261 pages / 47.9 MB). Contains network/power troubleshooting content plus brand-specific wiring/installation instructions.
+
+**v1.8 is superseded** — Brandon confirmed deletion. Only v2.2 and Bible are active.
+
+**Future state:** Once the Bible is complete (pending: company/product overview, redesigned site/app content), v2.2 will be retired and the Bible will be the sole KB source. Brandon will confirm timing.
 
 | Aspect | Status |
 |--------|--------|
-| Single source of truth | **Recommended** — reduces conflicting retrieval vs multiple legacy manuals |
-| Size (~500 pages) | **Feasible for RAG** — expect ~1–2k chunks at 500-char splits, or fewer with structured chunks — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
-| Legacy interim content | Portal Manual 103 pp + 6 pp + 7 pp Word guides — repo `KB/` today |
-| File formats | PDF + DOCX ingest; product moving to **PDF-only** uploads |
-| Update cadence | Weekly initially → ad hoc; email notify → manual re-index until portal exists |
-| Ingest today | **Manual** — drop PDF/DOCX into `KB/`, delete `chroma_db/`, restart ([RUNBOOK.md](RUNBOOK.md)) |
-| Auto-sync when Bible updates | **Not implemented** |
-| Structured chunks (Brandon schema) | **Not implemented** — generic character splits only — ADR-015 |
-| Version tracking (“which Bible version?”) | **Not implemented** |
-| Content ownership | **Brandon / Setomatic** — Chetu must **not** invent KB source content. If gaps appear (e.g. refund portal steps), request Brandon to add them to the Bible (confirmed Jul 13, 2026) |
-| Refunds in Bible | Bible **will include** instructions for submitting a refund request on the SpyderWash portal (Brandon confirmed) |
+| v2.2 as primary AI source | **Active** — 171 structured articles, article-aware chunking (ADR-030) |
+| Bible as supplementary source | **Active** — troubleshooting sections (1-14) ingested; installation/wiring excluded |
+| Bible size | **261 pages / 47.9 MB** (not ~500 pp as previously estimated) |
+| v1.8 status | **Superseded** — confirmed for removal by Brandon (Jul 17, 2026) |
+| Content ownership | **Brandon / Setomatic** — Chetu must **not** invent KB source content |
+| Brandon maintaining v2.2 | **Yes** — confirmed to continue alongside Bible until Bible ships complete |
+| Company/product overview | **Pending** — Brandon will add to Bible in a future update |
+| Self-service KB training | **Critical priority** for Brandon's team (Phase 5 in roadmap, flagged as urgent) |
 
-**MVP verdict:** Demo and UAT with a manually loaded Bible — **yes**. Production with automatic updates — **no** until ingest pipeline and portal upload exist.
+---
+
+## RAG Ingestion Architecture (ADR-030)
+
+```
+v2.2 DOCX
+   │
+   ├── Section 0 (17.8K chars) → Injected into RAG system prompt (NOT chunked)
+   │     Contains: AI Retrieval and Response Rules, security, RMA, financial accuracy
+   │
+   ├── 171 Articles → ONE atomic chunk per article
+   │     Metadata: article_id, category, product, intent, search_terms, status
+   │     Avg size: 1550 chars (max 2724, min 787)
+   │     Co-retrieval rules parsed and enforced at query time
+   │
+   └── Post-article visual refs → Chunked with doc_type=visual_reference
+
+Bible DOCX
+   │
+   ├── Sections 1-14 (34.8K chars) → 57 chunks, doc_type=bible_supplement
+   │     Covers: Network errors, power issues, connectivity, ISP coordination
+   │
+   └── Installation/Wiring (82.5% of doc) → EXCLUDED per v2.2 rules
+         "Machine-specific wiring, live-voltage work... are outside the Operator-facing chatbot"
+```
+
+### Retrieval pipeline
+
+1. **MMR retrieval** — k=8, fetch_k=30, lambda=0.5
+2. **FlashRank reranking** — rank-T5-flan model, top 4 after rerank
+3. **Co-retrieval** — 17 articles have mandatory companion articles (e.g., KB-POS-007 for all POS scale queries)
+4. **LLM generation** — Section 0 rules in system prompt; context = reranked + companion docs
+
+### Metadata fields indexed in Chroma
+
+| Field | Source | Example |
+|-------|--------|---------|
+| `article_id` | v2.2 ARTICLE ID | KB-READER-007 |
+| `category` | v2.2 METADATA line | No Connection Error |
+| `product` | v2.2 METADATA line | EMV Reader / Control Board / Bluetooth Hub |
+| `intent` | v2.2 METADATA line | Offline |
+| `search_terms` | v2.2 METADATA line | offline; reader; control board; hub |
+| `status` | v2.2 STATUS line | current |
+| `source_priority` | Computed | primary (v2.2) / secondary (Bible) |
+| `doc_type` | Computed | kb_article / bible_supplement / visual_reference |
+| `brand` | Computed | SpyderWash |
+| `co_retrieval_ids` | v2.2 CO-RETRIEVAL RULE | KB-POS-007 |
 
 ---
 
 ## Bible embedded images
 
-The Bible will include **diagrams and screenshots**, not just text. Current ingest is **text-only** (`PyPDFLoader` / `Docx2txtLoader`) — embedded images are not processed unless captioned in the extracted text.
+The Bible and v2.2 include **diagrams and screenshots**. v2.2's post-article section contains image descriptions with text captions. Current ingest is **text-only** — images are not rendered but their captions are chunked.
 
 | Capability | Status |
 |------------|--------|
-| Extract text from Bible PDF/DOCX | **Implemented** |
+| Extract text from Bible/v2.2 PDF/DOCX | **Implemented** |
+| v2.2 image descriptions (text captions) | **Implemented** — chunked as visual_reference |
 | Process embedded images / diagrams | **Not implemented** |
 | OCR or vision caption at ingest | **Not implemented** |
-| Return figure links in chat | **Not implemented** |
 | Multimodal RAG at query time | **Deferred** |
 
 ### Image strategy options (decision required)
@@ -48,8 +98,6 @@ The Bible will include **diagrams and screenshots**, not just text. Current inge
 | **B — OCR / caption at ingest** | Extract figures from PDF; OCR or GPT-4o vision → text chunks in Chroma | Medium | When QA proves text-only gaps |
 | **C — Figure links** | Export figures to Rackspace; chunk metadata includes `figure_url` | Low–medium | Operators open diagram manually |
 | **D — Multimodal RAG** | Image store + vision model at query time | High | Post-GA unless product insists |
-
-**Current code:** Same as videos — [rag_service.py](../src/services/rag_service.py) has no image pipeline.
 
 ---
 
@@ -62,11 +110,11 @@ Product has operator guidance videos (about **24** YouTube videos referenced in 
 | Play / host videos | **Out of agent scope** — YouTube / portal / CDN serves files to operators |
 | Ingest full video transcripts into RAG | **Not preferred** — complex, high token/ops cost |
 | Return video links in chat | **Planned** via doc-section mapping (Option B below) |
-| Multimodal “watch video” in agent | **Deferred** |
+| Multimodal "watch video" in agent | **Deferred** |
 
 ### Video upload timeline (open with Brandon)
 
-Chetu asked whether documentation for **all 24 videos** will be ready before UAT, or added **incrementally** (like other docs). This affects ingest-pipeline design. **Awaiting Brandon’s reply.**
+Chetu asked whether documentation for **all 24 videos** will be ready before UAT, or added **incrementally** (like other docs). This affects ingest-pipeline design. **Awaiting Brandon's reply.**
 
 ### Video strategy (proposed — Option B preferred)
 
@@ -78,8 +126,6 @@ Chetu asked whether documentation for **all 24 videos** will be ready before UAT
 
 **Implementation implication (Option B):** When Brandon adds/updates Bible sections, each relevant section should include the YouTube URL inline. RAG retrieves that chunk; the agent surfaces the link with the answer. No separate Whisper/transcript pipeline required for MVP.
 
-**Current code:** [rag_service.py](../src/services/rag_service.py) loads **PDF/DOCX/TXT text only**. No video or audio processing.
-
 ---
 
 ## Rackspace hosting (recommended alignment)
@@ -89,7 +135,7 @@ Chetu asked whether documentation for **all 24 videos** will be ready before UAT
 **Important:** Files on Rackspace object storage alone are **not** sufficient. The agent needs:
 
 ```
-Rackspace Cloud Files (Bible PDF + videos [+ transcripts])
+Rackspace Cloud Files (Bible PDF + v2.2 + videos)
         │
         ▼
 Ingest job (on upload or schedule)
@@ -106,7 +152,7 @@ Agent API container(s) on Rackspace
 
 | Layer | Rackspace-ready today? |
 |-------|------------------------|
-| Object storage for Bible + videos | **Planned** — not wired to agent |
+| Object storage for Bible + v2.2 + videos | **Planned** — not wired to agent |
 | Agent reads from object storage | **No** — reads local `KB/` + `./chroma_db` |
 | Agent API deployed on Rackspace | **TBD** — no container/deploy manifest in repo |
 | Multi-instance API + shared vector DB | **No** — local Chroma + in-memory MemorySaver |
@@ -115,17 +161,20 @@ Hosting target in [ROADMAP.md](ROADMAP.md) Phase 3 includes **Rackspace** as pri
 
 ---
 
-## Production readiness (Bible + videos + Rackspace)
+## Production readiness (KB + videos + Rackspace)
 
 | Requirement | Ready? | Phase |
 |-------------|--------|-------|
-| Text RAG from Bible (manual ingest) | **Partial** | Now — test at ~500 pp when delivered |
+| Article-aware RAG from v2.2 (171 articles) | **Implemented** (ADR-030) | Done |
+| Bible supplement ingestion (troubleshooting only) | **Implemented** | Done |
+| FlashRank reranking | **Implemented** | Done |
+| Co-retrieval rules | **Implemented** | Done |
+| Section 0 system prompt injection | **Implemented** | Done |
 | Brandon KB Admin (feedback, chunk editor, pending updates) | **No** | 5 — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
 | Bible embedded images / diagrams | **No** | 1–2 — strategy pending |
-| Bible as only KB source (product direction) | **Aligned** — replace legacy `KB/` files when Bible ships | dev1 |
 | Auto re-index when Bible updates on Rackspace | **No** | 3–5 |
 | Super Admin KB upload → agent re-index | **No** — backend team building upload | 5 |
-| Video content in AI answers | **Partial plan** — Option B: URLs embedded in Bible sections | 4–5 (after Brandon confirms timeline + adds links) |
+| Video content in AI answers | **Partial plan** — Option B: URLs embedded in Bible sections | 4–5 (after Brandon confirms) |
 | Rackspace object storage → ingest pipeline | **No** | 3 |
 | Shared vector DB (multi-replica) | **No** | 3 |
 | Durable chat sessions | **No** | 3 |
@@ -137,16 +186,19 @@ Hosting target in [ROADMAP.md](ROADMAP.md) Phase 3 includes **Rackspace** as pri
 
 | Status | Task | Owner |
 |--------|------|-------|
-| [ ] | Receive Bible PDF when ready (~500 pp); manual ingest; RAG quality test | dev1 |
-| [ ] | Align ingest with Brandon chunk schema or section-aware splits | dev1 — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
+| [x] | Article-aware v2.2 ingestion (171 articles as atomic chunks with metadata) | dev1 — ADR-030 |
+| [x] | Selective Bible ingestion (Sections 1-14 only; exclude wiring/installation) | dev1 — ADR-030 |
+| [x] | FlashRank reranking (rank-T5-flan, top 4 from 8 candidates) | dev1 |
+| [x] | Co-retrieval rules (17 articles with mandatory companions) | dev1 |
+| [x] | Section 0 system prompt injection | dev1 |
+| [x] | Prefer video **Option B** (URL in Bible section) over transcript RAG | Proposed to Brandon |
 | [ ] | Decide Bible **image** strategy (captions vs OCR vs figure links vs multimodal) | Product + dev1 |
-| [x] | Prefer video **Option B** (URL in Bible section) over transcript RAG | Proposed to Brandon (Shivansh); awaiting timeline confirmation |
 | [ ] | Confirm video upload timeline (all 24 before UAT vs incremental) | Brandon |
 | [ ] | When Bible sections include YouTube URLs, verify RAG returns link + steps | dev1 |
-| [ ] | Section-aware chunking for Bible headings | dev1 |
 | [ ] | KB re-ingest CLI reading from Rackspace Cloud Files | dev1 + infra vendor |
 | [ ] | Migrate Chroma → Qdrant on Rackspace | infra vendor (Phase 3) |
 | [ ] | Super Admin upload triggers re-index webhook | backend team + dev1 |
+| [ ] | Remove v1.8 from KB/_archive (confirmed superseded) | dev1 |
 | [ ] | Optional: video transcript ingest pipeline | **Deferred** — not preferred vs Option B |
 
 ---
@@ -155,7 +207,7 @@ Hosting target in [ROADMAP.md](ROADMAP.md) Phase 3 includes **Rackspace** as pri
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — RAG path and system diagram
 - [TECH_STACK.md](TECH_STACK.md) — Chroma vs Qdrant
-- [DECISIONS.md](DECISIONS.md) — ADR-003, ADR-012, ADR-013, ADR-015
+- [DECISIONS.md](DECISIONS.md) — ADR-003, ADR-012, ADR-013, ADR-015, ADR-030
 - [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) — Brandon mail, KB Admin prototype, chunk map
 - [REQUIREMENTS_MAP.md](REQUIREMENTS_MAP.md) — vendor doc traceability
 - [ROADMAP.md](ROADMAP.md) — phased delivery
