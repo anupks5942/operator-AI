@@ -120,15 +120,15 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 
 **Status:** Accepted (planning) — updated Jul 18, 2026 per Brandon email  
 **Context:** Product owner is compiling “The Bible of SpyderWash” (**261 pages / 47.9 MB** per Brandon Jul 17, 2026 — previously estimated at ~500 pages). v2.2 (171 structured articles) was created specifically for AI chatbot integration and is the primary RAG source. Brandon confirmed to maintain v2.2 alongside the Bible until Bible is complete (pending: company/product overview, redesigned site/app content). Brandon’s KB Admin prototype defines structured chunks and feedback loop — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md).  
-**Decision:** **Current:** dual-doc strategy — v2.2 as primary article-structured source + Bible troubleshooting sections as supplement (ADR-030). **Target:** single Bible document when complete; retire v2.2. Rackspace Cloud Files for Bible + video assets; agent consumes via **ingest pipeline → shared vector DB**, not direct filesystem reads in production. Videos: prefer **URLs embedded in Bible sections** (Option B) over transcript RAG — ADR-029.  
-**Consequences:** Article-aware ingest (ADR-030) handles current dual-doc state. Production needs Phase 3 ingest + Qdrant + Rackspace deploy. Bible installation/wiring content excluded from RAG per v2.2’s own rules. See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md).
+**Decision:** **Current:** dual-doc strategy — v2.2 as primary article-structured source + Bible troubleshooting **and** operator FAQ sections as supplement (ADR-030). **Target:** single Bible document when complete; retire v2.2. Rackspace Cloud Files for Bible + video assets; agent consumes via **ingest pipeline → shared vector DB**, not direct filesystem reads in production. Videos: prefer **URLs embedded in Bible sections** (Option B) over transcript RAG — ADR-029.  
+**Consequences:** Article-aware ingest (ADR-030) handles current dual-doc state. Production needs Phase 3 ingest + Qdrant + Rackspace deploy. Brand wiring diagrams / PCI notes excluded from RAG; operator Installation FAQ (e.g. Relay vs Serial) is ingested. See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md).
 ---
 
 ## ADR-015: Structured KB chunks vs generic RAG splits
 
 **Status:** Implemented (ADR-030)  
 **Context:** Brandon’s KB Admin prototype uses **structured chunks** (chunk_id, section_id, keywords, common_queries). v2.2 provides 171 articles with ARTICLE START/ARTICLE END boundaries and explicit metadata. Previous [rag_service.py](../src/services/rag_service.py) used 500-char RecursiveCharacterTextSplitter on PDF/DOCX with filename metadata only.  
-**Decision:** **Implemented (ADR-030):** v2.2 articles ingested as atomic chunks with structured metadata (article_id, category, product, intent, search_terms, status, co_retrieval_ids). Bible selectively ingested (troubleshooting only). FlashRank reranking + co-retrieval. **Target (Phase 5):** KB Admin approve workflow; Brandon’s full chunk schema with feedback loop.  
+**Decision:** **Implemented (ADR-030):** v2.2 articles ingested as atomic chunks with structured metadata (article_id, category, product, intent, search_terms, status, co_retrieval_ids). Bible selectively ingested (troubleshooting + operator FAQ; wiring/PCI excluded). FlashRank `ms-marco-TinyBERT-L-2-v2` reranking + co-retrieval (ADR-032). **Target (Phase 5):** KB Admin approve workflow; Brandon’s full chunk schema with feedback loop.  
 **Consequences:** Article-aware ingestion operational. Phase 5 builds admin UI + feedback loop; interim = email notification + manual re-ingest. See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md), [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md).
 ---
 
@@ -300,13 +300,49 @@ When making a significant architectural choice:
 **Decision:**
 
 - **v2.2 articles as atomic chunks:** Regex-parse each article as one Document (~1550 chars avg). Extract ARTICLE ID, category, product, intent, search_terms, status, co_retrieval_ids into Chroma metadata fields.
-- **Bible selective ingest:** Only Sections 1-14 (troubleshooting, 34.8K chars / 57 chunks). Exclude installation/wiring content (82.5% of doc). Tagged `source_priority=secondary`.
+- **Bible selective ingest:** Troubleshooting Sections 1-14 **plus** operator reference from `Operator Portal` through `Voiceover: SpyderWash Troubleshooting Guide` (Portal/POS/Kiosk/Hub FAQ, Installation FAQ including Relay vs Serial Control Board, Highest-Frequency Questions). Brand wiring diagrams, Voiceover transcript, PCI notes, and RMA SOP remain excluded. Tagged `source_priority=secondary`.
 - **Section 0 → system prompt:** v2.2's "AI Retrieval and Response Rules" (17.8K chars) injected into the LLM system prompt, not stored as retrievable chunks.
-- **FlashRank reranking:** Initial MMR retrieval k=8/fetch_k=30; FlashRank rank-T5-flan reranks to top 4. Eliminates near-duplicate v2.2/Bible overlap.
+- **FlashRank reranking:** MMR k=12 / fetch_k=40 / lambda=0.5; FlashRank `ms-marco-TinyBERT-L-2-v2` reranks to top 6 (supersedes earlier `rank-T5-flan` / top-4 settings — see ADR-032).
 - **Co-retrieval:** 17 articles specify mandatory companion articles. After reranking, companion articles are fetched by `article_id` filter and prepended to context.
-- **Metadata-aware filtering:** Router intent maps to v2.2 category for precise pre-filtering. Direct `article_id` targeting supported.
+- **Metadata-aware filtering:** Narrow intents may map to v2.2 category for pre-filtering. **`technical_support` must not category-filter** (ADR-033). Direct `article_id` targeting supported.
 
-**Consequences:** Respects Brandon's explicit RAG ingestion instructions. Eliminates technician-only content from retrieval. Structured metadata enables intent-aware and article-specific retrieval. Reranking improves precision over pure vector similarity. Co-retrieval ensures multi-domain answers include required companion context. Requires `chroma_db/` deletion and re-ingest when upgrading. See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md).
+**Consequences:** Respects Brandon's explicit RAG ingestion instructions while covering Intent Matrix instructional FAQs that live past the Installation heading. Eliminates technician-only wiring from retrieval. Requires `chroma_db/` deletion and re-ingest when upgrading. See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md).
+
+---
+
+## ADR-031: Human escalation is clarify-first (not outage workflow)
+
+**Status:** Accepted (Jul 21, 2026)  
+**Context:** Bare "I want to talk to support" / "I need a human agent" was entering `_ESCALATION_WORKFLOW_INTENTS`, which asked blast-radius questions or auto-created tickets with hallucinated issue context.  
+**Decision:** Remove `escalation_request` from the outage workflow sets. Route to `human_escalation_clarify_node` first ("describe the issue…"). If the operator insists on a human without a new issue description, escalate cleanly. Post-escalation human-request phrases acknowledge the open ticket instead of re-entering RAG refusal.  
+**Consequences:** Human-request phrases no longer trigger blast-radius or store-down SMS paths. Real outages still escalate via outage intents / `infer_blast_radius`.
+
+---
+
+## ADR-032: FlashRank model and wider retrieval window
+
+**Status:** Accepted (Jul 21, 2026)  
+**Context:** `rank-T5-flan` demoted correct operator chunks (e.g. Kiosk cashbox, receipt printer) and caused RAG refusals despite good MMR hits. Narrow top-4 also dropped usable companions.  
+**Decision:** Use FlashRank `ms-marco-TinyBERT-L-2-v2` with MMR k=12 / fetch_k=40 and rerank top_k=6.  
+**Consequences:** Better operator-FAQ precision. Model files live under `flashrank_cache/`. Re-test after model changes; wipe `__pycache__` and restart the app process.
+
+---
+
+## ADR-033: Do not category-filter `technical_support`
+
+**Status:** Accepted (Jul 22, 2026)  
+**Context:** `_INTENT_TO_CATEGORY_MAP` mapped `technical_support` → `"No Connection Error"`. Printer / Control Board / portal queries classified as `technical_support` retrieved only reader-connection articles, so the LLM correctly refused.  
+**Decision:** Remove `technical_support` from the category filter map. Broad catch-all intents use unfiltered retrieval + FlashRank. Keep category filters only for narrow outage/kiosk/refund intents that map cleanly.  
+**Consequences:** Receipt printer and similar RAG rows work without inventing dedicated intents. Slightly broader candidate pool; reranker must stay healthy (ADR-032).
+
+---
+
+## ADR-034: Domain-keyword safety net + content-based resolve prompt
+
+**Status:** Accepted (Jul 20–22, 2026)  
+**Context:** Router occasionally returned `out_of_domain` / `greeting` for in-domain SpyderWash phrasing (printer, portal login, static IP, cashbox). Intent-gated "Did this resolve?" missed many troubleshooting answers. Bare substring `"fixed"` false-triggered resolution on "fixed address".  
+**Decision:** Expand `_DOMAIN_KEYWORDS` (printer/print/thermal, network/IP, login/password, cashbox/reconcile, etc.) to override false `out_of_domain`/`greeting`. Append "Did this resolve the issue? (Yes/No)" when answer content matches troubleshooting markers (≥2), not by intent alone. Resolution detection uses phrase-level matches, negation guard, and ≤8-word length guard.  
+**Consequences:** Fewer false OOD refusals; resolve prompt appears on real step lists; Hub "fixed address" questions no longer short-circuit to "glad it's resolved".
 
 ---
 
@@ -315,3 +351,5 @@ When making a significant architectural choice:
 - [PRD.md](PRD.md) — product scope
 - [REQUIREMENTS_MAP.md](REQUIREMENTS_MAP.md) — vendor doc traceability
 - [ROADMAP.md](ROADMAP.md) — implementation phases
+- [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) — RAG ingest/retrieval current state
+- [INTENT_MATRIX.md](INTENT_MATRIX.md) — router ↔ Brandon matrix

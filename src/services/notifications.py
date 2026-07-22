@@ -303,8 +303,6 @@ class NotificationService:
                 <tr>
                     <td style="padding:24px;">
                         <p style="margin:0 0 12px 0; color:#212529; font-size:14px;">The operator has confirmed that the previously escalated issue has been resolved. No further action is required.</p>
-                        <h3 style="margin:16px 0 8px 0; color:#495057; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">Original Issue Context</h3>
-                        <pre style="margin:0; padding:12px; background:#f8f9fa; border-radius:6px; font-family:'SF Mono', Consolas, monospace; font-size:13px; line-height:1.5; white-space:pre-wrap; word-wrap:break-word; color:#212529;">{html.escape(safe_summary)}</pre>
                     </td>
                 </tr>
                 <tr>

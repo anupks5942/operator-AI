@@ -142,14 +142,16 @@ def _parse_v22_articles(text: str) -> tuple[list[Document], str, list[Document]]
 
 
 _BIBLE_OPERATOR_START_MARKER = "Operator Portal"
-_BIBLE_OPERATOR_END_MARKER = "Installation and Setup"
+# Include Installation FAQ + Highest-Frequency Questions (Control Board type,
+# Relay vs Serial, hubs, Bluetooth ID). Stop before Voiceover / PCI / wiring.
+_BIBLE_OPERATOR_END_MARKER = "Voiceover: SpyderWash Troubleshooting Guide"
 
 
 def _parse_bible_selective(text: str) -> list[Document]:
     """
     Ingest troubleshooting sections (1-14) AND operator-relevant reference
-    sections (Portal, POS, Kiosk, Hub, Mobile App, etc.) from the Bible.
-    Still excludes brand-specific wiring/installation content.
+    sections (Portal, POS, Kiosk, Hub, Mobile App, Installation FAQ, etc.).
+    Still excludes brand-specific wiring diagrams and internal PCI notes.
     """
     troubleshoot_start = text.find(_BIBLE_TROUBLESHOOT_START_MARKER)
     if troubleshoot_start < 0:

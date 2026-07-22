@@ -43,10 +43,11 @@ Root files: `app.py` (Streamlit demo with persisted routing diagnostics sidebar)
 2. **Router → Conditional Edge → Node.** The `router` node classifies intent and sets flags; `route_after_classifier()` dispatches to the correct node. Add new intents by extending `IntentClassification` in `router.py` and the edge map in `graph.py`.
 3. **Tool node uses ReAct loop** (max 6 iterations). Every AIMessage with tool_calls MUST be followed by ToolMessages. Never single-shot the tool node.
 4. **Escalation workflow order:** blast_radius_check → clarify_issue (if vague) → troubleshoot_first → tiered escalation. `entire_location` skips troubleshoot and auto-escalates. `single_machine` failure routes to `confirm_escalation_node` (asks operator permission) before dispatching. This prevents alert fatigue on routine single-machine issues.
-5. **RAG-only intents** (`refund_request`, `kiosk_not_responding`, `technical_support`): `api_action_required` must always be `false`. Do NOT route these to the tool node. Outage intents (`machine_down`, `machines_not_starting`, etc.) enter the outage workflow, not direct RAG.
-6. **Conversation summary** (`conversation_summary`): honored mid-workflow via early routing; does not reset outage state.
-7. **Out-of-domain and PCI guardrails** are static/hardcoded responses — never delegate to LLM or external APIs.
-8. **NotificationService** uses `USE_LIVE_NOTIFICATIONS` env var. Default `false` = mock/logging only.
+5. **`escalation_request` is not an outage intent** (ADR-031). Bare human-request phrases go to `human_escalation_clarify_node` first; they must not enter blast-radius / store-down SMS paths.
+6. **RAG-only intents** (`refund_request`, `kiosk_not_responding`, `technical_support`): `api_action_required` must always be `false`. Do NOT route these to the tool node. Outage intents (`machine_down`, `machines_not_starting`, etc.) enter the outage workflow, not direct RAG. Do **not** category-filter `technical_support` to `"No Connection Error"` (ADR-033).
+7. **Conversation summary** (`conversation_summary`): honored mid-workflow via early routing; does not reset outage state.
+8. **Out-of-domain and PCI guardrails** are static/hardcoded responses — never delegate to LLM or external APIs. Router `_DOMAIN_KEYWORDS` safety net overrides false `out_of_domain`/`greeting` for in-domain terms (printer, portal login, network/IP, cashbox, etc.).
+9. **NotificationService** uses `USE_LIVE_NOTIFICATIONS` env var. Default `false` = mock/logging only.
 
 ## Configuration (src/config.py)
 - All URLs, flags, and credentials come from `.env` via `src/config.py`.
@@ -68,8 +69,8 @@ Root files: `app.py` (Streamlit demo with persisted routing diagnostics sidebar)
 - `KB/` contains the two active KB documents: **v2.2** (171 structured articles for AI) and **Setomatic Bible** (raw troubleshooting source). v1.8 is superseded.
 - Ingested into ChromaDB at `./chroma_db/` with OpenAI `text-embedding-3-small` embeddings (configurable via `OPENAI_EMBEDDING_MODEL` env var). Delete `chroma_db/` and restart the app after adding new KB files.
 - **v2.2 ingestion:** Article-aware parser respects `ARTICLE START`/`ARTICLE END` boundaries. Each article = one atomic chunk with structured metadata (article_id, category, product, intent, search_terms, status, co_retrieval_ids).
-- **Bible ingestion:** Selective — only Sections 1-14 (troubleshooting). Installation/wiring content (82.5% of doc) excluded per v2.2 rules.
-- **Retrieval:** MMR k=8, fetch_k=30, lambda=0.5 → FlashRank rerank to top 4 → co-retrieval of mandatory companion articles.
+- **Bible ingestion:** Selective — troubleshooting Sections 1-14 **plus** operator FAQ from `Operator Portal` through `Voiceover: SpyderWash Troubleshooting Guide` (includes Relay vs Serial Control Board FAQ). Brand wiring, Voiceover transcript, PCI notes, RMA SOP excluded.
+- **Retrieval:** MMR k=12, fetch_k=40, lambda=0.5 → FlashRank `ms-marco-TinyBERT-L-2-v2` rerank to top 6 → co-retrieval of mandatory companion articles.
 - **System prompt:** v2.2 Section 0 "AI Retrieval and Response Rules" injected into LLM prompt (not stored as chunks).
 - Metadata: `article_id`, `category`, `product`, `intent`, `search_terms`, `status`, `source_priority`, `brand`, `doc_type`, `co_retrieval_ids`.
 

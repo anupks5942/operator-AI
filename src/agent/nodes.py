@@ -34,7 +34,6 @@ _INTENT_TO_CATEGORY_MAP = {
     "refund_request": "Refund Request",
     "loyalty_balance": "Loyalty Card Balance",
     "transaction_lookup": "Transaction Lookup",
-    "technical_support": "No Connection Error",
 }
 
 

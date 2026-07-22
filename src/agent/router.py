@@ -163,7 +163,6 @@ def _is_show_more_request(text: str, messages: list) -> bool:
 _OUTAGE_WORKFLOW_INTENTS = frozenset({
     "emergency_store_down",
     "machine_down",
-    "escalation_request",
     "machines_not_starting",
     "kiosk_not_responding",
     "multiple_machines_offline",
@@ -203,12 +202,16 @@ def _normalize_typos(text: str) -> str:
     return " ".join(_TYPO_MAP.get(w, w) for w in words)
 
 
+_NEGATION_WORDS = {"none", "no", "not", "don't", "dont", "can't", "cant", "aren't", "arent", "isn't", "isnt", "won't", "wont", "never"}
+
 def _is_resolution_message(text: str) -> bool:
     """Return True if the text clearly indicates an issue has been resolved.
     Used to prevent resolution phrases from being misinterpreted as new outages.
     Long messages (>8 words) are likely new questions, not resolution confirmations."""
     normalized = _normalize_typos(text.strip())
     if len(normalized.split()) > 8:
+        return False
+    if set(normalized.split()) & _NEGATION_WORDS:
         return False
     return any(phrase in normalized for phrase in _RESOLUTION_PHRASES)
 
@@ -249,8 +252,11 @@ _ENTIRE_MARKERS = (
     "laundromat is down", "everything offline", "all my machines",
     "all down", "all of them", "all are down", "todo abajo",
     "all machine", "all washer", "all dryer",
+    "none of my machines", "all card readers", "all readers",
+    "every card reader", "no machines are", "none of the machines",
+    "not processing payments", "no connection", "says no connection",
 )
-_ENTIRE_SHORT = {"all", "everything", "entire", "whole", "every", "each", "todo", "todos", "todas"}
+_ENTIRE_SHORT = {"all", "everything", "entire", "whole", "every", "each", "none", "todo", "todos", "todas"}
 
 # Regex: a digit (1-999) at the start or within the message indicates a counted outage.
 _NUMERIC_COUNT_RE = re.compile(r'\b(\d{1,3})\b')
@@ -429,6 +435,7 @@ explicitly asked the user for a missing piece of information, or a confirmation,
      - If the assistant was asking 'Is this affecting one machine or the entire location?' -> intent = `emergency_store_down`
      - If the assistant was asking 'Did this resolve the issue?' or 'Did this resolve the issue? (Yes/No)' -> keep the active hardware/outage/troubleshooting intent (`machine_down`, `machines_not_starting`, `kiosk_not_responding`, `multiple_machines_offline`, `emergency_store_down`, or `technical_support`)
      - If the assistant was asking 'To help me get you the right fix, is this affecting just one specific machine, or is your entire laundromat offline?' -> keep the active hardware/outage/troubleshooting intent (`machine_down`, `machines_not_starting`, `kiosk_not_responding`, `multiple_machines_offline`, `emergency_store_down`, or `technical_support`)
+     - If the assistant was asking a clarifying question about the device type (e.g. 'Legacy Kiosk or Platinum Kiosk?', 'which type of kiosk', 'which machine', 'could you provide more details') -> keep the active troubleshooting intent (`kiosk_not_responding`, `machine_down`, `machines_not_starting`, `technical_support`, etc.) and set `api_action_required` to FALSE. The user's reply is providing details for the same issue, not a new query.
 
      - If the assistant confirmed an escalation ticket was dispatched -> intent = `general_query` and do NOT restart the outage workflow.
      - If the assistant's last message contains "more available" or "Say 'show more'" (pagination footer) AND the user says "show more", "give me more", "more records", "more data", "next page", or similar -> keep the active API intent (transaction_lookup, kiosk_purchase_lookup, kiosk_recharge_lookup, or pos_transaction_lookup) and set `api_action_required` = true.
@@ -474,6 +481,7 @@ _DOMAIN_KEYWORDS = frozenset({
     "ethernet", "network", "wifi", "wi-fi", "lan", "subnet",
     "login", "password", "credentials", "sign in", "log in",
     "cashbox", "cash drawer", "reconcil", "refund",
+    "printer", "print", "label printer", "thermal", "paper jam",
 })
 
 
@@ -654,13 +662,23 @@ def semantic_router(state: AgentState):
         _override_to_general = True
 
     if _override_to_general:
-        result = IntentClassification(
-            intent="general_query",
-            hardware_lookup_attempted=False,
-            escalation_required=False,
-            api_action_required=False,
-            extracted_entities=dict(result.extracted_entities),
-        )
+        _blast = infer_blast_radius(latest_user_msg)
+        if _blast == "entire_location":
+            result = IntentClassification(
+                intent="emergency_store_down",
+                hardware_lookup_attempted=False,
+                escalation_required=True,
+                api_action_required=False,
+                extracted_entities={**dict(result.extracted_entities), "blast_radius": "entire_location"},
+            )
+        else:
+            result = IntentClassification(
+                intent="general_query",
+                hardware_lookup_attempted=False,
+                escalation_required=False,
+                api_action_required=False,
+                extracted_entities=dict(result.extracted_entities),
+            )
 
     entities = dict(result.extracted_entities)
 

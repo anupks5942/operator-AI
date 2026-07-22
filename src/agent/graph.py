@@ -24,7 +24,6 @@ from src.llm import create_chat_model
 _ESCALATION_WORKFLOW_INTENTS = frozenset({
     "emergency_store_down",
     "machine_down",
-    "escalation_request",
     "machines_not_starting",
     "multiple_machines_offline",
 })
@@ -502,6 +501,7 @@ def escalation_resolved_node(state: AgentState):
             "clarify_asked": False,
             "escalation_ticket_id": None,
             "ticket_resolution_asked": False,
+            "human_escalation_asked": False,
         },
         "blast_radius": None,
         "escalation_required": None,
@@ -536,6 +536,7 @@ def troubleshoot_success_node(state: AgentState):
             "blast_radius": None,
             "blast_radius_asked": False,
             "clarify_asked": False,
+            "human_escalation_asked": False,
         },
         "blast_radius": None,
         "escalation_required": None,
@@ -571,9 +572,26 @@ def escalation_declined_node(state: AgentState):
             "troubleshooting_done": False,
             "escalation_confirmation_asked": False,
             "blast_radius_asked": False,
+            "human_escalation_asked": False,
         },
         "blast_radius": None,
         "troubleshooting_failed": None,
+    }
+
+
+def human_escalation_clarify_node(state: AgentState):
+    """Asks the operator what issue they're experiencing before connecting to support.
+
+    Triggered when the operator explicitly asks for a human agent without
+    describing a specific problem. Gives the AI a chance to resolve it first.
+    """
+    msg = AIMessage(content=(
+        "I'd be happy to connect you with support. Could you first describe "
+        "the issue you're experiencing? I may be able to resolve it quickly for you."
+    ))
+    return {
+        "messages": [msg],
+        "extracted_entities": {"human_escalation_asked": True},
     }
 
 
@@ -862,7 +880,14 @@ def route_after_classifier(state: AgentState) -> str:
             return "workflow_reminder"
 
     # Greeting: friendly response without RAG or LLM call.
+    # But override if the message actually describes an outage that was misclassified.
     if intent == "greeting":
+        _latest_for_blast = messages[-1].content if messages else ""
+        _inferred_blast = infer_blast_radius(_latest_for_blast)
+        if _inferred_blast == "entire_location":
+            return "escalation"
+        if _inferred_blast == "single_machine":
+            return "rag"
         return "greeting"
 
     # Out-of-domain and prompt injection: route directly to the static refusal node.
@@ -882,6 +907,13 @@ def route_after_classifier(state: AgentState) -> str:
     _prior_mentions_ticket = prior_ai and any(
         marker in prior_ai.lower()
         for marker in ("critical escalation ticket", "already been dispatched", "escalation ticket", "dispatched to the on-call")
+    )
+    _HUMAN_ESCALATION_PHRASES = (
+        "talk to support", "speak with a person", "speak to a person",
+        "human agent", "need a human", "talk to a human", "call me",
+        "contact me", "speak with someone", "talk to someone",
+        "have someone contact", "support call me", "speak to someone",
+        "connect me", "get me a person", "transfer me",
     )
     if _escalation_active or _prior_mentions_ticket:
         import re as _re_route
@@ -905,6 +937,10 @@ def route_after_classifier(state: AgentState) -> str:
         # Any substantive new query (>3 words) passes through to normal routing
         # regardless of intent — operators shouldn't be trapped after escalation.
         if len(latest.split()) > 3:
+            if intent == "escalation_request" or any(
+                p in latest.lower() for p in _HUMAN_ESCALATION_PHRASES
+            ):
+                return "post_escalation_ack"
             if intent == "greeting":
                 return "greeting"
             if intent == "out_of_domain":
@@ -958,6 +994,13 @@ def route_after_classifier(state: AgentState) -> str:
         if _has_any_tickets:
             return "escalation_resolved"
         return "greeting"
+
+    # Human escalation: operator explicitly asks for a person/supervisor.
+    # First ask what the issue is; if they insist a second time, escalate cleanly.
+    if intent == "escalation_request":
+        if not entities.get("human_escalation_asked"):
+            return "human_escalation_clarify"
+        return "escalation"
 
     # Critical outage is a confirmed production failure — skip troubleshooting and dispatch immediately.
     # But respect the deduplication guard: don't re-escalate if already dispatched.
@@ -1140,6 +1183,18 @@ def route_after_classifier(state: AgentState) -> str:
         else:
             return "workflow_reminder"
 
+    # Clarification follow-up guard: if the prior AI message was asking for device
+    # type or more details about an issue, the user's reply is continuing the same
+    # troubleshooting context — force RAG, not tool, regardless of router flags.
+    _CLARIFICATION_MARKERS = (
+        "legacy kiosk or platinum kiosk", "which type of kiosk",
+        "which kiosk", "which machine", "could you provide more details",
+        "could you confirm", "can you clarify", "what type of",
+        "is it a legacy", "is it a platinum",
+    )
+    if prior_ai and any(m in prior_ai.lower() for m in _CLARIFICATION_MARKERS):
+        return "rag"
+
     # API workflows: loyalty balance, transaction lookup, refund, system status check.
     if state.get("api_action_required"):
         return "tool"
@@ -1220,6 +1275,8 @@ def create_agent_graph():
     # Tiered escalation: asks single-machine operators to confirm before dispatching.
     workflow.add_node("confirm_escalation", confirm_escalation_node)
     workflow.add_node("escalation_declined", escalation_declined_node)
+    # Human escalation clarify: asks operator to describe the issue before connecting to support.
+    workflow.add_node("human_escalation_clarify", human_escalation_clarify_node)
     # Fresh-cycle node: resets state from a completed escalation and starts new outage workflow.
     workflow.add_node("new_issue_after_escalation", new_issue_after_escalation_node)
 
@@ -1249,6 +1306,7 @@ def create_agent_graph():
             "confirm_escalation":   "confirm_escalation",
             "escalation_declined":  "escalation_declined",
             "new_issue_after_escalation": "new_issue_after_escalation",
+            "human_escalation_clarify": "human_escalation_clarify",
         }
     )
 
@@ -1280,6 +1338,7 @@ def create_agent_graph():
     workflow.add_edge("post_escalation_ack", END)
     workflow.add_edge("confirm_escalation",  END)
     workflow.add_edge("escalation_declined", END)
+    workflow.add_edge("human_escalation_clarify", END)
     workflow.add_conditional_edges(
         "new_issue_after_escalation",
         _route_after_new_issue,

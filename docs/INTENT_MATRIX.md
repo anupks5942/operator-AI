@@ -79,8 +79,8 @@ Source: client Intent Matrix spreadsheet (Brandon), June 2026.
 | Transaction lookup / card history (normal or refunded) | `transaction_lookup` | tool_node (`isRefund` false/true) |
 | Customer Refunds | `refund_request` | RAG (Bible/portal how-to) — **not** refund execute tools |
 | Global/platform outage | `system_status_check` | tool_node |
-| Portal login, pricing, activation, receipt printer, recharge failure | `technical_support` (no dedicated label) | RAG; conditional Email **not wired** |
-| Human Escalation | `escalation_request` | outage workflow |
+| Portal login, pricing, activation, receipt printer, recharge failure | `technical_support` (no dedicated label) | RAG (unfiltered; ADR-033); conditional Email **not wired** |
+| Human Escalation | `escalation_request` | clarify-first → escalate (ADR-031; **not** outage workflow) |
 | Kiosk Not Responding | `kiosk_not_responding` | RAG direct (no outage workflow) |
 | Machines Not Starting | `machines_not_starting` | outage workflow |
 | Entire Store Down | `emergency_store_down`, `multiple_machines_offline`, or `critical_outage` | outage or immediate escalation |
@@ -91,7 +91,7 @@ Source: client Intent Matrix spreadsheet (Brandon), June 2026.
 
 | Business need | Today | Action |
 |---------------|-------|--------|
-| Receipt Printer Issue | `technical_support` → RAG | Add intent or map → troubleshoot + Email-only escalate |
+| Receipt Printer Issue | `technical_support` → RAG (domain keywords + no category filter) | Phase 2: dedicated intent + Email-only escalate |
 | Recharge Failure | `loyalty_balance_query` or RAG | Add router examples / dedicated intent |
 | Operator Portal Login, Machine Pricing, Activation Timing | RAG only | Conditional Email after KB failure |
 | Customer Refunds | RAG portal guidance (Bible) | Agent does not execute refunds (ADR-028) |
@@ -117,7 +117,7 @@ Source: client Intent Matrix spreadsheet (Brandon), June 2026.
 | `machine_down` | outage workflow | Yes | Email+SMS | Email/SMS |
 | `multiple_machines_offline` | outage workflow | Yes | Email+SMS | Email/SMS |
 | `emergency_store_down` | outage workflow | Yes | Email+SMS | **SMS Alert only** |
-| `escalation_request` | outage workflow | Yes | Email+SMS | Email/SMS |
+| `escalation_request` | human_escalation_clarify → escalation | No (clarify-first) | Email+SMS | Email/SMS |
 | `critical_outage` | immediate escalation | Skipped | Email+SMS | **SMS Alert only** |
 
 ---

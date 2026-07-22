@@ -162,12 +162,13 @@ Each turn ends at `END` after one node chain (router → one downstream node →
 
 Outage intents (`_ESCALATION_WORKFLOW_INTENTS` in graph):
 
-- `emergency_store_down`, `machine_down`, `escalation_request`
+- `emergency_store_down`, `machine_down`
 - `machines_not_starting`, `multiple_machines_offline`
+- (`escalation_request` is **not** in this set — ADR-031 clarify-first)
 
 RAG-only intents (no outage workflow):
 
-- `kiosk_not_responding`, `technical_support` — route directly to RAG for KB answers
+- `kiosk_not_responding`, `technical_support`, `general_query`, `refund_request` — route directly to RAG for KB answers
 
 ---
 
@@ -175,20 +176,20 @@ RAG-only intents (no outage workflow):
 
 **Today (MVP):**
 
-1. Load **`.pdf`, `.docx`, and `.txt`** from local `KB/` ([rag_service.py](../src/services/rag_service.py))
-2. Chunk: 500 chars, 50 overlap; metadata: brand, doc_type
-3. Embed: HuggingFace `all-MiniLM-L6-v2`
+1. Load **`.pdf`, `.docx`, and `.txt`** from local `KB/` ([rag_service.py](../src/services/rag_service.py)) — active sources: **v2.2** + **Setomatic Bible**
+2. Chunk: v2.2 article-aware (one article = one chunk); Bible selective troubleshooting + operator FAQ (ADR-030)
+3. Embed: OpenAI `text-embedding-3-small` (via `OPENAI_EMBEDDING_MODEL`)
 4. Store: Chroma `./chroma_db` (single-node; not shared across replicas)
-5. Retrieve: MMR, k=6, fetch_k=20
-6. Generate: OpenAI via `RAG_OPENAI_MODEL`
+5. Retrieve: MMR k=12 / fetch_k=40 → FlashRank `ms-marco-TinyBERT-L-2-v2` top 6 → co-retrieval (ADR-032)
+6. Generate: chat model via `create_chat_model()` with v2.2 Section 0 rules in system prompt
 
 **Target (production):**
 
-- **SpyderWash Bible** (~500 pages, Brandon mail) replaces legacy multi-manual `KB/` as the sole text source
+- **SpyderWash Bible** as sole text source when complete; retire v2.2
 - **Operator videos:** Prefer YouTube URLs embedded in Bible/doc sections (Option B); no transcript RAG for MVP — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md), ADR-029.
 - Bible PDF (+ optional video URLs in sections) on **Rackspace Cloud Files** → scheduled ingest job → **Qdrant** (shared index) → agent API on Rackspace
 
-See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) and ADR-013 in [DECISIONS.md](DECISIONS.md).
+See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) and ADR-013 / ADR-030 in [DECISIONS.md](DECISIONS.md).
 
 ---
 

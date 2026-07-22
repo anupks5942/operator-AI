@@ -2,7 +2,7 @@
 
 How the Operator Agent uses the SpyderWash knowledge base, operator videos, and Rackspace-hosted assets — current state vs production target.
 
-**Last updated:** July 18, 2026
+**Last updated:** July 22, 2026
 
 ---
 
@@ -20,7 +20,7 @@ How the Operator Agent uses the SpyderWash knowledge base, operator videos, and 
 | Aspect | Status |
 |--------|--------|
 | v2.2 as primary AI source | **Active** — 171 structured articles, article-aware chunking (ADR-030) |
-| Bible as supplementary source | **Active** — troubleshooting sections (1-14) ingested; installation/wiring excluded |
+| Bible as supplementary source | **Active** — troubleshooting (1-14) + operator FAQ through Highest-Frequency Questions; brand wiring / PCI / Voiceover excluded |
 | Bible size | **261 pages / 47.9 MB** (not ~500 pp as previously estimated) |
 | v1.8 status | **Superseded** — confirmed for removal by Brandon (Jul 17, 2026) |
 | Content ownership | **Brandon / Setomatic** — Chetu must **not** invent KB source content |
@@ -47,19 +47,23 @@ v2.2 DOCX
 
 Bible DOCX
    │
-   ├── Sections 1-14 (34.8K chars) → 57 chunks, doc_type=bible_supplement
+   ├── Sections 1-14 → doc_type=bible_supplement
    │     Covers: Network errors, power issues, connectivity, ISP coordination
    │
-   └── Installation/Wiring (82.5% of doc) → EXCLUDED per v2.2 rules
-         "Machine-specific wiring, live-voltage work... are outside the Operator-facing chatbot"
+   ├── Operator Portal → Voiceover marker → doc_type=bible_operator
+   │     Covers: Portal/POS/Kiosk/Hub FAQ, Installation FAQ (Relay vs Serial
+   │     Control Board, Bluetooth ID, hubs), Highest-Frequency Questions
+   │
+   └── Brand wiring diagrams, Voiceover transcript, PCI notes, RMA SOP → EXCLUDED
 ```
 
 ### Retrieval pipeline
 
-1. **MMR retrieval** — k=8, fetch_k=30, lambda=0.5
-2. **FlashRank reranking** — rank-T5-flan model, top 4 after rerank
+1. **MMR retrieval** — k=12, fetch_k=40, lambda=0.5
+2. **FlashRank reranking** — `ms-marco-TinyBERT-L-2-v2`, top 6 after rerank (ADR-032)
 3. **Co-retrieval** — 17 articles have mandatory companion articles (e.g., KB-POS-007 for all POS scale queries)
 4. **LLM generation** — Section 0 rules in system prompt; context = reranked + companion docs
+5. **Category metadata filter** — only for narrow intents; **not** for `technical_support` (ADR-033)
 
 ### Metadata fields indexed in Chroma
 
@@ -72,7 +76,7 @@ Bible DOCX
 | `search_terms` | v2.2 METADATA line | offline; reader; control board; hub |
 | `status` | v2.2 STATUS line | current |
 | `source_priority` | Computed | primary (v2.2) / secondary (Bible) |
-| `doc_type` | Computed | kb_article / bible_supplement / visual_reference |
+| `doc_type` | Computed | kb_article / bible_supplement / bible_operator / visual_reference |
 | `brand` | Computed | SpyderWash |
 | `co_retrieval_ids` | v2.2 CO-RETRIEVAL RULE | KB-POS-007 |
 
@@ -166,8 +170,8 @@ Hosting target in [ROADMAP.md](ROADMAP.md) Phase 3 includes **Rackspace** as pri
 | Requirement | Ready? | Phase |
 |-------------|--------|-------|
 | Article-aware RAG from v2.2 (171 articles) | **Implemented** (ADR-030) | Done |
-| Bible supplement ingestion (troubleshooting only) | **Implemented** | Done |
-| FlashRank reranking | **Implemented** | Done |
+| Bible supplement + operator FAQ ingestion | **Implemented** (ADR-030) | Done |
+| FlashRank reranking (`ms-marco-TinyBERT-L-2-v2`) | **Implemented** (ADR-032) | Done |
 | Co-retrieval rules | **Implemented** | Done |
 | Section 0 system prompt injection | **Implemented** | Done |
 | Brandon KB Admin (feedback, chunk editor, pending updates) | **No** | 5 — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
@@ -187,8 +191,9 @@ Hosting target in [ROADMAP.md](ROADMAP.md) Phase 3 includes **Rackspace** as pri
 | Status | Task | Owner |
 |--------|------|-------|
 | [x] | Article-aware v2.2 ingestion (171 articles as atomic chunks with metadata) | dev1 — ADR-030 |
-| [x] | Selective Bible ingestion (Sections 1-14 only; exclude wiring/installation) | dev1 — ADR-030 |
-| [x] | FlashRank reranking (rank-T5-flan, top 4 from 8 candidates) | dev1 |
+| [x] | Selective Bible ingestion (troubleshooting + operator FAQ; exclude wiring/PCI) | dev1 — ADR-030 |
+| [x] | FlashRank reranking (`ms-marco-TinyBERT-L-2-v2`, top 6 from MMR 12) | dev1 — ADR-032 |
+| [x] | Stop category-filtering `technical_support` (printer / Control Board RAG) | dev1 — ADR-033 |
 | [x] | Co-retrieval rules (17 articles with mandatory companions) | dev1 |
 | [x] | Section 0 system prompt injection | dev1 |
 | [x] | Prefer video **Option B** (URL in Bible section) over transcript RAG | Proposed to Brandon |
@@ -207,7 +212,7 @@ Hosting target in [ROADMAP.md](ROADMAP.md) Phase 3 includes **Rackspace** as pri
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — RAG path and system diagram
 - [TECH_STACK.md](TECH_STACK.md) — Chroma vs Qdrant
-- [DECISIONS.md](DECISIONS.md) — ADR-003, ADR-012, ADR-013, ADR-015, ADR-030
+- [DECISIONS.md](DECISIONS.md) — ADR-003, ADR-012, ADR-013, ADR-015, ADR-030–034
 - [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) — Brandon mail, KB Admin prototype, chunk map
 - [REQUIREMENTS_MAP.md](REQUIREMENTS_MAP.md) — vendor doc traceability
 - [ROADMAP.md](ROADMAP.md) — phased delivery

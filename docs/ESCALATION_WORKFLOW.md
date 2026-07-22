@@ -87,7 +87,8 @@ From `_ESCALATION_WORKFLOW_INTENTS` in [graph.py](../src/agent/graph.py) (same s
 | `machine_down` | "Machine 5 is offline" |
 | `multiple_machines_offline` | "Several machines lost hub connection" |
 | `emergency_store_down` | "Whole store is down" |
-| `escalation_request` | "I need a human / supervisor" |
+
+**Not in this set:** `escalation_request` ("I need a human") uses clarify-first → escalate (ADR-031), not blast-radius.
 
 **Exceptions:**
 - `critical_outage` skips troubleshooting and escalates immediately.
