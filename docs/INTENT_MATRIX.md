@@ -92,7 +92,7 @@ Source: client Intent Matrix spreadsheet (Brandon), June 2026.
 | Business need | Today | Action |
 |---------------|-------|--------|
 | Receipt Printer Issue | `technical_support` → RAG (domain keywords + no category filter) | Phase 2: dedicated intent + Email-only escalate |
-| Recharge Failure | `loyalty_balance_query` or RAG | Add router examples / dedicated intent |
+| Recharge Failure | `technical_support` → RAG (phrase safety net prevents misroute to status/lookup) | Phase 2: dedicated intent + conditional Email |
 | Operator Portal Login, Machine Pricing, Activation Timing | RAG only | Conditional Email after KB failure |
 | Customer Refunds | RAG portal guidance (Bible) | Agent does not execute refunds (ADR-028) |
 
