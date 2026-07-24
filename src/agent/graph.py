@@ -213,6 +213,51 @@ def _user_indicates_resolved(text: str) -> bool:
     return _is_resolution_message(text)
 
 
+def _is_duplicate_outage(state: dict, new_text: str) -> bool:
+    """Return True if new_text is essentially the same outage already ticketed."""
+    entities = state.get("extracted_entities") or {}
+    last_summary = entities.get("last_ticket_summary", "")
+    if not last_summary:
+        return False
+
+    last_blast = entities.get("last_ticket_blast_radius", "") or state.get("last_ticket_blast_radius", "")
+    current_blast = state.get("blast_radius") or entities.get("blast_radius", "")
+    if last_blast and current_blast and last_blast != current_blast:
+        return False
+
+    a = set(last_summary.lower().split())
+    b = set(new_text.lower().split())
+    if not a or not b:
+        return False
+    jaccard = len(a & b) / len(a | b)
+    return jaccard >= 0.4
+
+
+_HOWTO_INFO_PREFIXES = (
+    "how do i", "how can i", "how to", "how do we", "how can we",
+    "where do i", "where can i", "where is", "where are",
+    "what does", "what is", "what are", "what's", "whats",
+    "when do i", "when should i", "why is", "why does",
+    "can i", "do i need", "is there a way", "which ",
+)
+
+_HOWTO_INFO_STARTS = ("how ", "where ", "what ", "when ", "why ", "which ")
+
+
+def _is_howto_or_info_query(text: str) -> bool:
+    """True for portal/how-to questions that must not become ticket notes."""
+    lower = (text or "").strip().lower()
+    if not lower:
+        return False
+    if lower.endswith("?"):
+        return True
+    if any(lower.startswith(p) for p in _HOWTO_INFO_PREFIXES):
+        return True
+    if any(lower.startswith(p) for p in _HOWTO_INFO_STARTS):
+        return True
+    return False
+
+
 def _format_conversation_for_email(messages) -> str:
     """Format the full session transcript for the escalation email body."""
     lines: list[str] = []
@@ -286,9 +331,12 @@ def escalation_node(state: AgentState):
         f'A {severity_word}escalation ticket ({ticket_number}) has been created and dispatched '
         f'to the on-call technician. They will contact you shortly regarding: "{short_issue}"'
     )
+    ticket_blast = state.get("blast_radius") or (state.get("extracted_entities") or {}).get("blast_radius", "unknown")
     return {
         "messages": [AIMessage(content=response_content)],
         "escalation_dispatched": True,
+        "last_ticket_summary": short_issue,
+        "last_ticket_blast_radius": ticket_blast,
         "dispatched_tickets": existing_tickets,
         "all_session_tickets": all_tickets,
         "ticket_email_ids": existing_email_ids,
@@ -297,6 +345,8 @@ def escalation_node(state: AgentState):
             "blast_radius_asked": False,
             "escalation_confirmation_asked": False,
             "escalation_ticket_id": ticket_number,
+            "last_ticket_summary": short_issue,
+            "last_ticket_blast_radius": ticket_blast,
         },
     }
 
@@ -319,12 +369,13 @@ def new_issue_after_escalation_node(state: AgentState):
         "escalation_confirmation_asked": False,
     }
 
+    prior_dispatched = state.get("escalation_dispatched")
     result = {
         "extracted_entities": base_entities,
         "blast_radius": blast_radius,
         "escalation_required": True,
         "troubleshooting_failed": None,
-        "escalation_dispatched": None,
+        "escalation_dispatched": prior_dispatched,
     }
 
     if blast_radius:
@@ -409,9 +460,24 @@ def troubleshoot_first_node(state: AgentState):
             f"troubleshooting {query} affecting {blast_radius_str}"
         )
     else:
-        combined_query = f"{query} affecting {blast_radius_str}"
+        combined_query = (
+            f"machine not working troubleshooting power cycle error code "
+            f"washer dryer won't start {query} affecting {blast_radius_str}"
+        )
 
-    metadata_filter = _extract_metadata_filter({**state, "extracted_entities": entities})
+    # For vague single-machine queries, drop the category filter — it's too restrictive
+    # when the user hasn't described the specific symptom yet.
+    _query_words = set(query.lower().split())
+    _symptom_words = {
+        "error", "code", "beeping", "flashing", "leaking", "display", "blank",
+        "frozen", "stuck", "noise", "won't", "wont", "start", "coin", "card",
+        "reader", "printer", "door", "lock", "drain", "spin", "water",
+    }
+    is_vague = not (_query_words & _symptom_words) and len(_query_words) <= 6
+    if is_vague and not is_entire_location:
+        metadata_filter = None
+    else:
+        metadata_filter = _extract_metadata_filter({**state, "extracted_entities": entities})
     from src.agent.nodes import get_rag_service
     rag_service = get_rag_service()
     response = rag_service.query(combined_query, metadata_filter=metadata_filter)
@@ -579,6 +645,32 @@ def escalation_declined_node(state: AgentState):
     }
 
 
+def exit_escalation_gate_node(state: AgentState):
+    """Clears escalation gate flags and answers the operator's new query via RAG.
+
+    Triggered when the operator abandons the 'Would you like me to escalate?' prompt
+    by asking a completely new question (>3 words, not yes/no).
+    """
+    from src.agent.nodes import retrieve_and_generate
+    rag_result = retrieve_and_generate(state)
+
+    flag_clear = {
+        "escalation_confirmation_asked": False,
+        "troubleshooting_done": False,
+        "blast_radius_asked": False,
+        "human_escalation_asked": False,
+    }
+    existing_entities = dict((rag_result.get("extracted_entities") or {}))
+    existing_entities.update(flag_clear)
+
+    return {
+        "messages": rag_result["messages"],
+        "extracted_entities": existing_entities,
+        "blast_radius": None,
+        "troubleshooting_failed": None,
+    }
+
+
 def human_escalation_clarify_node(state: AgentState):
     """Asks the operator what issue they're experiencing before connecting to support.
 
@@ -595,10 +687,68 @@ def human_escalation_clarify_node(state: AgentState):
     }
 
 
+_PHONE_RE = __import__("re").compile(r"\b(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})\b")
+_STATUS_KEYWORDS = {"status", "update", "news", "happening", "progress", "eta"}
+_POST_ESC_HUMAN_PHRASES = (
+    "talk to support", "speak with a person", "speak to a person",
+    "human agent", "need a human", "talk to a human", "call me",
+    "contact me", "speak with someone", "talk to someone",
+    "have someone contact", "support call me", "speak to someone",
+    "connect me", "get me a person", "transfer me",
+)
+
+
 def post_escalation_ack_node(state: AgentState):
-    # After a ticket is dispatched, avoid restarting the outage workflow on follow-up noise.
+    """Context-aware response after a ticket has been dispatched."""
+    messages = state.get("messages", [])
+    latest = messages[-1].content if messages else ""
+    latest_lower = latest.lower()
+
+    dispatched = state.get("dispatched_tickets") or []
+    active_ticket = dispatched[-1] if dispatched else "your ticket"
+
+    phone_match = _PHONE_RE.search(latest)
+    if phone_match:
+        phone = phone_match.group(1)
+        msg = AIMessage(content=(
+            f"I've noted your callback number ({phone}) for ticket {active_ticket}. "
+            f"The technician will reach out to you at that number."
+        ))
+        return {
+            "messages": [msg],
+            "callback_number": phone,
+        }
+
+    if any(p in latest_lower for p in _POST_ESC_HUMAN_PHRASES):
+        msg = AIMessage(content=(
+            f"Your ticket {active_ticket} is already with the on-call technician. "
+            f"Would you like to share a callback number so they can reach you directly?"
+        ))
+        return {"messages": [msg]}
+
+    if set(latest_lower.split()) & _STATUS_KEYWORDS:
+        msg = AIMessage(content=(
+            f"Ticket {active_ticket} has been dispatched and the on-call technician "
+            f"will follow up directly. I don't have a live status update, but you'll "
+            f"be contacted shortly."
+        ))
+        return {"messages": [msg]}
+
+    if len(latest.split()) > 3:
+        snippet = latest[:80] + ("..." if len(latest) > 80 else "")
+        existing_notes = list(state.get("ticket_notes") or [])
+        existing_notes.append(latest)
+        msg = AIMessage(content=(
+            f'I\'ve noted that additional context for ticket {active_ticket}: '
+            f'"{snippet}". The technician will see this when they follow up.'
+        ))
+        return {
+            "messages": [msg],
+            "ticket_notes": existing_notes,
+        }
+
     msg = AIMessage(content=(
-        "Your escalation ticket has already been dispatched to the on-call technician, "
+        f"Your escalation ticket ({active_ticket}) has already been dispatched to the on-call technician, "
         "and they will follow up with you shortly. If the issue is resolved before they "
         "reach out, no further action is needed."
     ))
@@ -840,7 +990,11 @@ def route_after_classifier(state: AgentState) -> str:
             or any(phrase in _last_text for phrase in _confirm_phrases_no)
         ):
             return "escalation_declined"
-        return "confirm_escalation"
+        # Short ambiguous input (<=3 words) → re-ask
+        if len(_last_text.split()) <= 3:
+            return "confirm_escalation"
+        # Substantive new query → exit the gate, clear flags, answer via RAG
+        return "exit_escalation_gate"
 
     # Ticket disambiguation follow-up: the user was asked "Which ticket is resolved?"
     # and is now providing a ticket ID or "all". Route back to escalation_resolved.
@@ -930,16 +1084,21 @@ def route_after_classifier(state: AgentState) -> str:
         if state.get("api_action_required"):
             return "tool"
         # Allow new issue reports to start a fresh cycle instead of trapping them.
+        # But check for duplicates first — don't create a second ticket for the same issue.
         if intent in _ESCALATION_WORKFLOW_INTENTS and len(latest.split()) >= 3:
+            if _is_duplicate_outage(state, latest):
+                return "post_escalation_ack"
             return "new_issue_after_escalation"
         if intent == "conversation_summary":
             return "summarize"
         # Any substantive new query (>3 words) passes through to normal routing
-        # regardless of intent — operators shouldn't be trapped after escalation.
+        # or to post_escalation_ack for ticket-related follow-ups.
         if len(latest.split()) > 3:
             if intent == "escalation_request" or any(
                 p in latest.lower() for p in _HUMAN_ESCALATION_PHRASES
             ):
+                return "post_escalation_ack"
+            if set(latest.lower().split()) & _STATUS_KEYWORDS:
                 return "post_escalation_ack"
             if intent == "greeting":
                 return "greeting"
@@ -950,10 +1109,20 @@ def route_after_classifier(state: AgentState) -> str:
             if state.get("api_action_required"):
                 return "tool"
             if intent in _ESCALATION_WORKFLOW_INTENTS:
+                if _is_duplicate_outage(state, latest):
+                    return "post_escalation_ack"
                 return "new_issue_after_escalation"
+            # How-to / informational questions are new queries, not ticket notes.
+            if _is_howto_or_info_query(latest):
+                return "rag"
+            # Non-specific message after escalation: treat as additional detail
+            if intent in ("general_query", "technical_support"):
+                return "post_escalation_ack"
             return "rag"
-        # Short messages: check for yes/no to "Did this resolve?" from prior RAG troubleshooting
-        if entities.get("troubleshooting_done") and intent not in _ESCALATION_WORKFLOW_INTENTS:
+        # Short messages: check for yes/no to "Did this resolve?" from prior RAG troubleshooting.
+        # Use prior AI content to confirm we're responding to a resolve prompt, not a new query.
+        _prior_asked_resolve = prior_ai and "did this resolve" in prior_ai.lower()
+        if entities.get("troubleshooting_done") and _prior_asked_resolve:
             _pe_last = latest.strip().lower()
             _pe_pos = {"yes", "yeah", "yep", "yup", "ya", "yaa", "yah", "y", "si", "sí"}
             if _pe_last in _pe_pos or _user_indicates_resolved(latest):
@@ -961,6 +1130,8 @@ def route_after_classifier(state: AgentState) -> str:
             _pe_neg_words = {"no", "nope", "nah"}
             if set(_pe_last.split()) & _pe_neg_words:
                 return "confirm_escalation"
+        if intent == "greeting":
+            return "greeting"
         return "post_escalation_ack"
 
     # Post-resolution closure: after "Glad to hear..." if the user replies with another
@@ -1275,6 +1446,7 @@ def create_agent_graph():
     # Tiered escalation: asks single-machine operators to confirm before dispatching.
     workflow.add_node("confirm_escalation", confirm_escalation_node)
     workflow.add_node("escalation_declined", escalation_declined_node)
+    workflow.add_node("exit_escalation_gate", exit_escalation_gate_node)
     # Human escalation clarify: asks operator to describe the issue before connecting to support.
     workflow.add_node("human_escalation_clarify", human_escalation_clarify_node)
     # Fresh-cycle node: resets state from a completed escalation and starts new outage workflow.
@@ -1305,6 +1477,7 @@ def create_agent_graph():
             "post_escalation_ack":  "post_escalation_ack",
             "confirm_escalation":   "confirm_escalation",
             "escalation_declined":  "escalation_declined",
+            "exit_escalation_gate": "exit_escalation_gate",
             "new_issue_after_escalation": "new_issue_after_escalation",
             "human_escalation_clarify": "human_escalation_clarify",
         }
@@ -1338,6 +1511,7 @@ def create_agent_graph():
     workflow.add_edge("post_escalation_ack", END)
     workflow.add_edge("confirm_escalation",  END)
     workflow.add_edge("escalation_declined", END)
+    workflow.add_edge("exit_escalation_gate", END)
     workflow.add_edge("human_escalation_clarify", END)
     workflow.add_conditional_edges(
         "new_issue_after_escalation",

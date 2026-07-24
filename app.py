@@ -109,6 +109,17 @@ def _render_routing_diagnostics(diag: dict) -> None:
 
 # ── Sidebar: routing diagnostics ─────────────────────────────────────────────
 with st.sidebar:
+    if st.button("New Chat", use_container_width=True):
+        st.session_state.thread_id = str(uuid.uuid4())
+        st.session_state.messages = []
+        st.session_state.routing_diagnostics = {
+            "current_intent": "Unknown",
+            "hardware_lookup_attempted": False,
+            "escalation_required": False,
+            "api_action_required": False,
+        }
+        st.rerun()
+
     st.header("🧠 AI Routing Diagnostics")
     st.markdown("*(Real-time backend state)*")
     st.divider()

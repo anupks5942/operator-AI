@@ -39,6 +39,14 @@ class AgentState(TypedDict):
     operator_name:             Optional[str]
     operator_email:            Optional[str]
     operator_phone:            Optional[str]
+    # Issue summary from the most recently dispatched ticket (for duplicate detection).
+    last_ticket_summary:       Optional[str]
+    # Blast radius of the most recently dispatched ticket (for blast-radius-aware dedup).
+    last_ticket_blast_radius:  Optional[str]
+    # Additional context messages logged by the operator after ticket dispatch.
+    ticket_notes:              Optional[list]
+    # Operator callback phone number extracted after ticket dispatch.
+    callback_number:           Optional[str]
     # merge_dicts reducer merges partial entity updates across turns instead of
     # overwriting the entire dict, preserving entities from earlier workflow steps.
     extracted_entities: Annotated[dict, merge_dicts]

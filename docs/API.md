@@ -151,6 +151,55 @@ Legacy `/query` does not support `operator_id`, `session_id`, or structured esca
 
 ---
 
+## Session Lifecycle (Frontend Guidance)
+
+The backend does **not** generate or manage `session_id` — the client owns its lifecycle. A new `session_id` = a new empty conversation; the same `session_id` = continued multi-turn memory.
+
+### Recommended pattern (React / .NET widget)
+
+```javascript
+// Get or create a session ID scoped to the current browser tab
+function getOrCreateSessionId() {
+  let id = sessionStorage.getItem("agent_session_id");
+  if (!id) {
+    id = crypto.randomUUID();
+    sessionStorage.setItem("agent_session_id", id);
+  }
+  return id;
+}
+
+// Reset: clears session so next call starts fresh
+function resetChatSession() {
+  sessionStorage.removeItem("agent_session_id");
+  setMessages([]); // UI only
+}
+
+// Every API call
+async function send(message) {
+  const session_id = getOrCreateSessionId();
+  return fetch("/api/v1/agent/chat", {
+    method: "POST",
+    body: JSON.stringify({ operator_id, session_id, message }),
+  });
+}
+```
+
+### When to reset
+
+| Event | Action |
+|-------|--------|
+| Widget close / minimize | `resetChatSession()` — next open = new conversation |
+| "New Chat" button | `resetChatSession()` |
+| Tab close | `sessionStorage` auto-clears — next open = new session |
+| Page refresh (F5) | `sessionStorage` survives — same session continues |
+
+### Backend behavior
+
+- Old `session_id` threads remain in server memory (MemorySaver) until process restart. They are unreachable once the client discards the ID.
+- There is no server-side session deletion endpoint. If RAM hygiene becomes a concern, a `DELETE /api/v1/agent/session/{session_id}` endpoint can be added later.
+
+---
+
 ## Related documents
 
 - [SETOMATIC_BACKEND_APIS.md](SETOMATIC_BACKEND_APIS.md) — Setomatic POS APIs the agent calls

@@ -1,3 +1,4 @@
+import re
 from langchain_core.messages import AIMessage, HumanMessage
 from src.agent.state import AgentState
 from src.agent.router import _is_product_overview_query
@@ -127,6 +128,83 @@ def _answer_contains_troubleshooting(answer: str) -> bool:
     return sum(1 for m in _TROUBLESHOOT_MARKERS if m in lower) >= 2
 
 
+_TROUBLESHOOT_INTENTS = {
+    "technical_support", "kiosk_not_responding", "machines_not_starting",
+    "machine_down", "multiple_machines_offline", "refund_request",
+}
+
+
+_FOLLOWUP_WORDS = frozenset({
+    "yes", "yeah", "yep", "yup", "sure", "ok", "okay", "please",
+    "provide", "go", "show", "tell", "give", "more", "details",
+    "info", "steps", "those", "the", "me", "it", "ahead",
+})
+
+_FOLLOWUP_PHRASES = (
+    "yes", "yeah", "yep", "yup", "sure", "ok", "okay", "please",
+    "provide", "show me", "tell me", "give me", "go ahead",
+    "more details", "more info", "the steps", "those steps",
+    "yes please", "yes provide", "provide me",
+)
+
+_KB_ARTICLE_PATTERN = re.compile(r"KB-[A-Z]+-\d+")
+
+
+def _get_prior_ai_content(messages) -> str | None:
+    """Walk backwards past the latest human message to find the prior AI reply."""
+    for msg in reversed(messages[:-1]):
+        if msg.type == "ai" and msg.content and str(msg.content).strip():
+            return msg.content
+    return None
+
+
+def _is_short_followup(text: str) -> bool:
+    """True when the message is a short affirmative/request follow-up (<=6 words)."""
+    words = text.strip().lower().split()
+    if len(words) > 6 or len(words) == 0:
+        return False
+    lower = text.strip().lower().rstrip(".,!?")
+    if any(lower == p or lower.startswith(p + " ") or lower.endswith(" " + p) for p in _FOLLOWUP_PHRASES):
+        return True
+    return bool(set(words) & _FOLLOWUP_WORDS) and len(words) <= 4
+
+
+def _expand_followup_query(messages) -> tuple[str, dict | None]:
+    """
+    If the latest message is a short follow-up, expand the query using context
+    from the prior AI message.
+
+    Returns (query, article_filter_or_None).
+    - Strategy 1: If prior AI references a KB article, return expanded query +
+      article_id metadata filter for precise retrieval.
+    - Strategy 2: If no article IDs but prior AI exists, prepend its first
+      sentence for topic signal.
+    - Otherwise: return original message unchanged.
+    """
+    latest = messages[-1].content
+    if not _is_short_followup(latest):
+        return latest, None
+
+    prior_ai = _get_prior_ai_content(messages)
+    if not prior_ai:
+        return latest, None
+
+    if "did this resolve" in prior_ai.lower():
+        return latest, None
+
+    article_ids = _KB_ARTICLE_PATTERN.findall(prior_ai)
+    if article_ids:
+        target_id = article_ids[-1]
+        expanded = f"{prior_ai[:200]} {latest}"
+        return expanded, {"article_id": {"$eq": target_id}}
+
+    first_sentence = prior_ai.split(".")[0].strip()
+    if first_sentence:
+        return f"{first_sentence}. {latest}", None
+
+    return latest, None
+
+
 def retrieve_and_generate(state: AgentState):
     """
     RAG_Node: retrieves relevant chunks from ChromaDB (with optional metadata
@@ -139,19 +217,39 @@ def retrieve_and_generate(state: AgentState):
     """
     messages = state.get("messages", [])
     if not messages:
-        # Return a safe fallback so downstream conditional edges never see an empty message list.
         return {"messages": [AIMessage(content="I could not find any messages to process. Please try again.")]}
 
     latest_message = messages[-1].content
 
-    # Build per-query metadata filter from state
+    expanded_query, followup_filter = _expand_followup_query(messages)
+
     metadata_filter = _extract_metadata_filter(state)
+    if followup_filter:
+        metadata_filter = followup_filter
 
     rag_service = get_rag_service()
-    response = rag_service.query(latest_message, metadata_filter=metadata_filter)
+    response = rag_service.query(expanded_query, metadata_filter=metadata_filter)
     answer = response.get("answer", "I'm sorry, I couldn't find an answer to your question.")
 
-    if _answer_contains_troubleshooting(answer):
+    current_intent = state.get("current_intent") or ""
+    answer_lower = answer.lower()
+    has_content_markers = _answer_contains_troubleshooting(answer)
+    has_any_marker = any(m in answer_lower for m in _TROUBLESHOOT_MARKERS)
+    should_prompt = (
+        has_content_markers
+        or (current_intent in _TROUBLESHOOT_INTENTS and has_any_marker)
+    )
+
+    _TRAILING_QUESTION_PHRASES = (
+        "would you like me to",
+        "do you want me to",
+        "shall i provide",
+        "would you like to see",
+        "want me to walk you through",
+    )
+    has_trailing_question = any(p in answer_lower for p in _TRAILING_QUESTION_PHRASES)
+
+    if should_prompt and not has_trailing_question:
         answer += "\n\nDid this resolve the issue? (Yes/No)"
         return {
             "messages": [AIMessage(content=answer)],
@@ -208,7 +306,17 @@ def handle_greeting(state: AgentState):
             "transaction history, refunds, and system status checks. "
             "How can I assist you today?"
         )
-    return {"messages": [AIMessage(content=msg)]}
+    return {
+        "messages": [AIMessage(content=msg)],
+        "escalation_dispatched": None,
+        "troubleshooting_failed": None,
+        "blast_radius": None,
+        "extracted_entities": {
+            "troubleshooting_done": False,
+            "blast_radius_asked": False,
+            "escalation_confirmation_asked": False,
+        },
+    }
 
 
 def workflow_reminder_node(state: AgentState):
