@@ -168,10 +168,14 @@ RAG-only (no outage workflow): `kiosk_not_responding`, `technical_support`
 | Prior assistant prompt | Operator reply | Extracted entity |
 |------------------------|----------------|------------------|
 | Blast-radius question | "one machine", "entire laundromat offline" | `blast_radius` |
-| Did this resolve? | "no", "still down" | `troubleshooting_failed: true` |
+| Did this resolve? | "no", "still down" | `troubleshooting_failed: true` → confirm escalate (single) or escalate (entire) |
 | Did this resolve? | "yes", "fixed" | `troubleshooting_failed: false` → `troubleshoot_success` (not ticket resolve) |
 | Refund workflow | card number, "yes proceed" | `card_number`, `confirmation` |
-| Ticket already dispatched | any follow-up | `general_query` — no workflow restart |
+| Ticket already dispatched | how-to / new-topic statement | RAG answer (ADR-037) — not ticket notes |
+| Ticket already dispatched | "also…", "same problem…" | `post_escalation_ack` ticket notes |
+| Ticket already dispatched | different blast-radius outage | `new_issue_after_escalation` (not Jaccard false-positive) |
+| Ticket already dispatched | greeting | greeting node; clears escalation routing flags |
+| RAG answer cites `KB-…` | "yes provide me" / short follow-up | expanded RAG query / article_id filter (ADR-036) |
 | Summarise / recap request | "summarise this chat", "recap", "tl;dr" | `conversation_summary` — honored mid-workflow |
 
 ---

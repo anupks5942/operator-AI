@@ -515,6 +515,56 @@ class PostEscalationFlowTests(unittest.TestCase):
             "Also machine 3 has the exact same problem since yesterday"
         ))
 
+    def test_post_escalation_new_topic_statement_goes_to_rag(self) -> None:
+        """Declarative statement about a different topic gets RAG, not ticket notes."""
+        script = [
+            {"current_intent": "emergency_store_down", "hardware_lookup_attempted": False,
+             "escalation_required": True, "api_action_required": False,
+             "extracted_entities": {"blast_radius": "entire_location", "troubleshooting_done": False, "troubleshooting_failed": False},
+             "blast_radius": "entire_location", "troubleshooting_failed": False},
+            {"current_intent": "emergency_store_down", "hardware_lookup_attempted": False,
+             "escalation_required": True, "api_action_required": False,
+             "extracted_entities": {"blast_radius": "entire_location", "troubleshooting_done": True, "troubleshooting_failed": True},
+             "blast_radius": "entire_location", "troubleshooting_failed": True},
+            {"current_intent": "technical_support", "hardware_lookup_attempted": False,
+             "escalation_required": False, "api_action_required": False,
+             "extracted_entities": {}, "blast_radius": None, "troubleshooting_failed": None},
+        ]
+        graph = self._build_graph(
+            script,
+            rag_answer="A card may show a larger amount due to a pre-authorization hold. Contact SpyderWash Support if the charge persists. Restart the reader.",
+        )
+        tid = "test-new-topic-stmt"
+        _invoke_turn(graph, tid, "All machines are down")
+        _invoke_turn(graph, tid, "No, still offline")
+        r = _invoke_turn(graph, tid, "A card shows a larger amount than the washer price")
+        t = _last_ai_text(r)
+        self.assertNotIn("noted", t.lower())
+        self.assertNotIn("additional context", t.lower())
+        self.assertIn("pre-authorization", t.lower())
+
+    def test_is_continuation_of_ticket(self) -> None:
+        """Continuation markers distinguish ticket follow-ups from new topics."""
+        from src.agent.graph import _is_continuation_of_ticket
+        self.assertTrue(_is_continuation_of_ticket(
+            "Also machine 3 has the exact same problem since yesterday"
+        ))
+        self.assertTrue(_is_continuation_of_ticket(
+            "same problem on machine 5 too"
+        ))
+        self.assertTrue(_is_continuation_of_ticket(
+            "still not working after all that"
+        ))
+        self.assertFalse(_is_continuation_of_ticket(
+            "A card shows a larger amount than the washer price"
+        ))
+        self.assertFalse(_is_continuation_of_ticket(
+            "The customer was charged twice"
+        ))
+        self.assertFalse(_is_continuation_of_ticket(
+            "A reader is showing Network Error"
+        ))
+
     # --- Dedup tests ---
 
     def test_dedup_same_outage(self) -> None:

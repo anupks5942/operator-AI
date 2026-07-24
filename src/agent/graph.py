@@ -258,6 +258,22 @@ def _is_howto_or_info_query(text: str) -> bool:
     return False
 
 
+_CONTINUATION_MARKERS = (
+    "also ", "also,", "and also", "additionally", "plus ", "plus,",
+    "same problem", "same issue", "same thing", "same error",
+    "still ", "btw ", "btw,", "by the way", "furthermore", "moreover",
+    "on top of that", "in addition", "another thing",
+)
+
+
+def _is_continuation_of_ticket(text: str) -> bool:
+    """True when a message is explicitly continuing/adding to the same ticket context."""
+    lower = (text or "").strip().lower()
+    if not lower:
+        return False
+    return any(lower.startswith(m) or f" {m}" in lower for m in _CONTINUATION_MARKERS)
+
+
 def _format_conversation_for_email(messages) -> str:
     """Format the full session transcript for the escalation email body."""
     lines: list[str] = []
@@ -1115,9 +1131,14 @@ def route_after_classifier(state: AgentState) -> str:
             # How-to / informational questions are new queries, not ticket notes.
             if _is_howto_or_info_query(latest):
                 return "rag"
-            # Non-specific message after escalation: treat as additional detail
+            # Only treat as additional ticket context when the operator is
+            # explicitly continuing the same topic (starts with "also",
+            # "additionally", etc.).  New declarative statements about
+            # unrelated issues should get a RAG answer.
             if intent in ("general_query", "technical_support"):
-                return "post_escalation_ack"
+                if _is_continuation_of_ticket(latest):
+                    return "post_escalation_ack"
+                return "rag"
             return "rag"
         # Short messages: check for yes/no to "Did this resolve?" from prior RAG troubleshooting.
         # Use prior AI content to confirm we're responding to a resolve prompt, not a new query.

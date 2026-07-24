@@ -19,7 +19,7 @@ operator-AI/
 ├── KB/                         # Knowledge base source files (PDF/DOCX ingested; .txt skipped)
 ├── chroma_db/                  # Generated vector store (gitignored typically)
 ├── tests/
-│   └── test_outage_workflow.py # Primary regression suite (7 tests)
+│   └── test_outage_workflow.py # Outage, post-escalation, follow-up, dedup, greeting reset
 └── src/
     ├── config.py               # All env-backed settings
     ├── agent/
@@ -78,7 +78,7 @@ Full variable list: [ENVIRONMENT.md](ENVIRONMENT.md)
 
 | File | Coverage |
 |------|----------|
-| [tests/test_outage_workflow.py](../tests/test_outage_workflow.py) | TC1, TC2, post-escalation, helpers, notification mock |
+| [tests/test_outage_workflow.py](../tests/test_outage_workflow.py) | TC1/TC2, post-escalation, follow-up expansion, blast-radius dedup, greeting reset, notification mock |
 
 **Not covered:** live LLM router, live RAG quality, HTTP integration, Setomatic API, live Twilio/Mandrill.
 

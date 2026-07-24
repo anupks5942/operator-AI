@@ -164,7 +164,7 @@ Sets `escalation_confirmation_asked: true` in entities.
 3. `_format_conversation_for_email` — full transcript (sanitized, PCI-masked)
 4. `_resolve_operator_contact` — from API fields (conditional: only rendered in email when real data available)
 5. `NotificationService.send_escalation` — Professional HTML email + Twilio SMS; returns `message_id` for threading
-6. Sets `escalation_dispatched: true`; appends ticket to `dispatched_tickets` (open) and `all_session_tickets` (append-only); stores email Message-ID in `ticket_email_ids`
+6. Sets `escalation_dispatched: true`; appends ticket to `dispatched_tickets` (open) and `all_session_tickets` (append-only); stores email Message-ID in `ticket_email_ids`; stores `last_ticket_summary` and `last_ticket_blast_radius` for blast-radius-aware dedup (ADR-037)
 
 **Ticket format:** `TKT-{8 hex chars}`
 
@@ -178,21 +178,31 @@ Sets `escalation_confirmation_asked: true` in entities.
 
 **SMS format:** `SpyderWash [SEVERITY] TKT-xxx: {issue line}`
 
-### Step 5 — Post-escalation (deduplication + fresh cycle)
+### Step 5 — Post-escalation (deduplication + fresh cycle + context-aware ack)
 
-Once `escalation_node` fires, `escalation_dispatched: true` is set in state. This flag prevents duplicate tickets:
+Once `escalation_node` fires, `escalation_dispatched: true` is set and `last_ticket_summary` / `last_ticket_blast_radius` are stored for duplicate detection.
 
-- Any subsequent negative reply ("no", "still down") → `post_escalation_ack_node` (ticket already active)
-- Resolution phrases ("working fine", "issue resolved") or a bare `TKT-…` ID → `escalation_resolved_node`
-- Gibberish / ambiguous → `post_escalation_ack_node`
-- Substantive non-outage queries (e.g. "what is SpyderWash") → RAG / normal nodes (passthrough)
-- **New issue report** (outage intent + ≥3 words) → `new_issue_after_escalation_node` (resets workflow flags, starts fresh cycle)
+**Dedup (`_is_duplicate_outage`):** Same blast radius + Jaccard ≥0.4 on ticket summary → treat as same issue → `post_escalation_ack`. Different blast radius (e.g. `entire_location` ticket vs `single_machine` report) → **not** a duplicate → `new_issue_after_escalation`.
 
-If assistant message contains `"escalation ticket"` or `"already been dispatched"`:
+**Routing after a ticket is open** (order matters):
 
-- Short follow-up / ambiguous → `post_escalation_ack_node` (no blast-radius restart)
-- Resolution language / ticket ID → `escalation_resolved_node`
-- New descriptive issue report → fresh cycle
+| Operator message | Route |
+|------------------|-------|
+| Resolution phrases / `TKT-…` / "working fine" | `escalation_resolved` |
+| API intents (balance, transactions, status scrape) | `tool` |
+| Outage intent + ≥3 words, **not** duplicate | `new_issue_after_escalation` → troubleshoot or escalate |
+| Outage intent + duplicate of last ticket | `post_escalation_ack` |
+| Greeting (`hi`) | `greeting` — clears escalation **routing** flags (keeps ticket ID lists) |
+| How-to / info question ("How do I…", "Where…", "What does…", ends with `?`) | `rag` |
+| New-topic statement ("The customer was charged twice", "A reader is showing Network Error") | `rag` |
+| Explicit continuation ("Also machine 3 same problem…") | `post_escalation_ack` (ticket notes) |
+| Callback / human / ticket status keywords | `post_escalation_ack` (context-aware templates) |
+| "Did this resolve?" → yes / no (prior AI asked resolve) | `troubleshoot_success` / `confirm_escalation` (even if an older ticket is still open) |
+| Short ambiguous after confirm-escalate prompt | Re-ask confirm; substantive new query → `exit_escalation_gate` |
+
+**`post_escalation_ack_node` templates:** callback number, human-request without phone, ticket status, additional context note, or generic "already dispatched".
+
+**Do not** treat every post-ticket message as "already dispatched" — that was the sticky-state bug (ADR-037).
 
 ### Step 6 — Ticket resolution (multi-ticket aware)
 

@@ -2,7 +2,7 @@
 
 How the Operator Agent uses the SpyderWash knowledge base, operator videos, and Rackspace-hosted assets — current state vs production target.
 
-**Last updated:** July 22, 2026
+**Last updated:** July 24, 2026
 
 ---
 
@@ -64,6 +64,8 @@ Bible DOCX
 3. **Co-retrieval** — 17 articles have mandatory companion articles (e.g., KB-POS-007 for all POS scale queries)
 4. **LLM generation** — Section 0 rules in system prompt; context = reranked + companion docs
 5. **Category metadata filter** — only for narrow intents; **not** for `technical_support` (ADR-033)
+6. **Short follow-up expansion** — ≤6-word affirmatives/requests expand from prior AI / last `KB-…` article_id (ADR-036)
+7. **Resolve prompt** — content markers (± intent); skip definitional / trailing-offer answers (ADR-034/035)
 
 ### Metadata fields indexed in Chroma
 
@@ -194,6 +196,9 @@ Hosting target in [ROADMAP.md](ROADMAP.md) Phase 3 includes **Rackspace** as pri
 | [x] | Selective Bible ingestion (troubleshooting + operator FAQ; exclude wiring/PCI) | dev1 — ADR-030 |
 | [x] | FlashRank reranking (`ms-marco-TinyBERT-L-2-v2`, top 6 from MMR 12) | dev1 — ADR-032 |
 | [x] | Stop category-filtering `technical_support` (printer / Control Board RAG) | dev1 — ADR-033 |
+| [x] | Resolve-prompt guards (definitional + trailing question) | dev1 — ADR-035 |
+| [x] | Short follow-up RAG query expansion (KB article_id / prior topic) | dev1 — ADR-036 |
+| [x] | Post-escalation sticky-state / blast-radius dedup / ticket-notes gate | dev1 — ADR-037 |
 | [x] | Co-retrieval rules (17 articles with mandatory companions) | dev1 |
 | [x] | Section 0 system prompt injection | dev1 |
 | [x] | Prefer video **Option B** (URL in Bible section) over transcript RAG | Proposed to Brandon |
@@ -212,7 +217,7 @@ Hosting target in [ROADMAP.md](ROADMAP.md) Phase 3 includes **Rackspace** as pri
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — RAG path and system diagram
 - [TECH_STACK.md](TECH_STACK.md) — Chroma vs Qdrant
-- [DECISIONS.md](DECISIONS.md) — ADR-003, ADR-012, ADR-013, ADR-015, ADR-030–034
+- [DECISIONS.md](DECISIONS.md) — ADR-003, ADR-012, ADR-013, ADR-015, ADR-030–037
 - [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) — Brandon mail, KB Admin prototype, chunk map
 - [REQUIREMENTS_MAP.md](REQUIREMENTS_MAP.md) — vendor doc traceability
 - [ROADMAP.md](ROADMAP.md) — phased delivery

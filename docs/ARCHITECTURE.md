@@ -134,10 +134,14 @@ Each turn ends at `END` after one node chain (router → one downstream node →
 
 | Field | Role |
 |-------|------|
-| `escalation_dispatched` | Dedup / post-escalation routing |
+| `escalation_dispatched` | Dedup / post-escalation routing (cleared by greeting; not by every RAG turn) |
 | `dispatched_tickets` | Open tickets only (removed on resolve) |
 | `all_session_tickets` | Append-only history for conversation summary |
 | `ticket_email_ids` | `TKT-…` → email Message-ID for threaded resolution replies |
+| `last_ticket_summary` | Issue line of last dispatched ticket (Jaccard dedup) |
+| `last_ticket_blast_radius` | Blast radius of last ticket (`single_machine` / `entire_location`) |
+| `ticket_notes` | Operator detail dumps noted onto the open ticket |
+| `callback_number` | Phone captured after post-escalation callback request |
 
 ---
 
@@ -151,12 +155,12 @@ Each turn ends at `END` after one node chain (router → one downstream node →
 6. `greeting` → greeting_node (pre-LLM heuristic; no RAG or API call)
 7. `out_of_domain` → refusal
 8. `hardware_lookup_attempted` → guardrail
-9. Post-escalation follow-ups → `post_escalation_ack` or `escalation_resolved` or `new_issue_after_escalation` (fresh cycle for new reports); API / substantive general queries may pass through
+9. Post-escalation follow-ups → context-aware: resolve / tool / new issue (blast-radius dedup) / greeting reset / how-to+new-topic → RAG / continuation → `post_escalation_ack` (ADR-037)
 10. **Post-resolution closure**: "no" / "no thanks" after "Glad to hear..." → friendly close (not new workflow)
 11. **Stateless resolution guard**: clear resolution phrases → `escalation_resolved` (or greeting if no tickets)
 12. `critical_outage` → immediate escalation (skip troubleshoot; dedup guard prevents re-dispatch)
-13. Outage workflow intents → blast-radius → **entire_location: immediate escalation** / single_machine: `clarify_issue` (only if message lacks action words like "down"/"offline" AND is ≤3 words; fires once per cycle) → troubleshoot → on "yes" → `troubleshoot_success`; on failure → escalate
-14. **Escalation dedup**: if `escalation_dispatched` is set, "no" routes to `post_escalation_ack` (no duplicate tickets)
+13. Outage workflow intents → blast-radius → **entire_location: immediate escalation** / single_machine: `clarify_issue` (only if message lacks action words like "down"/"offline" AND is ≤3 words; fires once per cycle) → troubleshoot → on "yes" → `troubleshoot_success`; on failure → `confirm_escalation` then escalate
+14. **Escalation confirm sticky gate**: after "Would you like me to escalate?", yes/no handled; short garbage re-asks; substantive new query → `exit_escalation_gate`
 15. `api_action_required` → tools (clears stale workflow flags on completion)
 16. Default → RAG
 
@@ -169,6 +173,8 @@ Outage intents (`_ESCALATION_WORKFLOW_INTENTS` in graph):
 RAG-only intents (no outage workflow):
 
 - `kiosk_not_responding`, `technical_support`, `general_query`, `refund_request` — route directly to RAG for KB answers
+
+**Resolve prompt (RAG path):** Append "Did this resolve?" when content has ≥2 troubleshoot markers, or intent is in troubleshoot set **and** ≥1 marker; skip if answer already asks a trailing offer question (ADR-034/035). Short follow-ups expand query from prior AI / KB article ID (ADR-036).
 
 ---
 

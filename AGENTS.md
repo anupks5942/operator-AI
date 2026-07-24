@@ -47,7 +47,9 @@ Root files: `app.py` (Streamlit demo with persisted routing diagnostics sidebar)
 6. **RAG-only intents** (`refund_request`, `kiosk_not_responding`, `technical_support`): `api_action_required` must always be `false`. Do NOT route these to the tool node. Outage intents (`machine_down`, `machines_not_starting`, etc.) enter the outage workflow, not direct RAG. Do **not** category-filter `technical_support` to `"No Connection Error"` (ADR-033).
 7. **Conversation summary** (`conversation_summary`): honored mid-workflow via early routing; does not reset outage state.
 8. **Out-of-domain and PCI guardrails** are static/hardcoded responses — never delegate to LLM or external APIs. Router `_DOMAIN_KEYWORDS` safety net overrides false `out_of_domain`/`greeting` for in-domain terms (printer, portal login, network/IP, cashbox, etc.).
-9. **NotificationService** uses `USE_LIVE_NOTIFICATIONS` env var. Default `false` = mock/logging only.
+9. **Resolve prompt** (ADR-034/035): append "Did this resolve?" only when the answer has troubleshooting markers (or intent + ≥1 marker); skip on definitional answers and when the RAG answer already asks a follow-up offer.
+10. **Post-escalation** (ADR-037): greeting clears routing flags; blast-radius-aware dedup; how-to / new-topic → RAG; only explicit continuations become ticket notes; "no" after "Did this resolve?" can still offer escalate for a *new* issue while an older ticket is open.
+11. **NotificationService** uses `USE_LIVE_NOTIFICATIONS` env var. Default `false` = mock/logging only.
 
 ## Configuration (src/config.py)
 - All URLs, flags, and credentials come from `.env` via `src/config.py`.
@@ -71,11 +73,12 @@ Root files: `app.py` (Streamlit demo with persisted routing diagnostics sidebar)
 - **v2.2 ingestion:** Article-aware parser respects `ARTICLE START`/`ARTICLE END` boundaries. Each article = one atomic chunk with structured metadata (article_id, category, product, intent, search_terms, status, co_retrieval_ids).
 - **Bible ingestion:** Selective — troubleshooting Sections 1-14 **plus** operator FAQ from `Operator Portal` through `Voiceover: SpyderWash Troubleshooting Guide` (includes Relay vs Serial Control Board FAQ). Brand wiring, Voiceover transcript, PCI notes, RMA SOP excluded.
 - **Retrieval:** MMR k=12, fetch_k=40, lambda=0.5 → FlashRank `ms-marco-TinyBERT-L-2-v2` rerank to top 6 → co-retrieval of mandatory companion articles.
+- **Short follow-ups:** Vague affirmatives after a KB reference expand the query from prior AI / `article_id` (ADR-036).
 - **System prompt:** v2.2 Section 0 "AI Retrieval and Response Rules" injected into LLM prompt (not stored as chunks).
 - Metadata: `article_id`, `category`, `product`, `intent`, `search_terms`, `status`, `source_priority`, `brand`, `doc_type`, `co_retrieval_ids`.
 
 ## Testing
-- `tests/test_outage_workflow.py` — outage escalation workflow tests
+- `tests/test_outage_workflow.py` — outage escalation, post-escalation, follow-up expansion, blast-radius dedup, greeting reset
 - `tests/test_security.py` — PCI masking and guardrail tests
 - Run with: `uv run python -m unittest tests.test_outage_workflow tests.test_security -v`
 

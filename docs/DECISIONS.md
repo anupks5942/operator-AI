@@ -148,14 +148,15 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 
 ## ADR-016: Escalation deduplication and state reset
 
-**Status:** Accepted  
+**Status:** Accepted (refined by ADR-037)  
 **Context:** Operators could repeatedly say "NO" after an escalation ticket was dispatched, generating infinite duplicate tickets with SMS/email each time. Additionally, after saying "YES" (resolved), the workflow flags persisted in state, trapping subsequent messages in the `workflow_reminder` loop instead of treating them as fresh conversations.  
 **Decision:**  
 
 - `escalation_node` sets `escalation_dispatched: true` in state after dispatch.  
-- `route_after_classifier` checks this flag before routing to escalation — if already dispatched, routes to `post_escalation_ack` instead.  
+- `route_after_classifier` checks this flag before routing to escalation — if already dispatched, uses context-aware post-escalation routing (not a blanket ack for every message — see ADR-037).  
 - `escalation_resolved_node` performs a full state reset (clears `troubleshooting_done`, `blast_radius`, `troubleshooting_failed`, `escalation_dispatched`) so new issues can start fresh.  
-**Consequences:** Max 1 escalation ticket per unresolved workflow instance. Operator must confirm resolution to start a new workflow. See [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md).
+- Greeting clears escalation **routing** flags while preserving ticket ID lists (ADR-037).  
+**Consequences:** Duplicate tickets blocked for the same issue; different blast-radius / how-to / new-topic messages are not trapped. See [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md).
 
 ---
 
@@ -339,10 +340,44 @@ When making a significant architectural choice:
 
 ## ADR-034: Domain-keyword safety net + content-based resolve prompt
 
-**Status:** Accepted (Jul 20–22, 2026)  
+**Status:** Accepted (Jul 20–22, 2026); refined Jul 23 (ADR-035)  
 **Context:** Router occasionally returned `out_of_domain` / `greeting` for in-domain SpyderWash phrasing (printer, portal login, static IP, cashbox). Intent-gated "Did this resolve?" missed many troubleshooting answers. Bare substring `"fixed"` false-triggered resolution on "fixed address".  
 **Decision:** Expand `_DOMAIN_KEYWORDS` (printer/print/thermal, network/IP, login/password, cashbox/reconcile, etc.) to override false `out_of_domain`/`greeting`. Append "Did this resolve the issue? (Yes/No)" when answer content matches troubleshooting markers (≥2), not by intent alone. Resolution detection uses phrase-level matches, negation guard, and ≤8-word length guard.  
-**Consequences:** Fewer false OOD refusals; resolve prompt appears on real step lists; Hub "fixed address" questions no longer short-circuit to "glad it's resolved".
+**Consequences:** Fewer false OOD refusals; resolve prompt appears on real step lists; Hub "fixed address" questions no longer short-circuit to "glad it's resolved". See ADR-035 for definitional / trailing-question guards.
+
+---
+
+## ADR-035: Resolve-prompt guards (definitional + trailing question)
+
+**Status:** Accepted (Jul 23, 2026)  
+**Context:** "What does Network Error mean?" (definitional FAQ) still got "Did this resolve?" because `technical_support` was in `_TROUBLESHOOT_INTENTS`. When the RAG answer already asked "Would you like me to provide those steps?", appending "Did this resolve?" made "yes" mean the wrong thing.  
+**Decision:** In `retrieve_and_generate` ([nodes.py](../src/agent/nodes.py)): (1) Intent-only path requires ≥1 `_TROUBLESHOOT_MARKERS` hit; 0 markers → no prompt. Content path still requires ≥2 markers. (2) Skip prompt when the answer contains trailing offers (`would you like me to`, `do you want me to`, etc.). `troubleshoot_first_node` keeps its hardcoded resolve prompt (always troubleshooting).  
+**Consequences:** Informational answers stay clean; conflicting dual-questions avoided. Real step lists still get Yes/No.
+
+---
+
+## ADR-036: RAG short follow-up query expansion
+
+**Status:** Accepted (Jul 23, 2026)  
+**Context:** After "refer to KB-READER-008", operators said "yes provide me" / "can please give me". RAG queried only that short string → empty retrieval → "request incomplete".  
+**Decision:** In `retrieve_and_generate`, `_expand_followup_query` detects short (≤6 word) affirmative/request follow-ups. Strategy 1: extract last `KB-…` ID from prior AI → expand query + `article_id` metadata filter. Strategy 2: prepend prior AI first sentence. Skip when prior AI contains "Did this resolve?" (handled by resolve routing).  
+**Consequences:** Operators get companion troubleshooting without retyping article IDs. Substantive 7+ word queries are unchanged.
+
+---
+
+## ADR-037: Post-escalation sticky-state reset, blast-radius dedup, and ticket-notes gate
+
+**Status:** Accepted (Jul 23–24, 2026)  
+**Context:** After "all machines down" created a ticket: (1) "one machine is down" was Jaccard-deduped as the same issue; (2) "hi" did not clear `escalation_dispatched`; (3) "no" after new-issue troubleshooting replayed "ticket already dispatched"; (4) how-to and new-topic statements ("How do I add machines?", "The customer was charged twice") became ticket notes.  
+**Decision:**
+
+- **Greeting reset:** `handle_greeting` clears routing flags (`escalation_dispatched`, `blast_radius`, `troubleshooting_failed`, workflow entity flags). Does **not** clear `dispatched_tickets` / `all_session_tickets`. Post-escalation block short-circuits `intent == greeting` → greeting node.
+- **Blast-radius-aware dedup:** `_is_duplicate_outage` returns false when `last_ticket_blast_radius` ≠ current blast radius; else Jaccard ≥0.4. Store `last_ticket_blast_radius` on ticket dispatch.
+- **Resolve "no" after new issue:** Post-escalation yes/no uses prior AI "Did this resolve?" content, not `intent not in outage intents`.
+- **Ticket notes only for continuations:** How-to/info queries (`_is_howto_or_info_query`) → RAG. Declarative new topics → RAG unless `_is_continuation_of_ticket` ("also…", "same problem…", etc.).
+- **Sticky confirm gate:** After "Would you like me to escalate?", short garbage re-asks; substantive 4+ word queries → `exit_escalation_gate` (clear flags + RAG).
+
+**Consequences:** New single-machine issues after store-down tickets get troubleshoot → confirm → new ticket. Portal/billing questions after a ticket get answers. Explicit "also same problem" still notes on the open ticket.
 
 ---
 
