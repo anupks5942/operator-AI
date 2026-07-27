@@ -1,3 +1,12 @@
+"""
+Knowledge base search and answers (RAG).
+
+Simple flow:
+  1) Load manuals into Chroma (vector search DB)
+  2) Find matching articles for the question
+  3) Re-rank them with FlashRank (better order)
+  4) Ask the AI to answer using only that text
+"""
 import os
 import re
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
@@ -11,26 +20,33 @@ from src.llm import create_chat_model
 
 # ── v2.2 Article Parser ──────────────────────────────────────────────────────
 
+# Find one full article between ARTICLE START and ARTICLE END.
 _ARTICLE_PATTERN = re.compile(
     r"ARTICLE START:\s*(KB-[A-Z]+-\d+)\s*(.*?)ARTICLE END:\s*\1",
     re.DOTALL,
 )
 
+# Read the METADATA line inside an article (category, product, etc.).
 _METADATA_PATTERN = re.compile(
     r"METADATA:\s*category=([^;]+);\s*product=([^;]+);\s*audience=([^;]+);\s*intent=([^;]+);\s*search_terms=(.+)",
     re.IGNORECASE,
 )
 
+# Find "also load these related articles" rules.
 _CO_RETRIEVAL_PATTERN = re.compile(
     r"CO-RETRIEVAL RULE:?\s*(.+?)(?:\n|$)", re.IGNORECASE
 )
 
+# Find codes like KB-NET-001.
 _ARTICLE_ID_REF_PATTERN = re.compile(r"KB-[A-Z]+-\d+")
 
+# How we recognize the v2.2 KB file vs the Bible file by name.
 _V22_FILENAME_MARKERS = ("ai_support_knowledge_base", "ai support knowledge base")
 _BIBLE_FILENAME_MARKERS = ("bible",)
 
+# Where useful Bible troubleshooting text starts.
 _BIBLE_TROUBLESHOOT_START_MARKER = "Troubleshooting\n\nNetwork Issues"
+# Brand install sections we skip (not for the operator chatbot).
 _BIBLE_INSTALL_START_MARKERS = [
     "Alliance (Speed Queen",
     "Speed Queen Touch/Midas",
@@ -45,11 +61,13 @@ _BIBLE_INSTALL_START_MARKERS = [
 
 
 def _is_v22_file(filename: str) -> bool:
+    """True if this file looks like the v2.2 AI Support KB."""
     name_lower = filename.lower().replace("-", "_").replace(" ", "_")
     return any(marker in name_lower for marker in _V22_FILENAME_MARKERS)
 
 
 def _is_bible_file(filename: str) -> bool:
+    """True if this file looks like the SpyderWash Bible."""
     name_lower = filename.lower()
     return any(marker in name_lower for marker in _BIBLE_FILENAME_MARKERS)
 
@@ -224,11 +242,15 @@ def _parse_bible_selective(text: str) -> list[Document]:
 
 
 # ── FlashRank Reranker ────────────────────────────────────────────────────────
+# First search finds many possible articles. FlashRank reorders them so the
+# best ones go to the AI. It runs on this machine (no extra paid AI call).
+# We use TinyBERT because the older model ranked some good FAQs too low.
 
-_reranker = None
+_reranker = None  # Cached FlashRank model
 
 
 def _get_reranker():
+    """Load FlashRank once, then reuse it."""
     global _reranker
     if _reranker is None:
         from flashrank import Ranker
@@ -239,7 +261,9 @@ def _get_reranker():
 
 
 def _rerank_documents(query: str, documents: list[Document], top_k: int = 6) -> list[Document]:
-    """Rerank retrieved documents using FlashRank for precision."""
+    """
+    Put the most relevant articles first, keep only the top ones (default 6).
+    """
     if not documents:
         return documents
     from flashrank import RerankRequest
@@ -257,7 +281,22 @@ def _rerank_documents(query: str, documents: list[Document], top_k: int = 6) -> 
 # ── RAGService ────────────────────────────────────────────────────────────────
 
 class RAGService:
+    """
+    Loads the manuals and answers questions from them.
+
+    Important pieces:
+      - kb_dir: folder with the manuals
+      - chroma_db: saved search index
+      - section0_prompt: special rules for how the AI should answer
+    """
+
     def __init__(self, kb_dir: str = "KB", persist_dir: str = "./chroma_db", force_reingest: bool = False):
+        """
+        Start the knowledge base.
+
+        If chroma_db already exists, load it. Otherwise read the manuals and build it.
+        Set force_reingest=True to rebuild from scratch.
+        """
         self.kb_dir = kb_dir
         self.persist_dir = persist_dir
         self.section0_prompt: str = ""

@@ -1,3 +1,15 @@
+"""
+Main chat brain wiring (LangGraph).
+
+This file:
+  - Asks "one machine or whole store?"
+  - Runs fix steps from the KB
+  - Creates support tickets (email/SMS)
+  - Runs live API tools (balance, transactions, …)
+  - Decides which step comes next
+
+Other files import `agent_app` — the ready-to-run graph.
+"""
 import uuid
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -19,8 +31,7 @@ from src.services.notifications import NotificationService
 from src.utils.security import mask_credit_cards, sanitize_outbound_text
 from src.llm import create_chat_model
 
-# Hardware/outage intents that must follow Gregg's multi-turn workflow:
-# blast-radius question → KB troubleshooting → confirmation → escalation (if failed).
+# Outage intents that follow: ask size → try fixes → maybe escalate.
 _ESCALATION_WORKFLOW_INTENTS = frozenset({
     "emergency_store_down",
     "machine_down",
@@ -28,7 +39,7 @@ _ESCALATION_WORKFLOW_INTENTS = frozenset({
     "multiple_machines_offline",
 })
 
-# Short operator replies that must not be used as the RAG search query.
+# Short answers like "one machine" / "yes" — not useful as a KB search query.
 _BLAST_RADIUS_REPLY_PHRASES = frozenset({
     "entire location", "one machine", "yes", "no", "it did not",
     "still down", "entire laundromat offline", "just one", "specific machine",
@@ -37,7 +48,7 @@ _BLAST_RADIUS_REPLY_PHRASES = frozenset({
 
 
 def _is_conversational_workflow_reply(text: str) -> bool:
-    """Return True when the message is a blast-radius or yes/no workflow answer."""
+    """True if the message is a short yes/no or "one machine / whole store" reply."""
     normalized = text.strip().lower().rstrip(".")
     if normalized in _BLAST_RADIUS_REPLY_PHRASES:
         return True
@@ -838,31 +849,27 @@ _TOOL_SYSTEM_PROMPT = (
     "Always preserve all original filter arguments (dates, card_number, card_code, etc.) from the prior call."
 )
 
-_tool_llm = None
+_tool_llm = None  # Cached AI that can call tools (built once)
+
 
 def _reset_tool_llm():
-    """Force re-binding of tools on next invocation (call after adding/removing tools)."""
+    """Clear the cached tool AI so the next call rebuilds it (after changing tools)."""
     global _tool_llm
     _tool_llm = None
 
 def _get_tool_llm():
+    """Get the chat AI with live tools attached (created once, then reused)."""
     global _tool_llm
     if _tool_llm is None:
         _tool_llm = create_chat_model(temperature=0).bind_tools(SETOMATIC_TOOLS)
     return _tool_llm
 
+
 def tool_node(state: AgentState):
     """
-    Tool_Node: Executes tools via a ReAct-style loop until the LLM produces
-    a plain-text response (no more tool_calls).
+    Call live Setomatic APIs when needed (balance, transactions, kiosk, etc.).
 
-    WHY A LOOP: Some workflows require sequential tool calls (e.g. confirm then
-    send_remote_device_command). A single-shot implementation can leave AIMessages
-    with tool_calls persisted without ToolMessages, causing API errors on later turns.
-
-    The loop guarantees that every AIMessage with tool_calls is ALWAYS
-    followed by its ToolMessages before the next LLM call — maintaining a
-    valid OpenAI message sequence at all times.
+    The AI may call tools a few times in a loop (max 6), then give a final text answer.
     """
     messages = state.get("messages", [])
     if not messages:
@@ -962,7 +969,10 @@ def tool_node(state: AgentState):
 
 def route_after_classifier(state: AgentState) -> str:
     """
-    Priority-ordered conditional routing after the Intent Classifier.
+    After we know the intent, pick the next step.
+
+    Examples: greeting → greeting node, balance ask → tools, outage → blast-radius check.
+    This is the main "traffic cop" of the chat.
     """
     intent = state.get("current_intent", "")
 
@@ -1397,6 +1407,11 @@ def route_after_classifier(state: AgentState) -> str:
 
 
 def route_after_rag(state: AgentState) -> str:
+    """
+    After a KB answer: usually stop.
+
+    Only escalate if we already asked "Did this resolve?" and the user said no.
+    """
     entities = state.get("extracted_entities") or {}
     if not entities.get("troubleshooting_done"):
         return "__end__"
@@ -1549,5 +1564,6 @@ def create_agent_graph():
     return workflow.compile(checkpointer=checkpointer)
 
 
-# Compiled instance (shared across the FastAPI app lifetime)
+# Ready-to-use graph. API and Streamlit both import this.
+# Chat memory lives in this process only — restart clears it.
 agent_app = create_agent_graph()

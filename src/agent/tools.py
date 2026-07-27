@@ -1,13 +1,12 @@
 """
-LangChain tool definitions for the Setomatic/SpyderWash support agent.
+Live API tools the chat can call.
 
-Tools:
-  - get_loyalty_balance:        Routes to SETOMATIC_BASE_URL (live production API, OperatorId=4)
-  - get_transaction_history:    Routes to SETOMATIC_BASE_URL (live production API)
-  - check_global_system_status: Live web scrape of setomaticsystems.com/status
-  - get_kiosk_purchases / get_kiosk_recharges / get_pos_transactions / send_remote_device_command
+Examples: check loyalty balance, show transactions, kiosk data, reboot a device.
 
-Refunds are portal-guided via RAG/Bible (no execute tools). URL routing is controlled by src/config.py.
+These tools are given to the AI in tool_node. Refunds are NOT here —
+we only guide people to the portal using the knowledge base.
+
+API base URL comes from config. OperatorId is fixed to 4 for now.
 """
 # httpx replaced by requests across all tool HTTP calls for a unified error boundary interface.
 import requests
@@ -16,11 +15,13 @@ from bs4 import BeautifulSoup
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field, field_validator
 
+# Logger name so we can find tool API logs easily.
 logger = logging.getLogger("setomatic.tools")
 
 # Import centralized URL config — all base URLs are defined in src/config.py
 from src.config import SETOMATIC_BASE_URL
 
+# Fake browser headers when we open the public status webpage.
 _BROWSER_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) "
@@ -49,7 +50,7 @@ _BROWSER_HEADERS = {
 # output and the production API.
 # ---------------------------------------------------------------------------
 
-# Card number pattern: alphanumeric characters and hyphens only (e.g. 'LC-5555', '00000212').
+# Allowed card number shape: letters, digits, hyphens (like LC-5555).
 _CARD_NUMBER_PATTERN = r"^[A-Za-z0-9\-]+$"
 
 
@@ -277,6 +278,7 @@ def _normalize_card_number(card_number: str) -> str:
 # ---------------------------------------------------------------------------
 
 # Loyalty balance always routes to the live production API, never the mock server
+# Loyalty balance API path. OperatorId is always 4 in this MVP.
 _LOYALTY_BALANCE_URL = (
     SETOMATIC_BASE_URL
     + "/api/Transactions/CheckLoyaltyCardBalance"
@@ -1169,7 +1171,7 @@ def send_remote_device_command(
         return f"Unexpected error sending remote command to device '{device_id}': {e}"
 
 
-# Exported list for binding to LLM
+# List of tools the chat AI is allowed to call.
 SETOMATIC_TOOLS = [
     get_loyalty_balance,
     get_transaction_history,

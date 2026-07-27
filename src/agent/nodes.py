@@ -1,3 +1,12 @@
+"""
+Chat nodes that answer or refuse, outside of graph.py.
+
+Simple jobs:
+  - Look up the knowledge base (RAG)
+  - Say hello / goodbye
+  - Block unsafe or off-topic asks
+  - Summarize the chat when asked
+"""
 import re
 from langchain_core.messages import AIMessage, HumanMessage
 from src.agent.state import AgentState
@@ -5,15 +14,18 @@ from src.agent.router import _is_product_overview_query
 from src.services.rag_service import RAGService
 from src.llm import create_chat_model
 
+# One shared knowledge-base helper for the whole process (created on first use).
 _rag_service = None
 
+
 def get_rag_service() -> RAGService:
+    """Create the knowledge-base helper once, then reuse it."""
     global _rag_service
     if _rag_service is None:
         _rag_service = RAGService()
     return _rag_service
 
-# Brand keywords recognised in user queries → Chroma metadata filter values
+# If the user names a brand, we filter search to that brand.
 _BRAND_FILTER_MAP = {
     "speed queen": "Speed Queen",
     "speedqueen":  "Speed Queen",
@@ -24,8 +36,8 @@ _BRAND_FILTER_MAP = {
     "setomatic":   "SpyderWash",
 }
 
-# Router intent → v2.2 article category mapping for metadata-boosted retrieval.
-# These map our router intents to the v2.2 METADATA category values for precise filtering.
+# Which intent should search which KB category.
+# (technical_support is NOT listed on purpose — it searches more broadly.)
 _INTENT_TO_CATEGORY_MAP = {
     "machine_down": "Machines Not Working",
     "machines_not_starting": "Machines Not Working",
@@ -92,6 +104,8 @@ def _extract_metadata_filter(state: AgentState) -> dict | None:
     return {"$and": [{k: v} for k, v in filters.items()]}
 
 
+# Words that mean the answer gave real fix steps.
+# We need enough of these before we ask "Did this resolve?".
 _TROUBLESHOOT_MARKERS = (
     "recommended steps",
     "resolution confirmed when",
@@ -128,18 +142,21 @@ def _answer_contains_troubleshooting(answer: str) -> bool:
     return sum(1 for m in _TROUBLESHOOT_MARKERS if m in lower) >= 2
 
 
+# For these intents, even one fix-step marker can trigger "Did this resolve?".
 _TROUBLESHOOT_INTENTS = {
     "technical_support", "kiosk_not_responding", "machines_not_starting",
     "machine_down", "multiple_machines_offline", "refund_request",
 }
 
 
+# Short "yes / show me / go ahead" style replies after we offered more detail.
 _FOLLOWUP_WORDS = frozenset({
     "yes", "yeah", "yep", "yup", "sure", "ok", "okay", "please",
     "provide", "go", "show", "tell", "give", "more", "details",
     "info", "steps", "those", "the", "me", "it", "ahead",
 })
 
+# Same idea as _FOLLOWUP_WORDS, but full short phrases.
 _FOLLOWUP_PHRASES = (
     "yes", "yeah", "yep", "yup", "sure", "ok", "okay", "please",
     "provide", "show me", "tell me", "give me", "go ahead",
@@ -147,6 +164,7 @@ _FOLLOWUP_PHRASES = (
     "yes please", "yes provide", "provide me",
 )
 
+# Finds article codes like KB-NET-001 in earlier AI answers.
 _KB_ARTICLE_PATTERN = re.compile(r"KB-[A-Z]+-\d+")
 
 
@@ -207,13 +225,9 @@ def _expand_followup_query(messages) -> tuple[str, dict | None]:
 
 def retrieve_and_generate(state: AgentState):
     """
-    RAG_Node: retrieves relevant chunks from ChromaDB (with optional metadata
-    filtering and MMR re-ranking) and generates a grounded answer via Groq LLM.
+    Search the manuals and write an answer.
 
-    Metadata filter logic:
-      - If the user mentions a specific brand (e.g. "Speed Queen"), restricts
-        vector search to chunks tagged with that brand.
-      - If extracted_entities provides a doc_type hint, further narrows the pool.
+    Sometimes we also ask: "Did this resolve the issue? (Yes/No)"
     """
     messages = state.get("messages", [])
     if not messages:
@@ -260,9 +274,7 @@ def retrieve_and_generate(state: AgentState):
 
 
 def guardrail_node(state: AgentState):
-    """
-    Guardrail node that explicitly refuses hardware status lookups.
-    """
+    """Refuse live machine/port status asks. Tell them to use the portal."""
     refusal_message = (
         "I'm sorry, but I cannot provide real-time hardware, machine, or port statuses. "
         "Please check the SpyderWash operator portal for live machine status."
@@ -271,10 +283,7 @@ def guardrail_node(state: AgentState):
 
 
 def pci_guardrail_node(state: AgentState):
-    """
-    Refuse requests involving CVV, CVC, track data, or other prohibited card auth data.
-    PCI-DSS: such data must never be collected, stored, or transmitted.
-    """
+    """Refuse CVV / track data. We never collect that in chat."""
     refusal_message = (
         "For PCI compliance, I cannot accept or process card verification codes (CVV/CVC), "
         "PIN blocks, or magnetic-stripe/track data. Please do not share this information in chat. "
@@ -285,10 +294,9 @@ def pci_guardrail_node(state: AgentState):
 
 def handle_greeting(state: AgentState):
     """
-    Friendly greeting response for simple salutations like 'hi', 'hello', etc.
-    Also handles thank-you / goodbye messages with an appropriate acknowledgment
-    instead of the full intro greeting.
-    No LLM or RAG call — hardcoded to avoid pointless KB lookups on greetings.
+    Say hello, thanks, or goodbye.
+
+    Also clears outage flags so a new topic can start clean.
     """
     messages = state.get("messages", [])
     user_text = messages[-1].content.strip().lower() if messages else ""
@@ -320,10 +328,7 @@ def handle_greeting(state: AgentState):
 
 
 def workflow_reminder_node(state: AgentState):
-    """
-    Re-prompts the user when they send gibberish/off-topic mid-outage-workflow.
-    Preserves the active workflow state and gently asks for a Yes/No answer.
-    """
+    """Ask again for a clear Yes/No when the reply was unclear mid-outage."""
     reminder_message = (
         "I didn't quite catch that. We're still working on your reported issue. "
         "Did the troubleshooting steps I provided resolve the problem? Please reply **Yes** or **No**."
@@ -332,13 +337,7 @@ def workflow_reminder_node(state: AgentState):
 
 
 def handle_out_of_domain(state: AgentState):
-    """
-    Static out-of-domain guardrail: rejects any query unrelated to Setomatic /
-    SpyderWash operations, including prompt injection attempts.
-
-    No LLM or API is called — the response is hardcoded to prevent the model
-    from being manipulated by adversarial inputs that sneak past the classifier.
-    """
+    """Refuse off-topic or unsafe prompts with a fixed message (no AI call)."""
     refusal_message = (
         "I am a Setomatic technical support agent. "
         "I can only assist with SpyderWash hardware, portal troubleshooting, and operator actions."
@@ -366,13 +365,7 @@ _SUMMARY_SKIP_PHRASES = frozenset({
 
 
 def summarize_conversation_node(state: AgentState):
-    """
-    Produces an operator-friendly recap of the conversation so far.
-
-    Reads the full thread history from state (persisted per thread_id), filters to
-    substantive human + assistant turns, and asks the LLM to summarise. The current
-    "summarise this chat" request itself is excluded from the transcript.
-    """
+    """Make a short recap of this chat for the operator (includes ticket IDs)."""
     messages = state.get("messages", [])
 
     transcript_lines: list[str] = []

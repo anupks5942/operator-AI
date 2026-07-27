@@ -1,3 +1,12 @@
+"""
+Old entry file — do not use for new work.
+
+Use:
+  - src/api/server.py for the real API
+  - app.py for the Streamlit demo
+
+This file still has an old FastAPI app and a small console test.
+"""
 import uvicorn
 import uuid
 from fastapi import FastAPI
@@ -9,24 +18,24 @@ from src.utils.security import sanitize_user_text
 
 load_dotenv()
 
+# Old FastAPI app (replaced by src.api.server:app).
 app = FastAPI(
     title="Setomatic KB RAG API",
     description="API for Setomatic Technical Support Agent",
     version="0.1.0"
 )
 
+# Old /query and /notify routes.
 app.include_router(router)
 
 
 def stream_turn(query: str, thread_id: str, turn_label: str):
     """
-    Execute one conversation turn using .stream() and print tokens as they arrive.
-    This proves the pipeline is ready for low-latency voice/TTS integration.
+    Run one chat turn and print the answer as it streams.
 
-    Args:
-        query:      The user message for this turn.
-        thread_id:  Stable identifier shared across all turns in one conversation.
-        turn_label: Human-readable label for console output.
+    query: what the user said
+    thread_id: same id keeps memory across turns
+    turn_label: label printed in the console
     """
     config = {"configurable": {"thread_id": thread_id}}
     state_input = {"messages": [("user", sanitize_user_text(query))]}
@@ -39,22 +48,19 @@ def stream_turn(query: str, thread_id: str, turn_label: str):
     final_state = None
     last_ai_content = ""
 
-    # .stream() yields state snapshots after each node completes.
-    # We watch for AIMessage chunks to print tokens progressively.
+    # Each chunk is one graph step finishing.
     for chunk in compiled_graph.stream(state_input, config=config, stream_mode="updates"):
         final_state = chunk
-        # Each chunk is {node_name: state_delta}
         for node_name, delta in chunk.items():
             for msg in delta.get("messages", []):
                 if isinstance(msg, AIMessage) and msg.content:
-                    # Print only the new content delta (avoid reprinting tool calls)
+                    # Print only new text, not repeats.
                     new_text = msg.content[len(last_ai_content):]
                     print(new_text, end="", flush=True)
                     last_ai_content = msg.content
 
-    print()  # newline after streamed content
+    print()
 
-    # Retrieve full final state for metadata display
     full_state = compiled_graph.get_state(config)
     sv = full_state.values if full_state else {}
     print(f"[Intent]               {sv.get('current_intent')}")
@@ -66,34 +72,25 @@ def stream_turn(query: str, thread_id: str, turn_label: str):
 
 def run_multi_turn_test():
     """
-    Simulates a two-turn conversation using the same thread_id.
+    Quick console test with two turns on the same thread.
 
-    Turn 1: Ask for loyalty card balance (card LC-5555).
-    Turn 2: Ask for transaction history of "that same card" — the graph must
-            resolve the card number from conversation history WITHOUT being told again.
-
-    This validates that MemorySaver correctly persists state across turns.
+    Turn 1 asks for a card balance.
+    Turn 2 asks for transactions on "that same card" — memory must remember the card.
     """
     thread_id = f"test-session-{uuid.uuid4().hex[:8]}"
 
     stream_turn(
         query="What is the balance on loyalty card LC-5555?",
         thread_id=thread_id,
-        turn_label="TURN 1 >> Expected: Tool_Node (loyalty balance)",
+        turn_label="TURN 1 — Loyalty Balance",
     )
-
     stream_turn(
-        query="Show me the last transactions for that same card.",
+        query="Show me the recent transactions for that same card",
         thread_id=thread_id,
-        turn_label="TURN 2 >> Expected: Tool_Node (transaction lookup, card inferred from history)",
-    )
-
-    stream_turn(
-        query="Is SpyderWash down right now?",
-        thread_id=thread_id,
-        turn_label="TURN 3 >> Expected: Tool_Node (status lookup)",
+        turn_label="TURN 2 — Transactions (entity continuity)",
     )
 
 
 if __name__ == "__main__":
+    # When you run: python main.py
     run_multi_turn_test()

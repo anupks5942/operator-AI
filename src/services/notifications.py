@@ -1,3 +1,9 @@
+"""
+Send support ticket emails and SMS.
+
+When USE_LIVE_NOTIFICATIONS is false, we only print/log (safe for local testing).
+When true, we really send Mandrill email and Twilio SMS.
+"""
 from __future__ import annotations
 
 import html
@@ -27,14 +33,23 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class EscalationResult:
-    email_sent: bool
-    sms_sent: bool
-    message_id: str | None = None
+    """Result after trying to send a ticket email and SMS."""
+
+    email_sent: bool  # Did the email go out (or mock succeed)?
+    sms_sent: bool  # Did the SMS go out (or mock succeed)?
+    message_id: str | None = None  # Email id so a later "resolved" mail can reply in-thread
 
 
 class NotificationService:
+    """Helpers to send SMS, email, new tickets, and resolve notices."""
+
     @staticmethod
     def send_sms(to_number: str, message: str) -> bool:
+        """
+        Send an SMS, or just log it when live notifications are off.
+
+        Returns True if it worked (or mock worked).
+        """
         if not USE_LIVE_NOTIFICATIONS:
             logger.info("[Mock Twilio SMS] Sending to %s: %s", to_number, message)
             print(f"[Mock Twilio SMS] Sending to {to_number}: {message}")

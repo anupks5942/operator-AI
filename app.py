@@ -1,3 +1,12 @@
+"""
+Local demo chat UI (Streamlit).
+
+Runs the agent inside this process (no need for the FastAPI server).
+Good for developers trying questions and watching which step ran.
+
+Run:
+  uv run streamlit run app.py
+"""
 import streamlit as st
 import uuid
 import logging
@@ -6,6 +15,7 @@ from dotenv import load_dotenv
 from langchain_core.messages import AIMessage as _AIMsg
 from src.utils.security import sanitize_user_text
 
+# Load .env so API keys are ready before we import the graph.
 load_dotenv()
 
 # Configure logging so agent/tool log statements appear in the Streamlit terminal output
@@ -15,6 +25,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%dT%H:%M:%S",
 )
 
+# Same chat graph the production API uses.
 from src.agent.graph import agent_app as compiled_graph
 
 st.set_page_config(page_title="Setomatic Operator AI", page_icon="🕷️", layout="wide")
@@ -23,20 +34,18 @@ st.title("🕷️ SpyderWash Operator AI - MVP Demo")
 # ── Timestamp helpers ─────────────────────────────────────────────────────────
 
 def _now_ts() -> str:
-    """Return current local time with second precision."""
+    """Current time text for under each chat bubble."""
     return datetime.now().strftime("%b %d, %Y  %I:%M:%S %p")
 
 def _render_ts(ts: str, align: str = "left") -> None:
-    """Render a subtle timestamp caption beneath a chat bubble."""
+    """Show a small timestamp under a chat message."""
     st.markdown(
         f"<p style='font-size:0.72rem; color:#888; margin-top:-8px; "
         f"text-align:{align};'>{ts}</p>",
         unsafe_allow_html=True,
     )
 
-# ── Node-name → human-readable status label ───────────────────────────────────
-# Each entry maps the exact LangGraph node name to a display string shown
-# inside the st.status() block while that node is executing.
+# Friendly labels shown while each graph step is running.
 _NODE_LABELS: dict[str, str] = {
     "router":               "Classifying operator intent...",
     "tool_node":            "Executing system tool...",

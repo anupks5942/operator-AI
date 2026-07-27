@@ -1,15 +1,20 @@
 """
-PCI-DSS helpers: mask payment card numbers (PAN) and block prohibited card auth data.
+Safety helpers for payment card data (PCI rules).
+
+Simple jobs:
+  1) Hide full card numbers before they go to the AI.
+  2) Spot CVV / track data so we can refuse those messages.
+  3) Hide card numbers again in outbound emails/SMS.
 """
 import re
 
-# Visa / Mastercard / Discover-style 16-digit PAN (with optional spaces or hyphens).
+# Finds normal 16-digit card numbers (Visa / Mastercard style).
 _VISA_MC_PATTERN = re.compile(r"\b(?:\d{4}[ -]?){3}\d{4}\b")
 
-# American Express 15-digit PAN.
+# Finds 15-digit Amex card numbers.
 _AMEX_PATTERN = re.compile(r"\b3[47]\d{2}[ -]?\d{6}[ -]?\d{5}\b")
 
-# Keywords for data that must never be collected (PCI forbidden storage).
+# Words that mean the user is talking about CVV / track / PIN (not allowed in chat).
 _PCI_AUTH_KEYWORDS = (
     "cvv",
     "cvc",
@@ -26,6 +31,7 @@ _PCI_AUTH_KEYWORDS = (
     "pin block",
 )
 
+# Catches things like "cvv: 123" even if worded a bit differently.
 _CVV_VALUE_PATTERN = re.compile(
     r"\b(?:cvv|cvc|security code)\s*(?:is|:)?\s*\d{3,4}\b",
     re.IGNORECASE,
@@ -33,11 +39,16 @@ _CVV_VALUE_PATTERN = re.compile(
 
 
 def mask_credit_cards(text: str) -> str:
-    """Replace PAN-like sequences with last-4-only masked form."""
+    """
+    Hide full card numbers. Keep only the last 4 digits.
+
+    Example: 4111 1111 1111 1234 → **-**-****-1234
+    """
     if not text:
         return text
 
     def _replace(match: re.Match) -> str:
+        # Turn the match into digits only, then keep last 4.
         digits = re.sub(r"\D", "", match.group(0))
         if len(digits) < 13:
             return match.group(0)
@@ -50,8 +61,9 @@ def mask_credit_cards(text: str) -> str:
 
 def contains_prohibited_card_auth_data(text: str) -> bool:
     """
-    True when the user message appears to provide or request CVV, track data, or similar.
-    Loyalty card numbers and last-4 references are not matched.
+    Return True if the message looks like it has CVV / track / PIN data.
+
+    Loyalty card numbers alone are fine. CVV is not.
     """
     if not text:
         return False
@@ -63,11 +75,15 @@ def contains_prohibited_card_auth_data(text: str) -> bool:
 
 def sanitize_user_text(text: str) -> str:
     """
-    Single ingress point for operator plain-text: mask PAN before graph, LLM, logs, or storage.
+    Clean what the operator typed before it enters the agent.
+
+    Used by the API and Streamlit UI.
     """
     return mask_credit_cards(text)
 
 
 def sanitize_outbound_text(text: str) -> str:
-    """Mask PAN in text leaving the system (escalation email/SMS, ticket summaries)."""
+    """
+    Clean text before we send email or SMS about a ticket.
+    """
     return mask_credit_cards(text)

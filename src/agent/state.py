@@ -1,52 +1,63 @@
+"""
+Shared memory for one chat session.
+
+Every node reads and updates this state. LangGraph saves it per session_id.
+"""
 from typing import TypedDict, Annotated, Sequence, Optional
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
 
-# merge_dicts is used as a LangGraph reducer so that each router turn ADDS new
-# entities on top of previously extracted ones instead of replacing the whole dict.
-# Without this, a turn-2 update of {confirmation: True} would silently wipe the
-# card_number extracted in turn 1, breaking multi-step workflows like refunds.
 def merge_dicts(old: dict | None, new: dict | None) -> dict:
+    """
+    Join two dictionaries.
+
+    Why: if turn 2 only sends {confirmation: True}, we still keep card_number
+    from turn 1. Without this merge, turn 1 data would be wiped.
+    """
     return {**(old or {}), **(new or {})}
 
 
 class AgentState(TypedDict):
-    # add_messages ensures messages are APPENDED (not overwritten) across turns.
-    # This is what allows MemorySaver to accumulate the full conversation history.
+    """All the fields we remember for one operator chat."""
+
+    # Chat history. New messages are added, not replaced.
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
-    # Scalar fields — Optional so partial state updates don't wipe earlier values
+    # Old optional text field. Rarely used now.
     context:                   Optional[str]
+    # What kind of ask this was (e.g. machine_down, loyalty balance).
     current_intent:            Optional[str]
+    # True if they asked for live machine status (we refuse that).
     hardware_lookup_attempted: Optional[bool]
+    # True if this looks like an outage that may need escalation.
     escalation_required:       Optional[bool]
+    # True if we must call a live API tool (balance, transactions, etc.).
     api_action_required:       Optional[bool]
-    # Tracks whether the downtime is a single machine or location-wide — drives RAG vs escalation routing.
+    # "single_machine" or "entire_location" — how big the outage is.
     blast_radius:              Optional[str]
-    # Explicitly persists whether the operator confirmed troubleshooting failed, decoupled from extracted_entities.
+    # True if the operator said the fix steps did not work.
     troubleshooting_failed:    Optional[bool]
-    # Set True when escalation_node dispatches email/SMS for this session turn.
+    # True after we already sent a support ticket (email/SMS).
     escalation_dispatched:     Optional[bool]
-    # Accumulates every TKT-… created during this session so resolve/summary nodes can reference them.
+    # Open ticket IDs still waiting to be closed (like TKT-ABC123).
     dispatched_tickets:        Optional[list]
-    # Maps TKT-… → email Message-ID so resolve emails can thread as replies.
+    # Ticket ID → email id, so resolve emails can reply in the same thread.
     ticket_email_ids:          Optional[dict]
-    # Append-only list of every TKT-… created this session (never removed from).
+    # Every ticket created in this chat (kept even after resolve).
     all_session_tickets:       Optional[list]
-    # Operator contact info passed from the frontend API (optional).
+    # Operator contact info from the frontend (for the ticket email).
     operator_id:               Optional[int]
     operator_name:             Optional[str]
     operator_email:            Optional[str]
     operator_phone:            Optional[str]
-    # Issue summary from the most recently dispatched ticket (for duplicate detection).
+    # Short text of the last ticket issue (used to spot duplicate reports).
     last_ticket_summary:       Optional[str]
-    # Blast radius of the most recently dispatched ticket (for blast-radius-aware dedup).
+    # Size of the last ticket outage (also used for duplicate checks).
     last_ticket_blast_radius:  Optional[str]
-    # Additional context messages logged by the operator after ticket dispatch.
+    # Extra notes the operator adds after a ticket was sent.
     ticket_notes:              Optional[list]
-    # Operator callback phone number extracted after ticket dispatch.
+    # Callback phone number if they give one after escalation.
     callback_number:           Optional[str]
-    # merge_dicts reducer merges partial entity updates across turns instead of
-    # overwriting the entire dict, preserving entities from earlier workflow steps.
+    # Bag of small facts: card number, dates, device id, flags, etc.
     extracted_entities: Annotated[dict, merge_dicts]

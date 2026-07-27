@@ -1,7 +1,7 @@
 """
-Production FastAPI server exposing the LangGraph agent as a REST endpoint.
+Production API for the Operator AI.
 
-Intended consumer: .NET frontend at beta.spyderwash.com.
+.NET and React call this server. Main endpoint: POST /api/v1/agent/chat
 
 Run:
     uv run uvicorn src.api.server:app --host 0.0.0.0 --port 8000 --reload
@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Import the compiled LangGraph state machine (singleton, created at module load).
+# Ready-made chat graph (shared for the whole process).
 from src.agent.graph import agent_app as compiled_graph
 from src.utils.security import sanitize_user_text
 
@@ -30,11 +30,10 @@ from src.utils.security import sanitize_user_text
 # Structured logger
 # ---------------------------------------------------------------------------
 
-# Use a named logger so output can be routed independently in production
-# (e.g. shipped to Datadog, CloudWatch, or Loki via a logging handler).
+# Named logger so production can ship these logs to monitoring tools.
 logger = logging.getLogger("setomatic.api")
 
-# Emit ISO-8601 timestamps, log level, and message — one line per event.
+# One-line log format with time and level.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-8s  %(name)s  |  %(message)s",
@@ -46,10 +45,11 @@ logging.basicConfig(
 # ---------------------------------------------------------------------------
 
 class ChatRequest(BaseModel):
-    # operator_id scopes the request to a specific operator account.
+    """What the frontend sends for one chat turn."""
+
+    # Operator account number (shown on tickets; tools still use OperatorId=4 today).
     operator_id: int = Field(..., description="Numeric operator account ID.")
-    # session_id is passed directly to LangGraph as the thread_id so that
-    # MemorySaver can resume multi-turn conversation context on every call.
+    # Same id on every message keeps the chat memory for that conversation.
     session_id: str  = Field(..., description="Stable session identifier for conversation memory.")
     message: str     = Field(..., description="The operator's plain-text message.")
     operator_name: Optional[str] = Field(None, description="Operator display name for escalation emails.")
@@ -58,11 +58,11 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    # reply is the final natural-language answer produced by the agent.
+    """What we send back after one chat turn."""
+
     reply: str                = Field(..., description="Final AI-generated reply.")
-    # detected_intent is the semantic category assigned by the router node.
     detected_intent: str      = Field(..., description="Intent label from the router classifier.")
-    # requires_escalation is True when the escalation node fired (store down / human requested).
+    # True only if we actually sent a ticket this turn.
     requires_escalation: bool = Field(..., description="True if an SMS escalation was triggered.")
 
 

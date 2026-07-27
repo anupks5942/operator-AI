@@ -1,3 +1,13 @@
+"""
+First step of every chat turn: figure out what the operator wants.
+
+This file:
+  - Classifies the message (greeting, outage, balance check, etc.)
+  - Pulls out useful details (card number, dates, machine scope, …)
+  - Sets flags so the next node knows what to do
+
+Also has small helpers used by graph.py (like infer_blast_radius).
+"""
 import re
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional
@@ -6,10 +16,10 @@ from src.agent.state import AgentState
 from src.llm import create_chat_model
 from src.utils.security import contains_prohibited_card_auth_data
 
-# Router-only intent: prohibited PCI card auth data (CVV/track) — not in Brandon matrix.
+# Special label when the user sent CVV / track data (we refuse before calling the AI).
 _PCI_SENSITIVE_INTENT = "pci_sensitive_data"
 
-# Pre-LLM greeting detection: these short messages should never hit RAG or the LLM router.
+# Short hellos — answer without calling the AI classifier.
 _GREETING_PHRASES = frozenset({
     "hi", "hello", "hey", "hola", "yo", "sup", "howdy", "greetings",
     "good morning", "good afternoon", "good evening", "good night",
@@ -21,7 +31,7 @@ _GREETING_PHRASES = frozenset({
 })
 
 def _is_greeting(text: str) -> bool:
-    """Return True if the message is a simple greeting that should not go to RAG."""
+    """True if the message is just a hello / hi (no need for KB search)."""
     normalized = text.strip().lower().rstrip("!.,?")
     if normalized in _GREETING_PHRASES:
         return True
@@ -30,8 +40,7 @@ def _is_greeting(text: str) -> bool:
     return False
 
 
-# Pre-LLM detection for conversation-summary requests. These short messages should
-# route directly to the summarize node instead of RAG or the outage workflow.
+# Phrases like "summarize this chat" — go straight to the summary node.
 _SUMMARY_PHRASES = frozenset({
     "summarise", "summarize", "summary", "recap", "tldr", "tl;dr",
     "summarise this chat", "summarize this chat", "summarise the chat",
@@ -45,7 +54,7 @@ _SUMMARY_PHRASES = frozenset({
 
 
 def _is_summary_request(text: str) -> bool:
-    """Return True if the message is a request to summarise the conversation so far."""
+    """True if the operator asked to summarize the conversation."""
     normalized = text.strip().lower().rstrip("!.,?")
     if normalized in _SUMMARY_PHRASES:
         return True
@@ -159,7 +168,7 @@ def _is_show_more_request(text: str, messages: list) -> bool:
     return False
 
 
-# Outage intents that share the blast-radius → troubleshoot → confirm → escalate workflow.
+# Outage-related intents that use the multi-step fix / escalate flow.
 _OUTAGE_WORKFLOW_INTENTS = frozenset({
     "emergency_store_down",
     "machine_down",
@@ -168,7 +177,7 @@ _OUTAGE_WORKFLOW_INTENTS = frozenset({
     "multiple_machines_offline",
 })
 
-# Assistant prompts that mean the operator is mid-outage workflow (do not reset state).
+# If the last AI message has these lines, we are still in the outage flow.
 _WORKFLOW_PROMPT_MARKERS = (
     "did this resolve the issue",
     "did the troubleshooting steps",
@@ -177,6 +186,7 @@ _WORKFLOW_PROMPT_MARKERS = (
 )
 
 
+# Words that mean "the problem is fixed now".
 _RESOLUTION_PHRASES = (
     "resolved", "fixed it", "all good", "working now", "now working",
     "working fine", "working again", "back up", "back online", "back to normal",
@@ -186,6 +196,7 @@ _RESOLUTION_PHRASES = (
     "that fixed it", "yes fixed",
 )
 
+# Fix common typos so our simple word checks still work.
 _TYPO_MAP = {
     "wokring": "working", "workign": "working", "wrking": "working",
     "machinse": "machines", "machiens": "machines", "machin": "machine",
@@ -541,9 +552,11 @@ class IntentClassification(BaseModel):
 
 # ── LLM singleton ─────────────────────────────────────────────────────────────
 
-_structured_llm = None
+_structured_llm = None  # Cached AI classifier (built once)
+
 
 def _get_structured_llm():
+    """Get the AI that returns a fixed intent shape (built once, then reused)."""
     global _structured_llm
     if _structured_llm is None:
         llm = create_chat_model(temperature=0)
