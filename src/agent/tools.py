@@ -1169,6 +1169,420 @@ def send_remote_device_command(
         return f"Unexpected error sending remote command to device '{device_id}': {e}"
 
 
+# ---------------------------------------------------------------------------
+# Reports tool (unified — covers 7 report endpoints)
+# ---------------------------------------------------------------------------
+
+_REPORT_ENDPOINTS = {
+    "revenue_by_location": "/api/Reports/GetRevenueByLocationReport",
+    "revenue_by_position": "/api/Reports/GetRevenueByPositionReport",
+    "revenue_by_machine_type": "/api/Reports/GetRevenueByMachineTypeReport",
+    "revenue_by_month": "/api/Reports/GetRevenueByMonthOfYearReport",
+    "attendant_detail": "/api/Reports/GetAttendantDetailReport",
+    "promotional_fund": "/api/Reports/GetRevenueByPromotionalFundReport",
+    "pos_transactions": "/api/Reports/GetPosTransactionsReport",
+}
+
+_REPORT_OPERATOR_ID = 4
+
+_REPORT_HEADERS = {
+    "Accept": "application/json",
+    "Accept-Language": "en",
+}
+
+
+class ReportSchema(BaseModel):
+    report_type: str = Field(
+        ...,
+        description=(
+            "Type of report. Must be one of: "
+            "'revenue_by_location', 'revenue_by_position', 'revenue_by_machine_type', "
+            "'revenue_by_month', 'attendant_detail', 'promotional_fund', 'pos_transactions'."
+        ),
+    )
+    locations: str = Field(
+        default="2",
+        description="Comma-separated location IDs (e.g. '2' or '2,5,8').",
+    )
+    from_date: str = Field(
+        ...,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="Start date (YYYY-MM-DD format).",
+    )
+    to_date: str = Field(
+        ...,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="End date (YYYY-MM-DD format).",
+    )
+    property_id: int = Field(
+        default=1,
+        description="Property ID filter (REQUIRED for revenue_by_position, default 1). Always include when report_type is 'revenue_by_position'.",
+    )
+    property_values: str | None = Field(
+        default=None,
+        description="Comma-separated machine property values/serial numbers (REQUIRED for revenue_by_position, e.g. 'BIRWash12345,DRY000000004'). Ask operator for machine serial numbers if not provided.",
+    )
+    model_id: str = Field(
+        default="537,348,8,9,4,293,551,578,1",
+        description="Comma-separated model IDs (REQUIRED for revenue_by_machine_type). Defaults to all known models. Ask operator if they want a specific model only.",
+    )
+    attendants: str | None = Field(
+        default=None,
+        description="Attendant user ID (required for attendant_detail).",
+    )
+    loyalty_card: str | None = Field(
+        default=None,
+        description="Loyalty card number (for pos_transactions, e.g. '00259223').",
+    )
+    is_fund_used: bool = Field(
+        default=False,
+        description="Include promotional fund usage in results.",
+    )
+    is_deleted_machine_included: bool = Field(
+        default=False,
+        description="Include deleted machines (for revenue_by_position).",
+    )
+    page_no: int = Field(
+        default=1, ge=1,
+        description="Page number for pagination. Increment when operator asks 'show more'.",
+    )
+    page_size: int = Field(
+        default=5, ge=1, le=100,
+        description="Results per page (default 5).",
+    )
+
+    @field_validator("report_type", mode="before")
+    @classmethod
+    def _validate_report_type(cls, v):
+        valid = set(_REPORT_ENDPOINTS.keys())
+        normalized = v.strip().lower().replace(" ", "_").replace("-", "_")
+        if normalized not in valid:
+            raise ValueError(
+                f"Invalid report_type '{v}'. Must be one of: {', '.join(sorted(valid))}"
+            )
+        return normalized
+
+    @field_validator("from_date", "to_date", mode="before")
+    @classmethod
+    def _validate_date(cls, v):
+        if v is None:
+            return v
+        from datetime import date as date_type
+        try:
+            date_type.fromisoformat(v)
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid date format '{v}'. Must be YYYY-MM-DD.")
+        return v
+
+
+def _convert_date_to_api_format(iso_date: str) -> str:
+    """Convert YYYY-MM-DD to MM/DD/YYYY for the Setomatic Reports API."""
+    parts = iso_date.split("-")
+    return f"{parts[1]}/{parts[2]}/{parts[0]}"
+
+
+def _format_revenue_by_location(data: list) -> str:
+    lines = []
+    for rec in data:
+        name = rec.get("locationName", "N/A")
+        revenue = rec.get("totalRevenue", 0)
+        pct = rec.get("percent", 0)
+        grand = rec.get("grandTotal", 0)
+        cash = rec.get("totalCash", 0)
+        lines.append(
+            f"  - {name}: Revenue ${float(revenue):.2f} | "
+            f"Cash ${float(cash):.2f} | Grand Total ${float(grand):.2f} | {float(pct):.1f}%"
+        )
+    return "\n".join(lines)
+
+
+def _format_revenue_by_position(data: list) -> str:
+    lines = []
+    for rec in data:
+        loc = rec.get("locationName", "N/A")
+        prop = rec.get("propertyValue", "N/A")
+        model = rec.get("modelNumber", "N/A")
+        vend = rec.get("vendPrice", 0)
+        cash = rec.get("cash", 0)
+        credit = rec.get("creditCard", 0)
+        loyalty = rec.get("loyaltyCard", 0)
+        emv = rec.get("emvCard", 0)
+        lines.append(
+            f"  - {prop} ({model}) @ {loc}: Vend ${float(vend):.2f} | "
+            f"Cash: {cash} | Credit: {credit} | Loyalty: {loyalty} | EMV: {emv}"
+        )
+    return "\n".join(lines)
+
+
+def _format_revenue_by_machine_type(data: list) -> str:
+    lines = []
+    for rec in data:
+        model = rec.get("modelNo", "N/A")
+        vend = rec.get("vendPrice", "0.00")
+        qty = rec.get("machineQuantity", 0)
+        cash = rec.get("cash", 0)
+        credit = rec.get("creditCard", 0)
+        loyalty = rec.get("loyaltyCard", 0)
+        emv = rec.get("emv", 0)
+        lines.append(
+            f"  - {model}: Vend ${str(vend).strip()} | Qty: {qty} | "
+            f"Cash: {cash} | Credit: {credit} | Loyalty: {loyalty} | EMV: {emv}"
+        )
+    return "\n".join(lines)
+
+
+def _format_revenue_by_month(data: list) -> str:
+    lines = []
+    for rec in data:
+        month = rec.get("monthText", "N/A")
+        cash = rec.get("cash", 0)
+        credit = rec.get("creditCard", 0)
+        loyalty = rec.get("loyaltyCard", 0)
+        emv = rec.get("emvCard", 0)
+        total = float(cash) + float(credit) + float(loyalty) + float(emv)
+        lines.append(
+            f"  - {month}: Cash: {cash} | Credit: {credit} | "
+            f"Loyalty: {loyalty} | EMV: {emv} | Total: {total:.0f}"
+        )
+    return "\n".join(lines)
+
+
+def _format_attendant_detail(data: list) -> str:
+    lines = []
+    for rec in data:
+        parts = [f"{k}: {v}" for k, v in rec.items() if v is not None]
+        lines.append(f"  - {' | '.join(parts)}")
+    return "\n".join(lines) if lines else "  No attendant data found."
+
+
+def _format_promotional_fund(data: list) -> str:
+    lines = []
+    for rec in data:
+        pos = rec.get("position", "N/A")
+        model = rec.get("modelNo", "N/A")
+        amount = rec.get("transactionAmount", 0)
+        refunded = rec.get("refundedAmount", 0)
+        dt = rec.get("transactionDateTime", "N/A")
+        loc = rec.get("locationName", "N/A")
+        card = rec.get("cardNumber", "N/A")
+        tx_type = rec.get("transactionType", "N/A")
+        date_str = dt.split("T")[0] if "T" in str(dt) else dt
+        lines.append(
+            f"  - Pos {pos} ({model}, {tx_type}) @ {loc}: "
+            f"${float(amount):.2f} (refunded: ${float(refunded):.2f}) | "
+            f"Card: {card} | Date: {date_str}"
+        )
+    return "\n".join(lines)
+
+
+def _format_pos_transactions_report(data: list) -> str:
+    lines = []
+    for rec in data:
+        parts = []
+        for key in ("transactionDateTime", "cardNumber", "locationName",
+                    "transactionAmount", "transactionType", "modelNo", "position"):
+            val = rec.get(key)
+            if val is not None:
+                if key == "transactionDateTime" and "T" in str(val):
+                    val = str(val).split("T")[0]
+                if key == "transactionAmount":
+                    val = f"${float(val):.2f}"
+                parts.append(f"{key}: {val}")
+        lines.append(f"  - {' | '.join(parts)}")
+    return "\n".join(lines) if lines else "  No POS transaction data found."
+
+
+_REPORT_FORMATTERS = {
+    "revenue_by_location": _format_revenue_by_location,
+    "revenue_by_position": _format_revenue_by_position,
+    "revenue_by_machine_type": _format_revenue_by_machine_type,
+    "revenue_by_month": _format_revenue_by_month,
+    "attendant_detail": _format_attendant_detail,
+    "promotional_fund": _format_promotional_fund,
+    "pos_transactions": _format_pos_transactions_report,
+}
+
+_REPORT_TITLES = {
+    "revenue_by_location": "Revenue Report by Location",
+    "revenue_by_position": "Revenue Report by Position",
+    "revenue_by_machine_type": "Revenue Report by Machine Type",
+    "revenue_by_month": "Revenue Report by Month",
+    "attendant_detail": "Attendant Detail Report",
+    "promotional_fund": "Promotional Fund Report",
+    "pos_transactions": "POS Transactions Report",
+}
+
+
+@tool(args_schema=ReportSchema)
+def get_report(
+    report_type: str,
+    locations: str = "2",
+    from_date: str = "",
+    to_date: str = "",
+    property_id: int = 1,
+    property_values: str | None = None,
+    model_id: str = "537,348,8,9,4,293,551,578,1",
+    attendants: str | None = None,
+    loyalty_card: str | None = None,
+    is_fund_used: bool = False,
+    is_deleted_machine_included: bool = False,
+    page_no: int = 1,
+    page_size: int = 5,
+) -> str:
+    """
+    Use this tool when the operator asks for any kind of AGGREGATED report: revenue reports
+    (by location, position, machine type, or month), attendant detail reports,
+    promotional fund reports, or POS gateway transaction reports from the Reports module.
+
+    Do NOT use this tool for individual POS transaction lookups — use get_pos_transactions for those.
+    This tool is for summarized/aggregated reporting data from the /api/Reports/ endpoints.
+
+    IMPORTANT per-report requirements:
+      - revenue_by_position: REQUIRES property_values (machine serial numbers). Ask operator if missing.
+      - revenue_by_machine_type: Uses model_id (defaults to all models if not specified).
+      - attendant_detail: Requires attendants (user ID).
+
+    Args:
+        report_type: One of 'revenue_by_location', 'revenue_by_position',
+                     'revenue_by_machine_type', 'revenue_by_month',
+                     'attendant_detail', 'promotional_fund', 'pos_transactions'.
+        locations: Comma-separated location IDs.
+        from_date: Start date (YYYY-MM-DD).
+        to_date: End date (YYYY-MM-DD).
+        property_id: Property ID (required for revenue_by_position, default 1).
+        property_values: Machine serial numbers (REQUIRED for revenue_by_position).
+        model_id: Model IDs (for revenue_by_machine_type, defaults to all models).
+        attendants: Attendant user ID (for attendant_detail).
+        loyalty_card: Card number (for pos_transactions).
+        is_fund_used: Include promotional fund usage.
+        is_deleted_machine_included: Include deleted machines.
+        page_no: Page number for pagination.
+        page_size: Results per page.
+    """
+    try:
+        endpoint_path = _REPORT_ENDPOINTS.get(report_type)
+        if not endpoint_path:
+            return f"Invalid report_type '{report_type}'. Valid types: {', '.join(_REPORT_ENDPOINTS.keys())}"
+
+        if report_type == "revenue_by_position" and not property_values:
+            return (
+                "The Revenue by Position report requires machine serial numbers (propertyValues). "
+                "Please ask the operator which machine positions/serial numbers they want to see "
+                "(e.g. 'BIRWash12345,DRY000000004')."
+            )
+
+        api_from = _convert_date_to_api_format(from_date)
+        api_to = _convert_date_to_api_format(to_date)
+
+        params: dict = {
+            "locations": locations,
+            "fromDate": api_from,
+            "toDate": api_to,
+            "operatorId": _REPORT_OPERATOR_ID,
+        }
+
+        if report_type == "revenue_by_position":
+            params["propertyId"] = property_id
+            params["propertyValues"] = property_values
+            params["isDeletedMachineIncluded"] = str(is_deleted_machine_included).lower()
+            params["isFundUsed"] = str(is_fund_used).lower()
+
+        elif report_type == "revenue_by_machine_type":
+            params["modelId"] = model_id
+            params["isFundUsed"] = str(is_fund_used).lower()
+
+        elif report_type == "revenue_by_month":
+            params["isFundUsed"] = str(is_fund_used).lower()
+
+        elif report_type == "attendant_detail":
+            params.pop("operatorId", None)
+            if attendants:
+                params["attendants"] = attendants
+
+        elif report_type == "promotional_fund":
+            pass  # uses standard params (locations, dates, operatorId)
+
+        elif report_type == "pos_transactions":
+            if loyalty_card:
+                params["loyaltyCard"] = loyalty_card
+
+        elif report_type == "revenue_by_location":
+            if is_fund_used:
+                params["isFundUsed"] = str(is_fund_used).lower()
+
+        url = SETOMATIC_BASE_URL + endpoint_path
+        logger.info("[get_report] GET %s | Params: %s", url, params)
+
+        response = requests.get(
+            url,
+            params=params,
+            headers=_REPORT_HEADERS,
+            timeout=(10.0, 15.0),
+        )
+        logger.info("[get_report] Response [%s]: %s", response.status_code, response.text[:500])
+
+        if response.status_code >= 500:
+            return (
+                f"System Error: Backend server failure ({response.status_code}). "
+                "The report could not be retrieved. Please try again later."
+            )
+
+        if 400 <= response.status_code < 500:
+            return f"API Error: The report request was rejected. Details: {response.text}"
+
+        payload = response.json()
+        data = payload.get("data", [])
+
+        if not data:
+            title = _REPORT_TITLES.get(report_type, report_type)
+            return (
+                f"No data found for **{title}** "
+                f"(from {from_date} to {to_date}, locations: {locations}). "
+                "Try widening the date range or changing the location filter."
+            )
+
+        records = data if isinstance(data, list) else [data]
+        total = len(records)
+        start_idx = (page_no - 1) * page_size
+        page_records = records[start_idx: start_idx + page_size]
+
+        if not page_records:
+            return f"No more records to show (page {page_no} is empty)."
+
+        title = _REPORT_TITLES.get(report_type, report_type)
+        formatter = _REPORT_FORMATTERS.get(report_type, _format_attendant_detail)
+        formatted = formatter(page_records)
+
+        shown = len(page_records)
+        remaining = total - (start_idx + shown)
+
+        result_lines = [
+            f"**{title}** ({from_date} to {to_date}, Locations: {locations}):\n",
+            formatted,
+        ]
+
+        if remaining > 0:
+            result_lines.append(
+                f"\nShowing {shown} of {total} records. "
+                f"{remaining} more records are available. "
+                f"Say \"show more\" to view the next {page_size} records."
+            )
+        else:
+            result_lines.append(f"\nShowing all {total} records.")
+
+        return "\n".join(result_lines)
+
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        return (
+            "System Error: Unable to connect to the backend API. "
+            "The report could not be retrieved. Please try again in five minutes."
+        )
+    except (KeyError, ValueError, TypeError) as e:
+        return f"Failed to parse report response: {e}"
+    except Exception as e:
+        return f"Unexpected error fetching report: {e}"
+
+
 # Exported list for binding to LLM
 SETOMATIC_TOOLS = [
     get_loyalty_balance,
@@ -1178,4 +1592,5 @@ SETOMATIC_TOOLS = [
     get_kiosk_recharges,
     get_pos_transactions,
     send_remote_device_command,
+    get_report,
 ]

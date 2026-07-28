@@ -129,10 +129,25 @@ These were in the original `API_Requirements.docx` but are **not needed** by the
 
 | API | Reason |
 |-----|--------|
-| All 6 Reporting APIs (Revenue, Daily, Machine, Location, Refund, Loyalty) | Portal dashboard features. The chat agent does not generate reports. |
 | Reload Center API | Future scope / portal. |
 | KB Search / Document Metadata / KB Versioning APIs | Agent queries its vector database (ChromaDB) directly. These would serve an admin panel, not the chatbot. |
 | Live machine telemetry / hub status / kiosk hardware | Explicitly forbidden. Agent has a guardrail node that refuses these requests. |
+
+---
+
+## Tier 1C — Reports APIs (July 2026)
+
+> 7 reporting endpoints integrated as a unified `get_report` tool. Operators can ask for revenue/attendant/promotional-fund/POS reports via the chatbot.
+
+| # | API | Endpoint | Purpose | Description | Status | Notes |
+|---|-----|----------|---------|-------------|--------|-------|
+| 9 | Revenue by Location | `GET /api/Reports/GetRevenueByLocationReport` | Revenue breakdown per location | Returns totalRevenue, percent, grandTotal, totalCash per location. Params: locations, fromDate, toDate, operatorId, isFundUsed. | **DONE** | Agent tool: `get_report(report_type='revenue_by_location')` |
+| 10 | Revenue by Position | `GET /api/Reports/GetRevenueByPositionReport` | Revenue per machine position | Returns propertyValue, modelNumber, vendPrice, cash/credit/loyalty/emv per position. Params: operatorId, locations, fromDate, toDate, propertyId, propertyValues, isDeletedMachineIncluded, isFundUsed. | **DONE** | Agent tool: `get_report(report_type='revenue_by_position')` |
+| 11 | Revenue by Machine Type | `GET /api/Reports/GetRevenueByMachineTypeReport` | Revenue per machine model | Returns modelNo, vendPrice, machineQuantity, cash/credit/loyalty/emv. Params: modelId, locations, fromDate, toDate, operatorId, isFundUsed. | **DONE** | Agent tool: `get_report(report_type='revenue_by_machine_type')` |
+| 12 | Revenue by Month | `GET /api/Reports/GetRevenueByMonthOfYearReport` | Monthly revenue breakdown | Returns monthText, cash, creditCard, loyaltyCard, emvCard. Params: locations, fromDate, toDate, operatorId, isFundUsed. | **DONE** | Agent tool: `get_report(report_type='revenue_by_month')` |
+| 13 | Attendant Detail | `GET /api/Reports/GetAttendantDetailReport` | Attendant activity report | Returns attendant activity/time data. Params: locations, attendants, fromDate, toDate. | **DONE** | Agent tool: `get_report(report_type='attendant_detail')` |
+| 14 | Promotional Fund | `GET /api/Reports/GetRevenueByPromotionalFundReport` | Promotional fund usage | Returns position, modelNo, transactionAmount, refundedAmount, dateTime, locationName, cardNumber, transactionType. Params: locations, fromDate, toDate, operatorId. | **DONE** | Agent tool: `get_report(report_type='promotional_fund')` |
+| 15 | POS Transactions Report | `GET /api/Reports/GetPosTransactionsReport` | POS gateway transactions | Returns POS transaction records filtered by loyaltyCard, dates, operator, location. Params: loyaltyCard, fromDate, toDate, operatorId, locations. | **DONE** | Agent tool: `get_report(report_type='pos_transactions')` |
 
 ---
 
@@ -142,7 +157,8 @@ These were in the original `API_Requirements.docx` but are **not needed** by the
 |------|------|------|----------|
 | Tier 1 — Core Agent (balance + transaction search) | 2 | 2 | **0** |
 | Tier 1B — Kiosk & POS (July 2026) | 4 | 4 | 0 |
+| Tier 1C — Reports (July 2026) | 7 | 7 | 0 |
 | Tier 2 — Future Platform (Phase 5) | 3 | 0 | 3 |
-| **Total** | **9** | **6** | **3** |
+| **Total** | **16** | **13** | **3** |
 
 **Refunds:** No agent refund APIs. Guide operators via Bible/RAG to the SpyderWash portal. Bible refund content owned by Brandon (Jul 13, 2026).

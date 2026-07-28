@@ -96,6 +96,8 @@ Full variable list: [ENVIRONMENT.md](ENVIRONMENT.md)
 
 ## Related documents
 
+- [COMPLETE_DEVELOPER_GUIDE.md](COMPLETE_DEVELOPER_GUIDE.md) — **full** project reference (files, functions, variables, models, APIs, security, setup)
+- [CODE_FLOW_AND_FUNCTIONS.md](CODE_FLOW_AND_FUNCTIONS.md) — shorter request flow + function map
 - [ONBOARDING.md](ONBOARDING.md) — guided tour for new developers
 - [ARCHITECTURE.md](ARCHITECTURE.md) — runtime design
 - [API.md](API.md) — REST contract

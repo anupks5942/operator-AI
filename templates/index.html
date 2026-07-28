@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpyderWash Operator AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="10" r="2.4" fill="currentColor"/>
+            <path d="M10 2v4M10 14v4M2 10h4M14 10h4M4.2 4.2l2.8 2.8M13 13l2.8 2.8M4.2 15.8L7 13M13 7l2.8-2.8"
+                  stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <div class="brand-text">
+          <h1>SpyderWash Operator AI</h1>
+          <p>Enterprise Support Assistant</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="chat" id="chat-window" aria-live="polite">
+      <div class="msg ai" data-msg-id="welcome">
+        <div class="msg-body">
+          <p>Hello — I'm your SpyderWash Operator AI. Ask me anything about equipment status, fault codes, or maintenance procedures.</p>
+        </div>
+      </div>
+    </main>
+
+    <div class="session-note">
+      This conversation isn't saved. Refreshing the page starts clean.
+    </div>
+
+    <footer class="composer">
+      <input
+        type="text"
+        id="message"
+        placeholder="Ask anything about SpyderWash..."
+        autocomplete="off"
+      />
+      <button id="send-btn" aria-label="Send message">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M2 9h13M9 3l6 6-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </footer>
+  </div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="{{ url_for('static', path='js/app.js') }}"></script>
+</body>
+</html>
