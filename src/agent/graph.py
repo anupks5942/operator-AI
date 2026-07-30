@@ -496,7 +496,7 @@ def troubleshoot_first_node(state: AgentState):
         metadata_filter = _extract_metadata_filter({**state, "extracted_entities": entities})
     from src.agent.nodes import get_rag_service
     rag_service = get_rag_service()
-    response = rag_service.query(combined_query, metadata_filter=metadata_filter)
+    response = rag_service.query(combined_query, channel=state.get("channel", "chat"), metadata_filter=metadata_filter)
     answer = response.get("answer", "Please verify local network connections and power cycle your devices.")
 
     # Explicitly concatenate the resolution prompt so the router detects the next turn as a confirmation.

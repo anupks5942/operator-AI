@@ -8,6 +8,18 @@ from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from src.llm import create_chat_model
+from enum import StrEnum
+import logging
+from src.logging_config import setup_logging
+
+setup_logging()
+
+logger = logging.getLogger(__name__)
+
+
+class Channel(StrEnum):
+    CHAT = "chat"
+    VOICE = "voice"
 
 # ── v2.2 Article Parser ──────────────────────────────────────────────────────
 
@@ -257,6 +269,7 @@ def _rerank_documents(query: str, documents: list[Document], top_k: int = 6) -> 
 # ── RAGService ────────────────────────────────────────────────────────────────
 
 class RAGService:
+    logger.info(f"Rag service Intialise")
     def __init__(self, kb_dir: str = "KB", persist_dir: str = "./chroma_db", force_reingest: bool = False):
         self.kb_dir = kb_dir
         self.persist_dir = persist_dir
@@ -280,10 +293,23 @@ class RAGService:
 
         if self.vectorstore:
             self.retriever = self.vectorstore.as_retriever(
-                search_type="mmr",
-                search_kwargs={"k": 12, "fetch_k": 40, "lambda_mult": 0.5},
+                search_type="similarity",
+                search_kwargs={"k": 12},
             )
             self.llm = create_chat_model(temperature=0)
+
+            # ── Chat & Voice prompts/chains ──────────────────────────────
+            self.chat_prompt = ChatPromptTemplate.from_messages([
+                ("system", self._build_system_prompt()),
+                ("human", "{input}"),
+            ])
+            self.voice_prompt = ChatPromptTemplate.from_messages([
+                ("system", self._build_voice_system_prompt()),
+                ("human", "{input}"),
+            ])
+
+            self.chat_chain = create_stuff_documents_chain(self.llm, self.chat_prompt)
+            self.voice_chain = create_stuff_documents_chain(self.llm, self.voice_prompt)
         else:
             self.retriever = None
 
@@ -407,15 +433,13 @@ class RAGService:
     def _build_retriever(self, metadata_filter: dict | None = None):
         """Build a retriever with optional metadata filter and MMR."""
         search_kwargs = {
-            "k": 12,
-            "fetch_k": 40,
-            "lambda_mult": 0.5,
+            "k": 12
         }
         if metadata_filter:
             search_kwargs["filter"] = metadata_filter
 
         return self.vectorstore.as_retriever(
-            search_type="mmr",
+            search_type="similarity",
             search_kwargs=search_kwargs,
         )
 
@@ -486,6 +510,70 @@ class RAGService:
         )
         return base_rules
 
+    
+    def _build_voice_system_prompt(self) -> str:
+        """Build the RAG system prompt incorporating v2.2 Section 0 rules."""
+        base_rules = (
+            "You are an expert Technical Support AI Agent for the "
+            "Setomatic/SpyderWash ecosystem speaking with an operator over a live phone call.\n\n"
+        )
+
+        if self.section0_prompt:
+            section0_condensed = self._condense_section0(self.section0_prompt)
+            base_rules += f"KNOWLEDGE BASE RULES (from SpyderWash AI Support KB):\n{section0_condensed}\n\n"
+
+        base_rules += (
+            "RESPONSE RULES:\n"
+            "Your goal is to help the caller troubleshoot machine issues in a natural, friendly, "
+            "and professional conversational manner. "
+
+            "Use ONLY the provided context to answer the operator's questions. "
+            "Do not invent information or make assumptions beyond the provided context. "
+
+            "Speak as if you are talking to a real person over the phone. "
+            "Use short, natural sentences that are easy to understand when spoken aloud. "
+            "Avoid long paragraphs, markdown, bullet points, numbered lists, tables, special "
+            "characters, code formatting, or technical document language. "
+
+            "Explain troubleshooting instructions one step at a time. "
+            "After giving a step, allow the caller to respond before continuing unless the caller "
+            "specifically asks for all of the remaining steps. "
+
+            "Do not overwhelm the caller with excessive information in one response. "
+            "Keep each response concise while still being complete enough to move the troubleshooting "
+            "forward. "
+
+            "If additional information is required before determining the correct solution, "
+            "ask one clear follow-up question instead of guessing. "
+
+            "If the caller's request is unclear, incomplete, or appears to have been interrupted, "
+            "politely ask the caller to repeat or clarify instead of making assumptions. "
+            "For example, say 'I'm sorry, I didn't quite catch that. Could you please repeat it?' "
+
+            "Never mention documents, manuals, PDFs, release notes, retrieval systems, vector "
+            "databases, the knowledge base, search results, context, or where your information came from. "
+            "Present all information naturally as if you already know it. "
+
+            "If the answer cannot be found in the provided context, politely explain that you "
+            "don't have enough information to answer confidently and ask for any additional "
+            "details that may help. Do not fabricate an answer. "
+
+            "If the caller says 'thank you', 'thanks', 'bye', 'goodbye', 'that's all', "
+            "'I don't need anything else', or otherwise clearly indicates that the conversation "
+            "has ended, politely thank them, wish them a good day, and naturally conclude the conversation. "
+
+            "If the caller interrupts while you are speaking, stop your current explanation and "
+            "focus only on answering the caller's latest request. Do not continue the previous "
+            "response unless the caller asks you to. "
+
+            "If the caller changes topics, immediately switch to the new topic without referring "
+            "back to the previous answer. "
+
+            "Maintain a calm, patient, professional, and empathetic tone throughout the call. "
+            "\n\nContext:\n{context}"
+        )
+        return base_rules
+
     def _condense_section0(self, section0: str) -> str:
         """Extract key operational rules from Section 0 (skip preamble/headers)."""
         lines = section0.split("\n")
@@ -508,7 +596,7 @@ class RAGService:
             condensed = condensed[:6000]
         return condensed
 
-    def query(self, input_text: str, metadata_filter: dict | None = None) -> dict:
+    def query(self, input_text: str, channel: str = None, metadata_filter: dict | None = None) -> dict:
         """
         Query the RAG pipeline with FlashRank reranking and co-retrieval.
 
@@ -518,17 +606,20 @@ class RAGService:
           3. Co-retrieval: fetch mandatory companion articles
           4. LLM generation with Section 0 rules in system prompt
         """
+        logger.info(f"[RAG SERVICE] Using channel: {channel}")
+        logger.info(f"[RAG SERVICE] Input: {input_text}")
+
         if not self.vectorstore:
             return {"answer": "Error: RAG Chain not initialized (no KB documents found).", "context": []}
 
-        result = self._invoke_rag(input_text, metadata_filter)
+        result = self._invoke_rag(input_text, channel, metadata_filter)
 
         if metadata_filter and not result.get("context"):
-            result = self._invoke_rag(input_text, metadata_filter=None)
+            result = self._invoke_rag(input_text, channel, metadata_filter=None)
 
         return result
 
-    def _invoke_rag(self, input_text: str, metadata_filter: dict | None = None) -> dict:
+    def _invoke_rag(self, input_text: str, channel: str = None, metadata_filter: dict | None = None) -> dict:
         """Run retrieval + reranking + co-retrieval + generation."""
         retriever = self._build_retriever(metadata_filter)
         raw_docs = retriever.invoke(input_text)
@@ -538,12 +629,15 @@ class RAGService:
         companion_docs = self._fetch_co_retrieval_docs(reranked_docs)
         final_context = companion_docs + reranked_docs
 
-        system_prompt = self._build_system_prompt()
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", system_prompt),
-            ("human", "{input}"),
-        ])
-        qa_chain = create_stuff_documents_chain(self.llm, prompt)
+        logger.info(f"[RAG SERVICE] Using channel: {channel}")
+
+        if channel == Channel.VOICE:
+            logger.info("✅ Using Voice Chain")
+            qa_chain = self.voice_chain
+        else:
+            logger.info("✅ Using Chat Chain")
+            qa_chain = self.chat_chain
+
         answer = qa_chain.invoke({"input": input_text, "context": final_context})
 
         return {"answer": answer, "context": final_context}

@@ -50,3 +50,4 @@ class AgentState(TypedDict):
     # merge_dicts reducer merges partial entity updates across turns instead of
     # overwriting the entire dict, preserving entities from earlier workflow steps.
     extracted_entities: Annotated[dict, merge_dicts]
+    channel:                   Optional[str]

@@ -228,7 +228,7 @@ def retrieve_and_generate(state: AgentState):
         metadata_filter = followup_filter
 
     rag_service = get_rag_service()
-    response = rag_service.query(expanded_query, metadata_filter=metadata_filter)
+    response = rag_service.query(expanded_query, channel=state.get("channel", "chat"), metadata_filter=metadata_filter)
     answer = response.get("answer", "I'm sorry, I couldn't find an answer to your question.")
 
     current_intent = state.get("current_intent") or ""

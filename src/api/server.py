@@ -19,12 +19,18 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from langchain_core.messages import AIMessage
 from dotenv import load_dotenv
+from fastapi import Depends
+from src.utils.security import verify_api_key   
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 load_dotenv()
 
 # Import the compiled LangGraph state machine (singleton, created at module load).
 from src.agent.graph import agent_app as compiled_graph
 from src.utils.security import sanitize_user_text
+from src.voice_gateway.twilio_routes import router as twilio_router
+from src.voice_gateway.websocket import router as websocket_router
 
 # ---------------------------------------------------------------------------
 # Structured logger
@@ -55,6 +61,7 @@ class ChatRequest(BaseModel):
     operator_name: Optional[str] = Field(None, description="Operator display name for escalation emails.")
     operator_email: Optional[str] = Field(None, description="Operator email for escalation emails.")
     operator_phone: Optional[str] = Field(None, description="Operator phone for escalation emails.")
+    channel: str = Field(default="chat", description="chat | voice")
 
 
 class ChatResponse(BaseModel):
@@ -91,6 +98,9 @@ app.add_middleware(
     allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["*"],
 )
+
+app.include_router(twilio_router)
+app.include_router(websocket_router)
 
 # ---------------------------------------------------------------------------
 # Telemetry middleware
@@ -213,12 +223,70 @@ def _extract_reply(graph_state: dict) -> str:
     return "The agent processed your request but did not produce a text response."
 
 
+def run_agent(
+    operator_id: int,
+    session_id: str,
+    message: str,
+    channel: str = "chat",
+    operator_name: Optional[str] = None,
+    operator_email: Optional[str] = None,
+    operator_phone: Optional[str] = None,
+) -> dict:
+    """
+    Core agent invocation, shared by the HTTP route below and by the voice
+    websocket gateway (src/voice_gateway/agent_client.py), which imports this
+    function lazily (inside its ask() method) to avoid a circular import,
+    since websocket.py is itself imported by this module above.
+
+    This is synchronous/blocking — compiled_graph.invoke() is not async.
+    Callers running on an asyncio event loop (the websocket handler) must
+    wrap this in asyncio.to_thread(...) or it will stall the loop.
+    """
+    config = {"configurable": {"thread_id": session_id}}
+    safe_message = sanitize_user_text(message)
+
+    initial_state: dict = {
+        "messages": [("user", safe_message)],
+        "operator_id": operator_id,
+        "channel": channel,
+    }
+    logger.info(f"[GRAPH] Initial State Channel: {initial_state['channel']}")
+
+    if operator_name:
+        initial_state["operator_name"] = operator_name
+    if operator_email:
+        initial_state["operator_email"] = operator_email
+    if operator_phone:
+        initial_state["operator_phone"] = operator_phone
+
+    final_state: dict = compiled_graph.invoke(initial_state, config=config)
+
+    return {
+        "reply": _extract_reply(final_state),
+        "detected_intent": final_state.get("current_intent") or "unknown",
+        "requires_escalation": bool(final_state.get("escalation_dispatched", False)),
+    }
+
 # ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
+app.mount('/static',StaticFiles(directory='static'),name='static')
+templates=Jinja2Templates(directory='templates')
+
+@app.on_event("startup")
+async def startup():
+    print("Setomatic Operator AI started.")
+
+@app.get('/index')
+def home(request:Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={}
+    )
 
 @app.post("/api/v1/agent/chat", response_model=ChatResponse)
-def chat(request: ChatRequest) -> ChatResponse:
+def chat(request: ChatRequest, _: None = Depends(verify_api_key)) -> ChatResponse:
     """
     Accept an operator message, run it through the LangGraph state machine,
     and return a structured response containing the reply, the detected intent,
@@ -227,50 +295,23 @@ def chat(request: ChatRequest) -> ChatResponse:
     Thread memory is keyed on session_id so multi-turn context is preserved
     across consecutive calls from the same operator session.
     """
-    # Build the LangGraph invocation config; thread_id selects the MemorySaver
-    # checkpoint bucket, giving each operator session its own memory partition.
-    config = {"configurable": {"thread_id": request.session_id}}
-
-    # Apply PCI-DSS compliance redactor to mask credit cards before sending to LangGraph.
-    safe_message = sanitize_user_text(request.message)
-
-    # Wrap the message in the tuple format LangGraph's add_messages reducer expects.
-    initial_state: dict = {
-        "messages": [("user", safe_message)],
-        "operator_id": request.operator_id,
-    }
-    if request.operator_name:
-        initial_state["operator_name"] = request.operator_name
-    if request.operator_email:
-        initial_state["operator_email"] = request.operator_email
-    if request.operator_phone:
-        initial_state["operator_phone"] = request.operator_phone
-
     try:
-        # invoke() blocks until the full graph has executed and returns the
-        # final accumulated state dict (all nodes merged).
-        final_state: dict = compiled_graph.invoke(initial_state, config=config)
+        result = run_agent(
+            operator_id=request.operator_id,
+            session_id=request.session_id,
+            message=request.message,
+            channel=request.channel,
+            operator_name=request.operator_name,
+            operator_email=request.operator_email,
+            operator_phone=request.operator_phone,
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=500,
             detail=f"Graph execution failed: {exc}",
         )
 
-    # Extract the plain-text reply from the message history.
-    reply = _extract_reply(final_state)
-
-    # detected_intent is written to state by the router node; fall back to
-    # "unknown" if the router did not execute (should not happen in practice).
-    detected_intent: str = final_state.get("current_intent") or "unknown"
-
-    # True when escalation_node dispatched email/SMS this turn.
-    requires_escalation: bool = bool(final_state.get("escalation_dispatched", False))
-
-    return ChatResponse(
-        reply=reply,
-        detected_intent=detected_intent,
-        requires_escalation=requires_escalation,
-    )
+    return ChatResponse(**result)
 
 
 # ---------------------------------------------------------------------------
