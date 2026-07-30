@@ -100,7 +100,7 @@ These were in the original `API_Requirements.docx` but are **not needed** by the
 | Operator Profile API | Portal already sends `operator_id`, `operator_name`, `operator_email`, `operator_phone` in every chat request. |
 | Role / Permission API | Portal controls which operators access the chatbot. Refunds are portal-owned (not agent APIs). |
 | Operator Details API | Portal has operator account data. Agent doesn't need a separate lookup. |
-| Location List / Details APIs | Portal has location data. Agent answers location/pricing questions via RAG from operator manuals. |
+| Location List / Details APIs | Moved to Tier 1D — `get_operator_locations` + `get_machine_config` now integrated. |
 
 ### Redundant with existing DONE APIs
 
@@ -151,6 +151,18 @@ These were in the original `API_Requirements.docx` but are **not needed** by the
 
 ---
 
+## Tier 1D — Context & Configuration APIs (July 2026)
+
+> 3 read-only context APIs for operator locations, machine configuration, and loyalty card categories.
+
+| # | API | Endpoint | Purpose | Description | Status | Notes |
+|---|-----|----------|---------|-------------|--------|-------|
+| 16 | Operator Locations | `GET /api/POSController/GetUserAssignlocations` | List operator's assigned locations | Returns locationName, locationId, timeZone for all locations assigned to an operator passcode. Params: Passcode, userid. | **DONE** | Agent tool: `get_operator_locations` |
+| 17 | Machine Configuration | `GET /api/POSController/GetMachineConfigurations` | Machine details at a location | Returns machine brand, model, position, vend cost, Bluetooth ID, out-of-order status per machine. Params: UserId, LocationId, MachineInfoId (opt), PositionNo (opt), BluetoothId (opt). Agent paginates client-side (5/page). | **DONE** | Agent tool: `get_machine_config` |
+| 18 | Loyalty Card Categories | `GET /api/LoyaltyCard/GetLoyaltyCardSubCategory` | List available card types | Returns loyalty card sub-categories (Birthday, Military, Special Card, Student Card). No parameters required. | **DONE** | Agent tool: `get_loyalty_card_categories` |
+
+---
+
 ## Summary
 
 | Tier | APIs | Done | To Build |
@@ -158,7 +170,8 @@ These were in the original `API_Requirements.docx` but are **not needed** by the
 | Tier 1 — Core Agent (balance + transaction search) | 2 | 2 | **0** |
 | Tier 1B — Kiosk & POS (July 2026) | 4 | 4 | 0 |
 | Tier 1C — Reports (July 2026) | 7 | 7 | 0 |
+| Tier 1D — Context & Config (July 2026) | 3 | 3 | 0 |
 | Tier 2 — Future Platform (Phase 5) | 3 | 0 | 3 |
-| **Total** | **16** | **13** | **3** |
+| **Total** | **19** | **16** | **3** |
 
 **Refunds:** No agent refund APIs. Guide operators via Bible/RAG to the SpyderWash portal. Bible refund content owned by Brandon (Jul 13, 2026).

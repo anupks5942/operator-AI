@@ -1583,6 +1583,317 @@ def get_report(
         return f"Unexpected error fetching report: {e}"
 
 
+# ---------------------------------------------------------------------------
+# Operator Locations tool
+# ---------------------------------------------------------------------------
+
+_OPERATOR_LOCATIONS_URL = (
+    SETOMATIC_BASE_URL
+    + "/api/POSController/GetUserAssignlocations"
+)
+_OPERATOR_USER_ID = 4
+
+
+class OperatorLocationsSchema(BaseModel):
+    passcode: str = Field(
+        ...,
+        min_length=1,
+        max_length=20,
+        description="Operator passcode (e.g. '3654'). Ask the operator for their passcode if not provided.",
+    )
+    page_no: int = Field(default=1, ge=1, description="Page number for pagination.")
+    page_size: int = Field(default=5, ge=1, le=50, description="Results per page (default 5).")
+
+
+@tool(args_schema=OperatorLocationsSchema)
+def get_operator_locations(passcode: str, page_no: int = 1, page_size: int = 5) -> str:
+    """
+    Use this tool when the operator asks which locations are assigned to them,
+    what laundromats they manage, or their location list.
+
+    Requires the operator's passcode. If not provided in the conversation, ask for it.
+
+    Args:
+        passcode: The operator's passcode (numeric string).
+        page_no: Page number for pagination.
+        page_size: Results per page (default 5).
+
+    Returns:
+        A formatted list of assigned locations with name, ID, and timezone.
+    """
+    try:
+        params = {
+            "Passcode": passcode,
+            "userid": _OPERATOR_USER_ID,
+        }
+        logger.info("[get_operator_locations] GET %s | Params: %s", _OPERATOR_LOCATIONS_URL, params)
+
+        response = requests.get(
+            _OPERATOR_LOCATIONS_URL,
+            params=params,
+            headers={"Accept-Language": "en"},
+            timeout=(10.0, 12.0),
+        )
+        logger.info("[get_operator_locations] Response [%s]: %s", response.status_code, response.text[:500])
+
+        if response.status_code >= 500:
+            return (
+                f"System Error: Backend server failure ({response.status_code}). "
+                "Please try again later."
+            )
+        if 400 <= response.status_code < 500:
+            return f"API Error: The request was rejected. Details: {response.text}"
+
+        payload = response.json()
+        data = payload.get("data", [])
+
+        if not data:
+            return (
+                f"No locations found for passcode '{passcode}'. "
+                "Please verify the passcode and try again."
+            )
+
+        total = len(data)
+        start_idx = (page_no - 1) * page_size
+        page_records = data[start_idx: start_idx + page_size]
+
+        if not page_records:
+            return f"No more locations to show (page {page_no} is empty)."
+
+        lines = ["**Your assigned locations:**\n"]
+        for i, loc in enumerate(page_records, start=start_idx + 1):
+            name = loc.get("locationName", "N/A")
+            loc_id = loc.get("locationId", "N/A")
+            tz = loc.get("timeZone", "N/A")
+            lines.append(f"  {i}. {name} (ID: {loc_id}) | TimeZone: {tz}")
+
+        shown = len(page_records)
+        remaining = total - (start_idx + shown)
+        if remaining > 0:
+            lines.append(
+                f"\nShowing {shown} of {total} records. "
+                f"{remaining} more records are available. "
+                f"Say \"show more\" to view the next {page_size} records."
+            )
+        else:
+            lines.append(f"\nShowing all {total} records.")
+
+        return "\n".join(lines)
+
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        return (
+            "System Error: Unable to connect to the backend API. "
+            "Please try again in five minutes."
+        )
+    except Exception as e:
+        return f"Unexpected error fetching operator locations: {e}"
+
+
+# ---------------------------------------------------------------------------
+# Machine Configuration tool
+# ---------------------------------------------------------------------------
+
+_MACHINE_CONFIG_URL = (
+    SETOMATIC_BASE_URL
+    + "/api/POSController/GetMachineConfigurations"
+)
+_MACHINE_CONFIG_USER_ID = 4
+
+
+class MachineConfigSchema(BaseModel):
+    location_id: int = Field(
+        ...,
+        description="Location ID to fetch machines for (required). Ask operator if not provided.",
+    )
+    machine_info_id: int | None = Field(
+        default=None,
+        description="Optional: filter by specific machine ID.",
+    )
+    position_no: str | None = Field(
+        default=None,
+        description="Optional: filter by position number (e.g. '2727').",
+    )
+    bluetooth_id: str | None = Field(
+        default=None,
+        description="Optional: filter by Bluetooth ID (e.g. 'AccessLockM1').",
+    )
+    page_no: int = Field(default=1, ge=1, description="Page number for pagination.")
+    page_size: int = Field(default=5, ge=1, le=50, description="Results per page (default 5).")
+
+
+@tool(args_schema=MachineConfigSchema)
+def get_machine_config(
+    location_id: int,
+    machine_info_id: int | None = None,
+    position_no: str | None = None,
+    bluetooth_id: str | None = None,
+    page_no: int = 1,
+    page_size: int = 5,
+) -> str:
+    """
+    Use this tool when the operator asks about machines at a location: machine list,
+    machine configuration, brand/model info, vend price, Bluetooth IDs, position numbers,
+    or out-of-order status.
+
+    Requires location_id. Can optionally filter by machine ID, position number, or Bluetooth ID.
+
+    Args:
+        location_id: The location ID to look up machines for.
+        machine_info_id: Optional filter by machine ID.
+        position_no: Optional filter by position number.
+        bluetooth_id: Optional filter by Bluetooth ID.
+        page_no: Page number for pagination.
+        page_size: Results per page (default 5).
+    """
+    try:
+        params: dict = {
+            "UserId": _MACHINE_CONFIG_USER_ID,
+            "LocationId": location_id,
+        }
+        if machine_info_id is not None:
+            params["MachineInfoId"] = machine_info_id
+        if position_no:
+            params["PositionNo"] = position_no
+        if bluetooth_id:
+            params["BluetoothId"] = bluetooth_id
+
+        logger.info("[get_machine_config] GET %s | Params: %s", _MACHINE_CONFIG_URL, params)
+
+        response = requests.get(
+            _MACHINE_CONFIG_URL,
+            params=params,
+            headers={"Accept-Language": "en"},
+            timeout=(10.0, 15.0),
+        )
+        logger.info("[get_machine_config] Response [%s]: %s", response.status_code, response.text[:500])
+
+        if response.status_code >= 500:
+            return (
+                f"System Error: Backend server failure ({response.status_code}). "
+                "Please try again later."
+            )
+        if 400 <= response.status_code < 500:
+            return f"API Error: The request was rejected. Details: {response.text}"
+
+        payload = response.json()
+        data = payload.get("data", [])
+
+        if not data:
+            return (
+                f"No machines found at location {location_id}. "
+                "Please verify the location ID and try again."
+            )
+
+        records = data if isinstance(data, list) else [data]
+        total = len(records)
+        start_idx = (page_no - 1) * page_size
+        page_records = records[start_idx: start_idx + page_size]
+
+        if not page_records:
+            return f"No more machine records to show (page {page_no} is empty)."
+
+        lines = [f"**Machines at Location {location_id}:**\n"]
+        for i, rec in enumerate(page_records, start=start_idx + 1):
+            position = rec.get("position", "N/A")
+            brand = rec.get("brandName", "N/A")
+            model = rec.get("modelNo", "N/A")
+            vend = rec.get("vendCost", 0)
+            bt_id = rec.get("blueToothId", "N/A")
+            out_of_order = rec.get("isOutOfOrder", False)
+            cycle_time = rec.get("cycleTime", 0)
+            machine_type = rec.get("typeValue", "")
+
+            status = "OUT OF ORDER" if out_of_order else "OK"
+            vend_str = f"${float(vend):.2f}" if vend is not None else "N/A"
+            cycle_str = f" | Cycle: {cycle_time}min" if cycle_time and cycle_time > 0 else ""
+
+            lines.append(
+                f"  {i}. Pos {position} | {brand} ({model}) | "
+                f"Vend: {vend_str} | BT: {bt_id} | Status: {status}{cycle_str}"
+            )
+
+        shown = len(page_records)
+        remaining = total - (start_idx + shown)
+        if remaining > 0:
+            lines.append(
+                f"\nShowing {shown} of {total} records. "
+                f"{remaining} more records are available. "
+                f"Say \"show more\" to view the next {page_size} records."
+            )
+        else:
+            lines.append(f"\nShowing all {total} records.")
+
+        return "\n".join(lines)
+
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        return (
+            "System Error: Unable to connect to the backend API. "
+            "Please try again in five minutes."
+        )
+    except Exception as e:
+        return f"Unexpected error fetching machine configurations: {e}"
+
+
+# ---------------------------------------------------------------------------
+# Loyalty Card Categories tool
+# ---------------------------------------------------------------------------
+
+_LOYALTY_CARD_CATEGORIES_URL = (
+    SETOMATIC_BASE_URL
+    + "/api/LoyaltyCard/GetLoyaltyCardSubCategory"
+)
+
+
+@tool
+def get_loyalty_card_categories() -> str:
+    """
+    Use this tool when the operator asks what types/categories of loyalty cards
+    are available (e.g. "what card types do you have", "loyalty card categories",
+    "what kinds of loyalty cards exist").
+
+    Takes no arguments. Returns the list of available loyalty card sub-categories.
+    """
+    try:
+        logger.info("[get_loyalty_card_categories] GET %s", _LOYALTY_CARD_CATEGORIES_URL)
+
+        response = requests.get(
+            _LOYALTY_CARD_CATEGORIES_URL,
+            headers={"Accept-Language": "en"},
+            timeout=(10.0, 12.0),
+        )
+        logger.info("[get_loyalty_card_categories] Response [%s]: %s", response.status_code, response.text[:500])
+
+        if response.status_code >= 500:
+            return (
+                f"System Error: Backend server failure ({response.status_code}). "
+                "Please try again later."
+            )
+        if 400 <= response.status_code < 500:
+            return f"API Error: The request was rejected. Details: {response.text}"
+
+        payload = response.json()
+        data = payload.get("data", [])
+
+        if not data:
+            return "No loyalty card categories found in the system."
+
+        lines = ["**Available loyalty card categories:**\n"]
+        for i, cat in enumerate(data, start=1):
+            name = cat.get("subCategoryName", "N/A")
+            cat_id = cat.get("id", "")
+            lines.append(f"  {i}. {name}")
+
+        return "\n".join(lines)
+
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        return (
+            "System Error: Unable to connect to the backend API. "
+            "Please try again in five minutes."
+        )
+    except Exception as e:
+        return f"Unexpected error fetching loyalty card categories: {e}"
+
+
 # Exported list for binding to LLM
 SETOMATIC_TOOLS = [
     get_loyalty_balance,
@@ -1593,4 +1904,7 @@ SETOMATIC_TOOLS = [
     get_pos_transactions,
     send_remote_device_command,
     get_report,
+    get_operator_locations,
+    get_machine_config,
+    get_loyalty_card_categories,
 ]

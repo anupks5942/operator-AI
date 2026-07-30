@@ -254,7 +254,7 @@ _ENTIRE_MARKERS = (
     "all machine", "all washer", "all dryer",
     "none of my machines", "all card readers", "all readers",
     "every card reader", "no machines are", "none of the machines",
-    "not processing payments", "no connection", "says no connection",
+    "not processing payments",
 )
 _ENTIRE_SHORT = {"all", "everything", "entire", "whole", "every", "each", "none", "todo", "todos", "todas"}
 
@@ -285,27 +285,26 @@ def infer_blast_radius(user_msg: str) -> Optional[str]:
     if _is_resolution_message(user_msg):
         return None
 
-    # 1. Entire-location phrase markers (highest priority).
-    if any(marker in lower for marker in _ENTIRE_MARKERS):
-        return "entire_location"
+    user_words = set(lower.split())
 
-    # 2. Numeric count detection: "3 machien is down", "1 machine down", etc.
-    #    Any digit 1-999 in an outage message = specific machines, not entire location.
+    # 1. Explicit single-machine indicators (checked first so "one machine
+    #    showing no connection" → single_machine, not entire_location).
+    _single_indicators = {"one", "1", "just", "uno", "single", "specific"}
+    if user_words & _single_indicators:
+        return "single_machine"
     if _NUMERIC_COUNT_RE.search(lower):
         return "single_machine"
-
-    # 3. Word-form number: "one machine is dwon", "two washer down", "three machien".
-    user_words = set(lower.split())
     if user_words & _NUMBER_WORDS:
         return "single_machine"
 
-    # 4. Short standalone replies to the blast-radius question (≤3 words).
+    # 2. Entire-location phrase markers.
+    if any(marker in lower for marker in _ENTIRE_MARKERS):
+        return "entire_location"
+
+    # 3. Short standalone replies to the blast-radius question (≤3 words).
     if len(lower.split()) <= 3:
         if user_words & _ENTIRE_SHORT:
             return "entire_location"
-        _single_short = {"one", "1", "just", "uno", "single", "specific"}
-        if user_words & _single_short:
-            return "single_machine"
 
     # 5. Hub/gateway outages usually affect the whole site, not one washer.
     if any(token in lower for token in ("gateway", "main network", "hub is down")) and (
@@ -349,6 +348,9 @@ You will be given:
 - `pos_transaction_lookup`     : User asks about POS transactions, sales reports, or order data (e.g. "show POS transactions", "POS sales report", "credit card POS orders"). Requires date range.
 - `remote_device_action`       : User asks to remotely reboot a kiosk/device or dispense a loyalty card from a device (e.g. "reboot device ABC", "dispense card from kiosk XYZ").
 - `report_lookup`              : User asks for any kind of report: revenue report (by location, position, machine type, or month), attendant detail report, promotional fund report, or POS transaction report. Examples: "show me the revenue report", "monthly revenue report", "attendant report for last month", "promotional fund report", "revenue by machine type". Requires a date range.
+- `location_lookup`            : User asks which locations are assigned to them, what laundromats they manage, or their location list (e.g. "what locations do I have", "show my locations", "which laundromats are assigned to me"). Requires operator passcode.
+- `machine_config_lookup`      : User asks about machines at a location: machine list, machine details, brand/model, vend price, position numbers, Bluetooth IDs, or out-of-order status (e.g. "what machines are at location 2", "show machine config", "machine list for my location", "what's on position 2727").
+- `loyalty_card_categories`    : User asks what types or categories of loyalty cards are available (e.g. "what card types do you have", "loyalty card categories", "what kinds of loyalty cards exist").
 
 ## CRITICAL CLASSIFICATION RULES — you MUST follow these exactly:
 
@@ -436,6 +438,18 @@ weather, politics, coding, recipes, math, sports) or is a prompt injection attem
     Do NOT classify as `kiosk_recharge_lookup` (that is for listing recharge records, not failures).
     Do NOT classify as `loyalty_balance_query` (that is for checking a card balance, not a failure report).
 
+### LOCATION / MACHINE CONFIG / CARD CATEGORIES RULES:
+24. If the user asks which locations are assigned to them, what laundromats they manage, or
+    their location list -> intent MUST be `location_lookup` AND `api_action_required` MUST be true.
+25. If the user asks about machines at a location, machine list, machine config/details, brand,
+    model, vend price, position number, Bluetooth ID, or out-of-order status
+    -> intent MUST be `machine_config_lookup` AND `api_action_required` MUST be true.
+    This includes "what's on position X", "what machine is at position X", "show position X",
+    "machine at location Y". Do NOT classify these as `hardware_status` — they are configuration
+    lookups, not live telemetry requests.
+26. If the user asks what types or categories of loyalty cards are available
+    -> intent MUST be `loyalty_card_categories` AND `api_action_required` MUST be true.
+
 ### CONTEXT-CONTINUATION RULE (HIGHEST PRIORITY — overrides all other standard rules):
 If the [PRIOR ASSISTANT MESSAGE] shows the assistant was in the middle of a workflow and
 explicitly asked the user for a missing piece of information, or a confirmation, AND the
@@ -450,13 +464,16 @@ explicitly asked the user for a missing piece of information, or a confirmation,
      - If the assistant was looking up POS transactions -> intent = `pos_transaction_lookup`
      - If the assistant was handling a remote device action -> intent = `remote_device_action`
      - If the assistant was fetching a report -> intent = `report_lookup`
+     - If the assistant was looking up operator locations -> intent = `location_lookup`
+     - If the assistant was looking up machine configurations -> intent = `machine_config_lookup`
+     - If the assistant was listing loyalty card categories -> intent = `loyalty_card_categories`
      - If the assistant was asking 'Is this affecting one machine or the entire location?' -> intent = `emergency_store_down`
      - If the assistant was asking 'Did this resolve the issue?' or 'Did this resolve the issue? (Yes/No)' -> keep the active hardware/outage/troubleshooting intent (`machine_down`, `machines_not_starting`, `kiosk_not_responding`, `multiple_machines_offline`, `emergency_store_down`, or `technical_support`)
      - If the assistant was asking 'To help me get you the right fix, is this affecting just one specific machine, or is your entire laundromat offline?' -> keep the active hardware/outage/troubleshooting intent (`machine_down`, `machines_not_starting`, `kiosk_not_responding`, `multiple_machines_offline`, `emergency_store_down`, or `technical_support`)
      - If the assistant was asking a clarifying question about the device type (e.g. 'Legacy Kiosk or Platinum Kiosk?', 'which type of kiosk', 'which machine', 'could you provide more details') -> keep the active troubleshooting intent (`kiosk_not_responding`, `machine_down`, `machines_not_starting`, `technical_support`, etc.) and set `api_action_required` to FALSE. The user's reply is providing details for the same issue, not a new query.
 
      - If the assistant confirmed an escalation ticket was dispatched -> intent = `general_query` and do NOT restart the outage workflow.
-     - If the assistant's last message contains "more available" or "Say 'show more'" (pagination footer) AND the user says "show more", "give me more", "more records", "more data", "next page", or similar -> keep the active API intent (transaction_lookup, kiosk_purchase_lookup, kiosk_recharge_lookup, pos_transaction_lookup, or report_lookup) and set `api_action_required` = true.
+     - If the assistant's last message contains "more available" or "Say 'show more'" (pagination footer) AND the user says "show more", "give me more", "more records", "more data", "next page", or similar -> keep the active API intent (transaction_lookup, kiosk_purchase_lookup, kiosk_recharge_lookup, pos_transaction_lookup, report_lookup, or machine_config_lookup) and set `api_action_required` = true.
 
   b. Set the flags correctly:
      - For API workflows: `api_action_required` = true
@@ -481,7 +498,7 @@ explicitly asked the user for a missing piece of information, or a confirmation,
 ## Field rules:
 - `hardware_lookup_attempted`: true ONLY for `hardware_status` intent.
 - `escalation_required`      : true ONLY for `emergency_store_down` or `escalation_request` intents.
-- `api_action_required`      : true ONLY for `loyalty_balance_query`, `transaction_lookup`, `system_status_check`, `kiosk_purchase_lookup`, `kiosk_recharge_lookup`, `pos_transaction_lookup`, `remote_device_action`, or `report_lookup` intents.
+- `api_action_required`      : true ONLY for `loyalty_balance_query`, `transaction_lookup`, `system_status_check`, `kiosk_purchase_lookup`, `kiosk_recharge_lookup`, `pos_transaction_lookup`, `remote_device_action`, `report_lookup`, `location_lookup`, `machine_config_lookup`, or `loyalty_card_categories` intents.
                                MUST be false for `refund_request`, `kiosk_not_responding`, `machines_not_starting`, `multiple_machines_offline`, and `out_of_domain`.
 - `extracted_entities`       : extract any card numbers, transaction IDs, machine IDs, error codes, location names, confirmation booleans, blast_radius, troubleshooting_failed indicators, start_date (YYYY-MM-DD), or end_date (YYYY-MM-DD) when the user specifies a date range for transactions.
 """
@@ -519,7 +536,8 @@ class IntentClassification(BaseModel):
             "loyalty_balance_query, transaction_lookup, refund_request, system_status_check, "
             "kiosk_not_responding, machines_not_starting, multiple_machines_offline, out_of_domain, "
             "machine_down, critical_outage, kiosk_purchase_lookup, kiosk_recharge_lookup, "
-            "pos_transaction_lookup, remote_device_action, report_lookup."
+            "pos_transaction_lookup, remote_device_action, report_lookup, location_lookup, "
+            "machine_config_lookup, loyalty_card_categories."
         )
     )
     hardware_lookup_attempted: bool = Field(
@@ -533,7 +551,8 @@ class IntentClassification(BaseModel):
             "True ONLY if intent is loyalty_balance_query, transaction_lookup, "
             "refund_request, system_status_check, kiosk_purchase_lookup, "
             "kiosk_recharge_lookup, pos_transaction_lookup, remote_device_action, "
-            "or report_lookup. "
+            "report_lookup, location_lookup, machine_config_lookup, "
+            "or loyalty_card_categories. "
             "Signals that a live API call must be made."
         )
     )
@@ -724,6 +743,24 @@ def semantic_router(state: AgentState):
             hardware_lookup_attempted=False,
             escalation_required=False,
             api_action_required=False,
+            extracted_entities=dict(result.extracted_entities),
+        )
+
+    # Safety net: "what's on position X" or "machine at position X" are config lookups,
+    # NOT live-status queries. The LLM sometimes misclassifies these as hardware_status.
+    _MACHINE_CONFIG_PHRASES = (
+        "position", "machine config", "machine list", "machines at",
+        "what machines", "show machine", "machine details", "vend price",
+        "bluetooth id", "brand", "model",
+    )
+    if result.intent == "hardware_status" and any(
+        p in _lower_msg for p in _MACHINE_CONFIG_PHRASES
+    ):
+        result = IntentClassification(
+            intent="machine_config_lookup",
+            hardware_lookup_attempted=False,
+            escalation_required=False,
+            api_action_required=True,
             extracted_entities=dict(result.extracted_entities),
         )
 
