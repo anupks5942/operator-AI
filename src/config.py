@@ -39,6 +39,19 @@ GROQ_MODEL: str = _env_str("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 # OpenAI embedding model for RAG vectorstore ingestion and retrieval.
 OPENAI_EMBEDDING_MODEL: str = _env_str("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+# Must match the embedding model's output size (text-embedding-3-small = 1536).
+EMBEDDING_DIMENSIONS: int = int(_env_str("EMBEDDING_DIMENSIONS", "1536"))
+
+# Local on-disk Qdrant (replaces ./chroma_db). Built by: uv run python -m data_injection
+QDRANT_PATH: str = _env_str("QDRANT_PATH", "./spyderwash_qdrant")
+QDRANT_COLLECTION: str = _env_str("QDRANT_COLLECTION", "spyderwash_docs")
+# Section 0 prompt cache written during data_injection.
+SECTION0_CACHE_PATH: str = _env_str("SECTION0_CACHE_PATH", "./spyderwash_section0.txt")
+
+# RAG retrieval: hybrid (default), vector, or vectorless.
+RAG_RETRIEVAL_METHOD: str = _env_str("RAG_RETRIEVAL_METHOD", "hybrid").lower()
+# Maximum BFS depth for recursive co-retrieval (SQLite rules).
+CO_RETRIEVAL_MAX_DEPTH: int = int(_env_str("CO_RETRIEVAL_MAX_DEPTH", "3"))
 
 # Escalation notifications — when False, NotificationService logs only (local dev).
 USE_LIVE_NOTIFICATIONS: bool = _env_bool("USE_LIVE_NOTIFICATIONS", False)

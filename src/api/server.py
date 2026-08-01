@@ -315,6 +315,48 @@ def chat(request: ChatRequest, _: None = Depends(verify_api_key)) -> ChatRespons
 
 
 # ---------------------------------------------------------------------------
+# MCP Knowledge Base Tools (structured retrieval for external agents)
+# ---------------------------------------------------------------------------
+
+from src.services.kb_mcp_tools import (
+    KBSearchInput,
+    KBGetArticleInput,
+    KBGetCompanionsInput,
+    kb_search,
+    kb_get_article,
+    kb_get_companions,
+    kb_diagnostics,
+)
+
+
+@app.post("/api/v1/kb/search")
+def api_kb_search(input: KBSearchInput):
+    """Search the knowledge base by query text, intent, and device type."""
+    return kb_search(input)
+
+
+@app.get("/api/v1/kb/article/{article_id}")
+def api_kb_get_article(article_id: str):
+    """Retrieve a specific KB article by its ID."""
+    result = kb_get_article(KBGetArticleInput(article_id=article_id))
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Article {article_id} not found")
+    return result
+
+
+@app.get("/api/v1/kb/companions/{article_id}")
+def api_kb_get_companions(article_id: str):
+    """Get all co-retrieval companion articles for a given article."""
+    return kb_get_companions(KBGetCompanionsInput(article_id=article_id))
+
+
+@app.get("/api/v1/kb/diagnostics")
+def api_kb_diagnostics():
+    """Get KB retrieval system health and statistics."""
+    return kb_diagnostics()
+
+
+# ---------------------------------------------------------------------------
 # Health check (useful for load-balancer / k8s liveness probes)
 # ---------------------------------------------------------------------------
 

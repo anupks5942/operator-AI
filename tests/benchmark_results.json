@@ -1,0 +1,2280 @@
+{
+  "vectorless": {
+    "method": "vectorless",
+    "total": 50,
+    "primary_hits": 36,
+    "companion_hits": 9,
+    "companion_total_expected": 10,
+    "wrong_device": 12,
+    "total_latency_ms": 3670.0074672698975,
+    "details": [
+      {
+        "id": "TC-001",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-PORTAL-001",
+          "KB-FAQ-034",
+          "KB-FAQ-037"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 102.0
+      },
+      {
+        "id": "TC-002",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-028",
+          "KB-FAQ-029"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 55.1
+      },
+      {
+        "id": "TC-003",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-POS-007",
+          "KB-FAQ-002",
+          "KB-FAQ-039",
+          "KB-FAQ-049",
+          "KB-FAQ-057"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 99.2
+      },
+      {
+        "id": "TC-004",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [],
+        "wrong_device": 0,
+        "latency_ms": 80.3
+      },
+      {
+        "id": "TC-005",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-READER-003"
+        ],
+        "companions_expected": [
+          "KB-READER-003"
+        ],
+        "retrieved": [
+          "KB-READER-003",
+          "KB-READER-005",
+          "KB-READER-007",
+          "KB-READER-011",
+          "KB-FAQ-007"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 102.3
+      },
+      {
+        "id": "TC-006",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-READER-005"
+        ],
+        "companions_expected": [
+          "KB-READER-005"
+        ],
+        "retrieved": [
+          "KB-READER-003",
+          "KB-READER-005",
+          "KB-READER-007",
+          "KB-READER-011",
+          "KB-FAQ-007"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 86.9
+      },
+      {
+        "id": "TC-007",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-READER-008"
+        ],
+        "companions_expected": [
+          "KB-READER-008"
+        ],
+        "retrieved": [
+          "KB-READER-008",
+          "KB-FAQ-001",
+          "KB-FAQ-003",
+          "KB-FAQ-006",
+          "KB-FAQ-009"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 124.8
+      },
+      {
+        "id": "TC-008",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-READER-001"
+        ],
+        "companions_expected": [
+          "KB-READER-001"
+        ],
+        "retrieved": [
+          "KB-POLICY-002",
+          "KB-READER-001",
+          "KB-READER-002",
+          "KB-READER-009",
+          "KB-FAQ-010"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 129.1
+      },
+      {
+        "id": "TC-009",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-MACH-001",
+          "KB-PAY-007"
+        ],
+        "companions_expected": [
+          "KB-MACH-001",
+          "KB-PAY-007"
+        ],
+        "retrieved": [
+          "KB-MACH-001",
+          "KB-PAY-007",
+          "KB-MACH-004",
+          "KB-FAQ-011"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 98.9
+      },
+      {
+        "id": "TC-010",
+        "primary_hit": false,
+        "companions_found": [
+          "KB-MACH-002",
+          "KB-PAY-008"
+        ],
+        "companions_expected": [
+          "KB-MACH-002",
+          "KB-PAY-008"
+        ],
+        "retrieved": [
+          "KB-PAY-007",
+          "KB-PAY-008",
+          "KB-MACH-001",
+          "KB-MACH-002",
+          "KB-MACH-004"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 83.5
+      },
+      {
+        "id": "TC-011",
+        "primary_hit": false,
+        "companions_found": [
+          "KB-MACH-005"
+        ],
+        "companions_expected": [
+          "KB-MACH-005"
+        ],
+        "retrieved": [
+          "KB-PAY-007",
+          "KB-PAY-008",
+          "KB-MACH-001",
+          "KB-MACH-002",
+          "KB-MACH-004"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 90.3
+      },
+      {
+        "id": "TC-012",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-014",
+          "KB-FAQ-015",
+          "KB-PRICE-002"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 60.3
+      },
+      {
+        "id": "TC-013",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-PAY-001",
+          "KB-PAY-002",
+          "KB-PAY-003",
+          "KB-PAY-004",
+          "KB-PAY-005"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 77.1
+      },
+      {
+        "id": "TC-014",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-PAY-009",
+          "KB-FAQ-021"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 46.5
+      },
+      {
+        "id": "TC-015",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-027"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 40.5
+      },
+      {
+        "id": "TC-016",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-028"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 44.4
+      },
+      {
+        "id": "TC-017",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-031",
+          "KB-FAQ-032"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 51.4
+      },
+      {
+        "id": "TC-018",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-033",
+          "KB-FAQ-034",
+          "KB-FAQ-037"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 65.9
+      },
+      {
+        "id": "TC-019",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-038"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 33.8
+      },
+      {
+        "id": "TC-020",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-POS-007",
+          "KB-FAQ-002",
+          "KB-FAQ-039",
+          "KB-FAQ-049",
+          "KB-FAQ-057"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 99.9
+      },
+      {
+        "id": "TC-021",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [],
+        "wrong_device": 0,
+        "latency_ms": 63.7
+      },
+      {
+        "id": "TC-022",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-READER-008",
+          "KB-FAQ-001",
+          "KB-FAQ-003",
+          "KB-FAQ-006",
+          "KB-FAQ-009"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 86.4
+      },
+      {
+        "id": "TC-023",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-002",
+          "KB-FAQ-057"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 52.5
+      },
+      {
+        "id": "TC-024",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [],
+        "wrong_device": 0,
+        "latency_ms": 72.7
+      },
+      {
+        "id": "TC-025",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [],
+        "wrong_device": 0,
+        "latency_ms": 71.7
+      },
+      {
+        "id": "TC-026",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-READER-003",
+          "KB-READER-005",
+          "KB-READER-007",
+          "KB-READER-011",
+          "KB-FAQ-007"
+        ],
+        "wrong_device": 6,
+        "latency_ms": 103.6
+      },
+      {
+        "id": "TC-027",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-014",
+          "KB-FAQ-015",
+          "KB-PRICE-002"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 55.8
+      },
+      {
+        "id": "TC-028",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-OUTAGE-001",
+          "KB-FAQ-018",
+          "KB-FAQ-019",
+          "KB-FAQ-040",
+          "KB-FAQ-073"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 70.7
+      },
+      {
+        "id": "TC-029",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FIN-001",
+          "KB-FIN-002",
+          "KB-FIN-003",
+          "KB-FIN-007",
+          "KB-FIN-009"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 81.6
+      },
+      {
+        "id": "TC-030",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-024",
+          "KB-FAQ-063",
+          "KB-FAQ-064",
+          "KB-FAQ-065"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 64.3
+      },
+      {
+        "id": "TC-031",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-026"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 45.0
+      },
+      {
+        "id": "TC-032",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-030"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 36.4
+      },
+      {
+        "id": "TC-033",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-034",
+          "KB-FAQ-037"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 52.9
+      },
+      {
+        "id": "TC-034",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-035",
+          "KB-FAQ-061"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 56.5
+      },
+      {
+        "id": "TC-035",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-POS-001",
+          "KB-POS-002",
+          "KB-FAQ-035",
+          "KB-FAQ-036",
+          "KB-FAQ-061"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 89.1
+      },
+      {
+        "id": "TC-036",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-034",
+          "KB-FAQ-037"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 44.8
+      },
+      {
+        "id": "TC-037",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-POS-018",
+          "KB-POS-016",
+          "KB-POS-017",
+          "KB-FAQ-014",
+          "KB-FAQ-015"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 87.0
+      },
+      {
+        "id": "TC-038",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-POS-018",
+          "KB-POS-016",
+          "KB-POS-017",
+          "KB-FAQ-014",
+          "KB-FAQ-015"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 85.5
+      },
+      {
+        "id": "TC-039",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-POS-018",
+          "KB-POS-016",
+          "KB-POS-017",
+          "KB-FAQ-014",
+          "KB-FAQ-015"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 88.5
+      },
+      {
+        "id": "TC-040",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-READER-008",
+          "KB-FAQ-001",
+          "KB-FAQ-003",
+          "KB-FAQ-006",
+          "KB-FAQ-009"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 76.8
+      },
+      {
+        "id": "TC-041",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-READER-008",
+          "KB-FAQ-001",
+          "KB-FAQ-003",
+          "KB-FAQ-006",
+          "KB-FAQ-009"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 82.8
+      },
+      {
+        "id": "TC-042",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-READER-004",
+          "KB-READER-006",
+          "KB-FAQ-004"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 59.4
+      },
+      {
+        "id": "TC-043",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-PAY-001",
+          "KB-PAY-002",
+          "KB-PAY-003",
+          "KB-PAY-004",
+          "KB-PAY-005"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 69.9
+      },
+      {
+        "id": "TC-044",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-OUTAGE-001",
+          "KB-FAQ-018",
+          "KB-FAQ-019",
+          "KB-FAQ-040",
+          "KB-FAQ-073"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 82.0
+      },
+      {
+        "id": "TC-045",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-023"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 38.4
+      },
+      {
+        "id": "TC-046",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FIN-001",
+          "KB-FIN-002",
+          "KB-FIN-003",
+          "KB-FIN-007",
+          "KB-FIN-009"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 85.2
+      },
+      {
+        "id": "TC-047",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-031",
+          "KB-FAQ-032"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 48.7
+      },
+      {
+        "id": "TC-048",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-028",
+          "KB-FAQ-029"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 58.8
+      },
+      {
+        "id": "TC-049",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-PAY-009",
+          "KB-PORTAL-008",
+          "KB-FAQ-021",
+          "KB-FAQ-022"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 78.4
+      },
+      {
+        "id": "TC-050",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [
+          "KB-READER-001"
+        ],
+        "retrieved": [
+          "KB-READER-003",
+          "KB-READER-005",
+          "KB-READER-007",
+          "KB-READER-011",
+          "KB-FAQ-007"
+        ],
+        "wrong_device": 6,
+        "latency_ms": 108.9
+      }
+    ]
+  },
+  "vector": {
+    "method": "vector",
+    "total": 50,
+    "primary_hits": 45,
+    "companion_hits": 10,
+    "companion_total_expected": 10,
+    "wrong_device": 84,
+    "total_latency_ms": 24286.293268203735,
+    "details": [
+      {
+        "id": "TC-001",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-PORTAL-001",
+          "KB-PORTAL-004",
+          "KB-PORTAL-011",
+          "KB-PORTAL-005",
+          "KB-PORTAL-007"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 2008.8
+      },
+      {
+        "id": "TC-002",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-LOY-001",
+          "KB-FAQ-029",
+          "KB-PAY-005",
+          "KB-FAQ-028",
+          ""
+        ],
+        "wrong_device": 2,
+        "latency_ms": 410.3
+      },
+      {
+        "id": "TC-003",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-POS-007",
+          "KB-POS-015",
+          "KB-POS-005",
+          "KB-POS-010",
+          "KB-PORTAL-007"
+        ],
+        "wrong_device": 2,
+        "latency_ms": 771.6
+      },
+      {
+        "id": "TC-004",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-067",
+          "KB-POS-007",
+          "KB-DEVICE-002",
+          "KB-POS-008",
+          "KB-POS-017"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 397.5
+      },
+      {
+        "id": "TC-005",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-READER-003"
+        ],
+        "companions_expected": [
+          "KB-READER-003"
+        ],
+        "retrieved": [
+          "KB-FAQ-007",
+          "",
+          "",
+          "",
+          "KB-READER-004"
+        ],
+        "wrong_device": 2,
+        "latency_ms": 435.6
+      },
+      {
+        "id": "TC-006",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-READER-005"
+        ],
+        "companions_expected": [
+          "KB-READER-005"
+        ],
+        "retrieved": [
+          "KB-FAQ-008",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 3,
+        "latency_ms": 399.0
+      },
+      {
+        "id": "TC-007",
+        "primary_hit": false,
+        "companions_found": [
+          "KB-READER-008"
+        ],
+        "companions_expected": [
+          "KB-READER-008"
+        ],
+        "retrieved": [
+          "",
+          "",
+          "",
+          "",
+          "KB-READER-008"
+        ],
+        "wrong_device": 4,
+        "latency_ms": 398.7
+      },
+      {
+        "id": "TC-008",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-READER-001"
+        ],
+        "companions_expected": [
+          "KB-READER-001"
+        ],
+        "retrieved": [
+          "KB-FAQ-010",
+          "KB-POWER-001",
+          "KB-READER-001",
+          "",
+          ""
+        ],
+        "wrong_device": 5,
+        "latency_ms": 395.2
+      },
+      {
+        "id": "TC-009",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-MACH-001",
+          "KB-PAY-007"
+        ],
+        "companions_expected": [
+          "KB-MACH-001",
+          "KB-PAY-007"
+        ],
+        "retrieved": [
+          "KB-MACH-005",
+          "KB-FAQ-011",
+          "KB-PAY-007",
+          "",
+          "KB-MACH-001"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 899.5
+      },
+      {
+        "id": "TC-010",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-MACH-002",
+          "KB-PAY-008"
+        ],
+        "companions_expected": [
+          "KB-MACH-002",
+          "KB-PAY-008"
+        ],
+        "retrieved": [
+          "KB-MACH-005",
+          "KB-PAY-008",
+          "KB-FAQ-012",
+          "",
+          ""
+        ],
+        "wrong_device": 7,
+        "latency_ms": 772.6
+      },
+      {
+        "id": "TC-011",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-MACH-005"
+        ],
+        "companions_expected": [
+          "KB-MACH-005"
+        ],
+        "retrieved": [
+          "KB-MACH-001",
+          "KB-FAQ-013",
+          "KB-MACH-005",
+          "",
+          ""
+        ],
+        "wrong_device": 7,
+        "latency_ms": 779.5
+      },
+      {
+        "id": "TC-012",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-014",
+          "",
+          "",
+          "KB-MACH-003",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 305.3
+      },
+      {
+        "id": "TC-013",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-016",
+          "KB-PAY-001",
+          "",
+          "KB-PAY-004",
+          "KB-PAY-003"
+        ],
+        "wrong_device": 6,
+        "latency_ms": 340.6
+      },
+      {
+        "id": "TC-014",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-022",
+          "KB-PAY-009",
+          "KB-PORTAL-008",
+          "KB-FAQ-021",
+          "KB-FIN-003"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 419.6
+      },
+      {
+        "id": "TC-015",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-027",
+          "",
+          "KB-LOY-005",
+          "KB-LOY-006",
+          "KB-FAQ-028"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 410.7
+      },
+      {
+        "id": "TC-016",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-028",
+          "KB-FAQ-029",
+          "",
+          "KB-LOY-001",
+          "KB-PAY-005"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 360.0
+      },
+      {
+        "id": "TC-017",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-031",
+          "KB-FAQ-032",
+          "",
+          "KB-PORTAL-009",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 412.2
+      },
+      {
+        "id": "TC-018",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-033",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 410.8
+      },
+      {
+        "id": "TC-019",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-038",
+          "KB-POS-010",
+          "",
+          "",
+          "KB-FAQ-066"
+        ],
+        "wrong_device": 3,
+        "latency_ms": 413.0
+      },
+      {
+        "id": "TC-020",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "",
+          "",
+          "KB-FAQ-039",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 360.1
+      },
+      {
+        "id": "TC-021",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-OUTAGE-001",
+          "",
+          "",
+          "KB-DEVICE-001",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 406.7
+      },
+      {
+        "id": "TC-022",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 5,
+        "latency_ms": 439.0
+      },
+      {
+        "id": "TC-023",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "",
+          "KB-FAQ-002",
+          "KB-FAQ-003",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 338.1
+      },
+      {
+        "id": "TC-024",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-KIOSK-009",
+          "KB-KIOSK-010",
+          "KB-DEVICE-003",
+          "KB-DEVICE-004",
+          "KB-KIOSK-008"
+        ],
+        "wrong_device": 4,
+        "latency_ms": 757.0
+      },
+      {
+        "id": "TC-025",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-KIOSK-010",
+          "KB-KIOSK-001",
+          "KB-DEVICE-004",
+          "KB-KIOSK-008",
+          "KB-DEVICE-003"
+        ],
+        "wrong_device": 1,
+        "latency_ms": 736.1
+      },
+      {
+        "id": "TC-026",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "",
+          "",
+          "KB-READER-011",
+          "",
+          ""
+        ],
+        "wrong_device": 6,
+        "latency_ms": 519.5
+      },
+      {
+        "id": "TC-027",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-015",
+          "KB-MACH-004",
+          "KB-FAQ-014",
+          "KB-PRICE-002",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 449.2
+      },
+      {
+        "id": "TC-028",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "",
+          "KB-FAQ-019",
+          "",
+          "KB-FAQ-018",
+          "KB-FAQ-074"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 333.1
+      },
+      {
+        "id": "TC-029",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-020",
+          "",
+          "",
+          "KB-FIN-002",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 313.6
+      },
+      {
+        "id": "TC-030",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-024",
+          "",
+          "KB-POS-014",
+          "",
+          "KB-FAQ-065"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 347.6
+      },
+      {
+        "id": "TC-031",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-026",
+          "KB-FAQ-029",
+          "KB-FAQ-027",
+          "KB-FAQ-028",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 351.7
+      },
+      {
+        "id": "TC-032",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-030",
+          "KB-LOY-004",
+          "KB-FIN-005",
+          "KB-LOY-003",
+          "KB-LOY-006"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 440.2
+      },
+      {
+        "id": "TC-033",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-034",
+          "",
+          "",
+          "",
+          "KB-POS-001"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 405.2
+      },
+      {
+        "id": "TC-034",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-035",
+          "",
+          "KB-POS-002",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 517.1
+      },
+      {
+        "id": "TC-035",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "",
+          "KB-FAQ-036",
+          "",
+          "KB-POS-003",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 374.1
+      },
+      {
+        "id": "TC-036",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-037",
+          "",
+          "",
+          "KB-FAQ-033",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 366.4
+      },
+      {
+        "id": "TC-037",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-041",
+          "KB-POS-018",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 1,
+        "latency_ms": 492.7
+      },
+      {
+        "id": "TC-038",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-042",
+          "KB-POS-017",
+          "",
+          "",
+          "KB-FAQ-039"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 613.3
+      },
+      {
+        "id": "TC-039",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "",
+          "KB-FAQ-043",
+          "",
+          "",
+          "KB-POS-010"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 392.7
+      },
+      {
+        "id": "TC-040",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 6,
+        "latency_ms": 385.7
+      },
+      {
+        "id": "TC-041",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "",
+          "KB-FAQ-006",
+          "",
+          "",
+          "KB-NET-010"
+        ],
+        "wrong_device": 3,
+        "latency_ms": 387.3
+      },
+      {
+        "id": "TC-042",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-004",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 2,
+        "latency_ms": 355.7
+      },
+      {
+        "id": "TC-043",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-017",
+          "KB-PAY-002",
+          "KB-LOY-002",
+          "KB-PAY-004",
+          "KB-PAY-005"
+        ],
+        "wrong_device": 6,
+        "latency_ms": 363.9
+      },
+      {
+        "id": "TC-044",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-018",
+          "KB-FAQ-072",
+          "KB-PORTAL-002",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 475.3
+      },
+      {
+        "id": "TC-045",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-023",
+          "",
+          "KB-FAQ-064",
+          "",
+          ""
+        ],
+        "wrong_device": 1,
+        "latency_ms": 367.7
+      },
+      {
+        "id": "TC-046",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-025",
+          "KB-FIN-001",
+          "KB-FIN-009",
+          "KB-FIN-007",
+          "KB-POS-003"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 395.8
+      },
+      {
+        "id": "TC-047",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-031",
+          "KB-FAQ-032",
+          "KB-PORTAL-009",
+          "",
+          "KB-PRICE-002"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 570.9
+      },
+      {
+        "id": "TC-048",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-029",
+          "KB-FAQ-028",
+          "KB-LOY-001",
+          "KB-PAY-005",
+          ""
+        ],
+        "wrong_device": 2,
+        "latency_ms": 390.1
+      },
+      {
+        "id": "TC-049",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-022",
+          "KB-PORTAL-008",
+          "KB-LOY-003",
+          "KB-PORTAL-007",
+          ""
+        ],
+        "wrong_device": 1,
+        "latency_ms": 493.1
+      },
+      {
+        "id": "TC-050",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-READER-001"
+        ],
+        "companions_expected": [
+          "KB-READER-001"
+        ],
+        "retrieved": [
+          "KB-READER-001",
+          "KB-POWER-001",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 5,
+        "latency_ms": 406.7
+      }
+    ]
+  },
+  "hybrid": {
+    "method": "hybrid",
+    "total": 50,
+    "primary_hits": 43,
+    "companion_hits": 9,
+    "companion_total_expected": 10,
+    "wrong_device": 39,
+    "total_latency_ms": 49854.65121269226,
+    "details": [
+      {
+        "id": "TC-001",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-PORTAL-001",
+          "KB-PORTAL-004",
+          "KB-PORTAL-011",
+          "KB-FAQ-033",
+          "KB-PORTAL-006"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 11861.7
+      },
+      {
+        "id": "TC-002",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-LOY-001",
+          "KB-FAQ-029",
+          "KB-PAY-005"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 1291.3
+      },
+      {
+        "id": "TC-003",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-POS-015",
+          "KB-FAQ-038",
+          "KB-FAQ-048",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 474.6
+      },
+      {
+        "id": "TC-004",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-POS-007",
+          "KB-DEVICE-002",
+          "",
+          "KB-POS-009",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 675.5
+      },
+      {
+        "id": "TC-005",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-READER-003"
+        ],
+        "companions_expected": [
+          "KB-READER-003"
+        ],
+        "retrieved": [
+          "KB-READER-003",
+          "KB-FAQ-007",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 1290.8
+      },
+      {
+        "id": "TC-006",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-READER-005"
+        ],
+        "companions_expected": [
+          "KB-READER-005"
+        ],
+        "retrieved": [
+          "KB-READER-005",
+          "KB-FAQ-008",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 1069.8
+      },
+      {
+        "id": "TC-007",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-READER-008"
+        ],
+        "companions_expected": [
+          "KB-READER-008"
+        ],
+        "retrieved": [
+          "KB-READER-008",
+          "",
+          "KB-FAQ-009"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 1162.0
+      },
+      {
+        "id": "TC-008",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-READER-001"
+        ],
+        "companions_expected": [
+          "KB-READER-001"
+        ],
+        "retrieved": [
+          "KB-READER-001",
+          "KB-FAQ-010",
+          "KB-FAQ-017",
+          "KB-KIOSK-001",
+          ""
+        ],
+        "wrong_device": 7,
+        "latency_ms": 1155.1
+      },
+      {
+        "id": "TC-009",
+        "primary_hit": false,
+        "companions_found": [
+          "KB-MACH-001",
+          "KB-PAY-007"
+        ],
+        "companions_expected": [
+          "KB-MACH-001",
+          "KB-PAY-007"
+        ],
+        "retrieved": [
+          "KB-MACH-001",
+          "KB-MACH-005",
+          "KB-PAY-007",
+          "",
+          "KB-FAQ-013"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 1632.3
+      },
+      {
+        "id": "TC-010",
+        "primary_hit": false,
+        "companions_found": [
+          "KB-PAY-008"
+        ],
+        "companions_expected": [
+          "KB-MACH-002",
+          "KB-PAY-008"
+        ],
+        "retrieved": [
+          "KB-PAY-008",
+          "",
+          "",
+          "",
+          "KB-MACH-005"
+        ],
+        "wrong_device": 6,
+        "latency_ms": 812.8
+      },
+      {
+        "id": "TC-011",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-MACH-005"
+        ],
+        "companions_expected": [
+          "KB-MACH-005"
+        ],
+        "retrieved": [
+          "KB-MACH-005",
+          "KB-FAQ-013",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 7,
+        "latency_ms": 924.9
+      },
+      {
+        "id": "TC-012",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-014",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 502.9
+      },
+      {
+        "id": "TC-013",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-016",
+          "KB-PAY-001",
+          "",
+          "KB-SEC-002",
+          ""
+        ],
+        "wrong_device": 6,
+        "latency_ms": 527.8
+      },
+      {
+        "id": "TC-014",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-022",
+          "KB-PAY-009",
+          "KB-FAQ-021",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 574.4
+      },
+      {
+        "id": "TC-015",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-027",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 1051.8
+      },
+      {
+        "id": "TC-016",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-028",
+          "",
+          "KB-LOY-005",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 714.7
+      },
+      {
+        "id": "TC-017",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-031",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 1455.6
+      },
+      {
+        "id": "TC-018",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-033",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 830.9
+      },
+      {
+        "id": "TC-019",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-038",
+          "",
+          "KB-FAQ-066",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 595.3
+      },
+      {
+        "id": "TC-020",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "",
+          "KB-FAQ-039",
+          "",
+          "KB-POS-009",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 502.7
+      },
+      {
+        "id": "TC-021",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-OUTAGE-001",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 583.5
+      },
+      {
+        "id": "TC-022",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 457.0
+      },
+      {
+        "id": "TC-023",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "",
+          "KB-FAQ-002",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 573.4
+      },
+      {
+        "id": "TC-024",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-KIOSK-010",
+          "KB-DEVICE-003"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 929.7
+      },
+      {
+        "id": "TC-025",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-KIOSK-001",
+          "KB-DEVICE-004",
+          "KB-KIOSK-008",
+          "KB-KIOSK-009",
+          "KB-KIOSK-004"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 1378.9
+      },
+      {
+        "id": "TC-026",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "",
+          "KB-READER-011",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 6,
+        "latency_ms": 745.2
+      },
+      {
+        "id": "TC-027",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-015",
+          "KB-FAQ-041",
+          "",
+          "KB-PRICE-002",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 1987.5
+      },
+      {
+        "id": "TC-028",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "",
+          "KB-FAQ-019",
+          "",
+          "KB-SEC-002",
+          "KB-FAQ-060"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 630.8
+      },
+      {
+        "id": "TC-029",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-020",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 565.5
+      },
+      {
+        "id": "TC-030",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-025",
+          "KB-FAQ-024",
+          "",
+          "KB-KIOSK-004",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 606.3
+      },
+      {
+        "id": "TC-031",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-026",
+          "KB-FAQ-029",
+          "KB-FAQ-027",
+          "KB-FIN-005",
+          "KB-LOY-004"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 559.4
+      },
+      {
+        "id": "TC-032",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-030",
+          "KB-LOY-004",
+          "KB-FIN-005",
+          "KB-KIOSK-006",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 615.8
+      },
+      {
+        "id": "TC-033",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-034",
+          "",
+          "",
+          "",
+          "KB-FAQ-033"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 558.7
+      },
+      {
+        "id": "TC-034",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "",
+          "KB-FAQ-035",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 610.2
+      },
+      {
+        "id": "TC-035",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "",
+          "KB-FAQ-036",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 503.8
+      },
+      {
+        "id": "TC-036",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-037",
+          "",
+          "",
+          "KB-FAQ-033",
+          "KB-FAQ-035"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 552.6
+      },
+      {
+        "id": "TC-037",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-041",
+          "",
+          "KB-POS-009",
+          "",
+          "KB-FAQ-042"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 499.2
+      },
+      {
+        "id": "TC-038",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-042",
+          "",
+          "KB-FAQ-043",
+          "",
+          "KB-POS-009"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 667.2
+      },
+      {
+        "id": "TC-039",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "",
+          "KB-FAQ-043",
+          "KB-POS-010",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 739.7
+      },
+      {
+        "id": "TC-040",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-NET-010",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 515.7
+      },
+      {
+        "id": "TC-041",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-006",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 1169.4
+      },
+      {
+        "id": "TC-042",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-004",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 541.7
+      },
+      {
+        "id": "TC-043",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-017",
+          "",
+          "KB-LOY-005",
+          "",
+          ""
+        ],
+        "wrong_device": 6,
+        "latency_ms": 537.9
+      },
+      {
+        "id": "TC-044",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-018",
+          "KB-FAQ-072",
+          "KB-FAQ-051",
+          "KB-PORTAL-001",
+          "KB-LOY-005"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 557.1
+      },
+      {
+        "id": "TC-045",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-023",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 536.0
+      },
+      {
+        "id": "TC-046",
+        "primary_hit": false,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FIN-001",
+          "KB-FIN-005",
+          "KB-KIOSK-007",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 688.6
+      },
+      {
+        "id": "TC-047",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-031",
+          "KB-FAQ-032",
+          "",
+          "KB-PRICE-002",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 497.0
+      },
+      {
+        "id": "TC-048",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-029",
+          "KB-LOY-004"
+        ],
+        "wrong_device": 0,
+        "latency_ms": 456.7
+      },
+      {
+        "id": "TC-049",
+        "primary_hit": true,
+        "companions_found": [],
+        "companions_expected": [],
+        "retrieved": [
+          "KB-FAQ-022",
+          "KB-PORTAL-008",
+          "",
+          "",
+          ""
+        ],
+        "wrong_device": 0,
+        "latency_ms": 543.0
+      },
+      {
+        "id": "TC-050",
+        "primary_hit": true,
+        "companions_found": [
+          "KB-READER-001"
+        ],
+        "companions_expected": [
+          "KB-READER-001"
+        ],
+        "retrieved": [
+          "KB-READER-001",
+          "KB-POWER-001"
+        ],
+        "wrong_device": 1,
+        "latency_ms": 939.9
+      }
+    ]
+  }
+}

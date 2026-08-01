@@ -13,7 +13,7 @@ def get_rag_service() -> RAGService:
         _rag_service = RAGService()
     return _rag_service
 
-# Brand keywords recognised in user queries → Chroma metadata filter values
+# Brand keywords recognised in user queries → Qdrant metadata filter values
 _BRAND_FILTER_MAP = {
     "speed queen": "Speed Queen",
     "speedqueen":  "Speed Queen",
@@ -25,7 +25,6 @@ _BRAND_FILTER_MAP = {
 }
 
 # Router intent → v2.2 article category mapping for metadata-boosted retrieval.
-# These map our router intents to the v2.2 METADATA category values for precise filtering.
 _INTENT_TO_CATEGORY_MAP = {
     "machine_down": "Machines Not Working",
     "machines_not_starting": "Machines Not Working",
@@ -37,10 +36,38 @@ _INTENT_TO_CATEGORY_MAP = {
     "transaction_lookup": "Transaction Lookup",
 }
 
+# Query text → device_type hint for Hybrid retrieval filtering.
+_DEVICE_HINT_MAP = [
+    ("legacy kiosk", "Legacy Kiosk"),
+    ("platinum kiosk", "Platinum Kiosk"),
+    ("card reader", "Card Reader"),
+    ("washer", "Card Reader"),
+    ("dryer", "Card Reader"),
+    ("kiosk", "Kiosk"),
+    ("hub", "Hub"),
+    ("pos", "POS"),
+    ("portal", "Portal"),
+]
+
+
+def _infer_device_type(state: AgentState) -> str:
+    """Best-effort device routing hint from entities or query text."""
+    entities: dict = state.get("extracted_entities") or {}
+    device = entities.get("device_type") or entities.get("device") or entities.get("product")
+    if device:
+        return str(device)
+
+    messages = state.get("messages", [])
+    latest_text = messages[-1].content.lower() if messages else ""
+    for keyword, canonical in _DEVICE_HINT_MAP:
+        if keyword in latest_text:
+            return canonical
+    return ""
+
 
 def _extract_metadata_filter(state: AgentState) -> dict | None:
     """
-    Build an optional Chroma metadata filter from the router's extracted_entities
+    Build an optional Qdrant metadata filter from the router's extracted_entities
     and the raw user message.
 
     Priority:
@@ -50,7 +77,7 @@ def _extract_metadata_filter(state: AgentState) -> dict | None:
       4. If a doc_type hint or intent-to-category mapping exists, layer it in.
       5. Always prefer primary-source articles over bible supplements.
 
-    Returns a Chroma-compatible filter dict or None if no filter applies.
+    Returns a metadata filter dict or None if no filter applies.
     """
     entities: dict = state.get("extracted_entities") or {}
     messages = state.get("messages", [])
@@ -207,13 +234,8 @@ def _expand_followup_query(messages) -> tuple[str, dict | None]:
 
 def retrieve_and_generate(state: AgentState):
     """
-    RAG_Node: retrieves relevant chunks from ChromaDB (with optional metadata
-    filtering and MMR re-ranking) and generates a grounded answer via Groq LLM.
-
-    Metadata filter logic:
-      - If the user mentions a specific brand (e.g. "Speed Queen"), restricts
-        vector search to chunks tagged with that brand.
-      - If extracted_entities provides a doc_type hint, further narrows the pool.
+    RAG_Node: retrieves relevant chunks from Qdrant (Hybrid by default) with optional
+    metadata filtering, recursive co-retrieval, and ordered step context.
     """
     messages = state.get("messages", [])
     if not messages:
@@ -228,7 +250,15 @@ def retrieve_and_generate(state: AgentState):
         metadata_filter = followup_filter
 
     rag_service = get_rag_service()
-    response = rag_service.query(expanded_query, channel=state.get("channel", "chat"), metadata_filter=metadata_filter)
+    current_intent = state.get("current_intent") or ""
+    device_type = _infer_device_type(state)
+    response = rag_service.query(
+        expanded_query,
+        channel=state.get("channel", "chat"),
+        metadata_filter=metadata_filter,
+        intent=current_intent,
+        device_type=device_type,
+    )
     answer = response.get("answer", "I'm sorry, I couldn't find an answer to your question.")
 
     current_intent = state.get("current_intent") or ""

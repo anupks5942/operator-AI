@@ -1,0 +1,452 @@
+[
+  {
+    "id": "TC-001",
+    "query": "Another user cannot log in to the portal",
+    "intent": "Account/Login Issue",
+    "device": "Portal",
+    "expected_primary": "KB-PORTAL-001",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-002",
+    "query": "My loyalty card balance is incorrect",
+    "intent": "Loyalty Card Balance",
+    "device": "Loyalty Card",
+    "expected_primary": "KB-LOY-001",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-003",
+    "query": "POS terminal is crashing when I try to open it",
+    "intent": "Software/Portal",
+    "device": "POS",
+    "expected_primary": "KB-POS-001",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-004",
+    "query": "The scale on my POS is not working",
+    "intent": "Hardware Malfunction",
+    "device": "POS",
+    "expected_primary": "KB-POS-007",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-005",
+    "query": "What does HubData Default mean on my reader",
+    "intent": "No Connection Error",
+    "device": "Hub",
+    "expected_primary": "KB-FAQ-007",
+    "expected_companions": ["KB-READER-003"],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-006",
+    "query": "What does Profile Default mean",
+    "intent": "No Connection Error",
+    "device": "Hub",
+    "expected_primary": "KB-FAQ-008",
+    "expected_companions": ["KB-READER-005"],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-007",
+    "query": "My machine shows Network Error on the display",
+    "intent": "Network Error",
+    "device": "Hub",
+    "expected_primary": "KB-FAQ-009",
+    "expected_companions": ["KB-READER-008"],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-008",
+    "query": "One of my card readers is dark, not lit up",
+    "intent": "Hardware and Installation",
+    "device": "Card Reader",
+    "expected_primary": "KB-FAQ-010",
+    "expected_companions": ["KB-READER-001"],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-009",
+    "query": "Payment was approved but machine did not start",
+    "intent": "Machines Not Working",
+    "device": "General",
+    "expected_primary": "KB-FAQ-011",
+    "expected_companions": ["KB-MACH-001", "KB-PAY-007"],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-010",
+    "query": "The wrong machine started after payment",
+    "intent": "Machines Not Working",
+    "device": "Card Reader",
+    "expected_primary": "KB-FAQ-012",
+    "expected_companions": ["KB-MACH-002", "KB-PAY-008"],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-011",
+    "query": "Machine is starting for free without payment",
+    "intent": "Machines Not Working",
+    "device": "Card Reader",
+    "expected_primary": "KB-FAQ-013",
+    "expected_companions": ["KB-MACH-005"],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-012",
+    "query": "How do I change the vend price on a machine",
+    "intent": "Pricing Change",
+    "device": "General",
+    "expected_primary": "KB-FAQ-014",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-013",
+    "query": "Does SpyderWash support chip and contactless payments",
+    "intent": "General FAQ",
+    "device": "Card Reader",
+    "expected_primary": "KB-FAQ-016",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-014",
+    "query": "How do I process a refund",
+    "intent": "Refund Request",
+    "device": "General",
+    "expected_primary": "KB-FAQ-021",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-015",
+    "query": "How do I issue loyalty cards to customers",
+    "intent": "Loyalty Card Registration",
+    "device": "General",
+    "expected_primary": "KB-FAQ-027",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-016",
+    "query": "How do I check a customer loyalty card balance",
+    "intent": "Loyalty Card Balance",
+    "device": "General",
+    "expected_primary": "KB-FAQ-028",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-017",
+    "query": "What is SpyderWatch and how does it work",
+    "intent": "SpyderWatch",
+    "device": "General",
+    "expected_primary": "KB-FAQ-031",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-018",
+    "query": "How do I add an attendant to the POS",
+    "intent": "Account/Login Issue",
+    "device": "POS",
+    "expected_primary": "KB-FAQ-033",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-019",
+    "query": "How do I connect the POS to the internet",
+    "intent": "Network Error",
+    "device": "POS",
+    "expected_primary": "KB-FAQ-038",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-020",
+    "query": "How do I set up categories and items on POS",
+    "intent": "Software/Portal",
+    "device": "POS",
+    "expected_primary": "KB-FAQ-039",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-021",
+    "query": "My entire laundromat is offline, all machines down",
+    "intent": "Outage/Escalation",
+    "device": "General",
+    "expected_primary": "KB-OUTAGE-001",
+    "expected_companions": [],
+    "expected_escalation": true
+  },
+  {
+    "id": "TC-022",
+    "query": "Hub is not connecting to the internet",
+    "intent": "Network Error",
+    "device": "Hub",
+    "expected_primary": "KB-FAQ-001",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-023",
+    "query": "Does SpyderWash require a static IP address",
+    "intent": "Software/Portal",
+    "device": "General",
+    "expected_primary": "KB-FAQ-002",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-024",
+    "query": "My Legacy Kiosk is stuck on the startup screen",
+    "intent": "Kiosk Issue",
+    "device": "Legacy Kiosk",
+    "expected_primary": "KB-KIOSK-010",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-025",
+    "query": "Platinum Kiosk screen is frozen and unresponsive",
+    "intent": "Kiosk Issue",
+    "device": "Platinum Kiosk",
+    "expected_primary": "KB-KIOSK-001",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-026",
+    "query": "Card reader showing no connection error on display",
+    "intent": "No Connection Error",
+    "device": "Card Reader",
+    "expected_primary": "KB-READER-003",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-027",
+    "query": "How do quarter pulses work for pricing",
+    "intent": "Pricing Change",
+    "device": "General",
+    "expected_primary": "KB-FAQ-015",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-028",
+    "query": "What is KYC and why is it required",
+    "intent": "General FAQ",
+    "device": "General",
+    "expected_primary": "KB-FAQ-019",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-029",
+    "query": "Why is there a $5 pending charge on my customer card",
+    "intent": "Fees and Billing",
+    "device": "General",
+    "expected_primary": "KB-FAQ-020",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-030",
+    "query": "Revenue report is blank and showing no data",
+    "intent": "View Reports",
+    "device": "General",
+    "expected_primary": "KB-FAQ-024",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-031",
+    "query": "What does Clear Total do on loyalty cards",
+    "intent": "Card Transaction History",
+    "device": "General",
+    "expected_primary": "KB-FAQ-026",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-032",
+    "query": "How do bonus amounts work on loyalty recharges",
+    "intent": "Loyalty Card Recharge Issue",
+    "device": "General",
+    "expected_primary": "KB-FAQ-030",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-033",
+    "query": "Should my attendants share the same passcode",
+    "intent": "Account/Login Issue",
+    "device": "General",
+    "expected_primary": "KB-FAQ-034",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-034",
+    "query": "Does the POS have a time clock for attendants",
+    "intent": "Attendant Management",
+    "device": "General",
+    "expected_primary": "KB-FAQ-035",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-035",
+    "query": "How does attendant cash reconciliation work on POS",
+    "intent": "Attendant Management",
+    "device": "POS",
+    "expected_primary": "KB-FAQ-036",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-036",
+    "query": "What is the default passcode for the POS",
+    "intent": "Account/Login Issue",
+    "device": "General",
+    "expected_primary": "KB-FAQ-037",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-037",
+    "query": "How does the POS Minimum Amount setting work",
+    "intent": "Pricing Change",
+    "device": "POS",
+    "expected_primary": "KB-FAQ-041",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-038",
+    "query": "Can I set different tax rates for different POS items",
+    "intent": "Pricing Change",
+    "device": "POS",
+    "expected_primary": "KB-FAQ-042",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-039",
+    "query": "How do I set the POS credit card fee",
+    "intent": "Pricing Change",
+    "device": "POS",
+    "expected_primary": "KB-FAQ-043",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-040",
+    "query": "Hub is not within range of the washer",
+    "intent": "Network Error",
+    "device": "Hub",
+    "expected_primary": "KB-FAQ-005",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-041",
+    "query": "Where should I mount the hub in the laundromat",
+    "intent": "Network Error",
+    "device": "Hub",
+    "expected_primary": "KB-FAQ-006",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-042",
+    "query": "How many hubs do I need for my location",
+    "intent": "Hardware and Installation",
+    "device": "Hub",
+    "expected_primary": "KB-FAQ-004",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-043",
+    "query": "One card works but another customer card does not",
+    "intent": "General FAQ",
+    "device": "Card Reader",
+    "expected_primary": "KB-FAQ-017",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-044",
+    "query": "When will my new account be activated",
+    "intent": "General FAQ",
+    "device": "General",
+    "expected_primary": "KB-FAQ-018",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-045",
+    "query": "How do I find a specific transaction on POS",
+    "intent": "Transaction Lookup",
+    "device": "POS",
+    "expected_primary": "KB-FAQ-023",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-046",
+    "query": "Revenue report numbers don't match my bank deposits",
+    "intent": "Fees and Billing",
+    "device": "General",
+    "expected_primary": "KB-FAQ-025",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-047",
+    "query": "Is SpyderWatch accurate for cycle availability",
+    "intent": "SpyderWatch",
+    "device": "General",
+    "expected_primary": "KB-FAQ-032",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-048",
+    "query": "What is the maximum balance on a loyalty card",
+    "intent": "Loyalty Card Balance",
+    "device": "Loyalty Card",
+    "expected_primary": "KB-FAQ-029",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-049",
+    "query": "I can do a partial refund on a credit card from the portal",
+    "intent": "Refund Request",
+    "device": "Portal",
+    "expected_primary": "KB-FAQ-022",
+    "expected_companions": [],
+    "expected_escalation": false
+  },
+  {
+    "id": "TC-050",
+    "query": "Machine is not powering on at all, completely dead",
+    "intent": "No Connection Error",
+    "device": "Card Reader",
+    "expected_primary": "KB-POWER-001",
+    "expected_companions": ["KB-READER-001"],
+    "expected_escalation": false
+  }
+]
