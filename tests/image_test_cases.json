@@ -1,0 +1,65 @@
+[
+  {
+    "id": "TC-IMG-001",
+    "description": "Primary case images returned for known article",
+    "article_id": "KB-READER-001",
+    "expected": {"min_images": 1, "all_primary": true}
+  },
+  {
+    "id": "TC-IMG-002",
+    "description": "Linked-case images included via co-retrieval",
+    "article_id": "KB-READER-001",
+    "include_linked": true,
+    "expected": {"has_companion_images": true}
+  },
+  {
+    "id": "TC-IMG-003",
+    "description": "Missing article returns empty result",
+    "article_id": "KB-NONEXIST-999",
+    "expected": {"images_count": 0}
+  },
+  {
+    "id": "TC-IMG-004",
+    "description": "Duplicate images not stored (dedupe by checksum)",
+    "type": "pipeline",
+    "expected": {"no_duplicate_checksums": true}
+  },
+  {
+    "id": "TC-IMG-005",
+    "description": "Empty pages not stored in DB",
+    "type": "pipeline",
+    "expected": {"skip_log_entries_exist": true}
+  },
+  {
+    "id": "TC-IMG-006",
+    "description": "Search by device term finds correct images",
+    "query": "pos network",
+    "expected": {"contains_image_type": "screenshot"}
+  },
+  {
+    "id": "TC-IMG-007",
+    "description": "Wrong-device images filtered when device param set",
+    "query": "cable",
+    "device": "Hub",
+    "expected": {"no_card_reader_images": true}
+  },
+  {
+    "id": "TC-IMG-008",
+    "description": "Missing file on disk handled gracefully",
+    "type": "retrieval",
+    "article_id": "KB-READER-001",
+    "expected": {"file_path_in_response": true, "no_crash": true}
+  },
+  {
+    "id": "TC-IMG-009",
+    "description": "Image caption contains meaningful description",
+    "type": "caption",
+    "expected": {"caption_not_empty": true, "caption_min_length": 10}
+  },
+  {
+    "id": "TC-IMG-010",
+    "description": "Visual bundle returns both article and images",
+    "article_id": "KB-HUB-002",
+    "expected": {"has_article_data": true, "has_images": true}
+  }
+]

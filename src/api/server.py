@@ -357,6 +357,62 @@ def api_kb_diagnostics():
 
 
 # ---------------------------------------------------------------------------
+# Image Retrieval API (KB visual assets)
+# ---------------------------------------------------------------------------
+
+from src.services.image_retrieval import (
+    get_case_images,
+    search_case_images,
+    get_case_visual_bundle,
+)
+
+
+class ImageSearchInput(BaseModel):
+    query: str = Field(..., description="Search query for image terms")
+    device: str = Field(default="", description="Optional device filter")
+    image_type: str = Field(default="", description="Optional image type filter")
+    limit: int = Field(default=12, description="Max results")
+
+
+@app.get("/api/v1/kb/images/{article_id}")
+def api_get_case_images(article_id: str, include_linked: bool = True, limit: int = 12):
+    """Get images for a case ID, optionally including linked-case images."""
+    results = get_case_images(article_id, include_linked=include_linked, limit=limit)
+    if not results:
+        raise HTTPException(status_code=404, detail=f"No images found for {article_id}")
+    return {"article_id": article_id, "images": results, "total": len(results)}
+
+
+@app.post("/api/v1/kb/images/search")
+def api_search_case_images(input: ImageSearchInput):
+    """Search images by query terms, device, and type."""
+    results = search_case_images(
+        query=input.query, device=input.device,
+        image_type=input.image_type, limit=input.limit,
+    )
+    return {"results": results, "total": len(results)}
+
+
+@app.get("/api/v1/kb/images/bundle/{article_id}")
+def api_get_visual_bundle(article_id: str):
+    """Get the full visual bundle: article + images (primary + companions)."""
+    bundle = get_case_visual_bundle(article_id)
+    if not bundle.get("article"):
+        raise HTTPException(status_code=404, detail=f"Article {article_id} not found")
+    return bundle
+
+
+# Static mount for serving extracted images
+import os
+from fastapi.staticfiles import StaticFiles
+
+_kb_images_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "kb_images")
+_kb_images_dir = os.path.normpath(_kb_images_dir)
+if os.path.isdir(_kb_images_dir):
+    app.mount("/kb_images", StaticFiles(directory=_kb_images_dir), name="kb_images")
+
+
+# ---------------------------------------------------------------------------
 # Health check (useful for load-balancer / k8s liveness probes)
 # ---------------------------------------------------------------------------
 

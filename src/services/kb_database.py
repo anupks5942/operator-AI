@@ -102,6 +102,74 @@ def initialize_database():
             CREATE INDEX IF NOT EXISTS idx_search_terms_article ON search_terms(article_id);
             CREATE INDEX IF NOT EXISTS idx_co_retrieval_source ON co_retrieval_rules(source_article_id);
             CREATE INDEX IF NOT EXISTS idx_device_mappings_device ON device_mappings(device_type);
+
+            -- Image extraction tables
+            CREATE TABLE IF NOT EXISTS images (
+                image_id       TEXT PRIMARY KEY,
+                source_doc     TEXT NOT NULL,
+                file_path      TEXT NOT NULL,
+                checksum       TEXT NOT NULL,
+                image_type     TEXT DEFAULT 'screenshot',
+                caption        TEXT DEFAULT '',
+                visual_summary TEXT DEFAULT '',
+                width          INTEGER,
+                height         INTEGER,
+                format         TEXT,
+                file_size      INTEGER,
+                page_number    INTEGER,
+                sequence       INTEGER,
+                created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS image_case_map (
+                image_id   TEXT NOT NULL,
+                article_id TEXT NOT NULL,
+                is_primary INTEGER NOT NULL DEFAULT 1,
+                PRIMARY KEY (image_id, article_id),
+                FOREIGN KEY (image_id) REFERENCES images(image_id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS image_search_terms (
+                image_id TEXT NOT NULL,
+                term     TEXT NOT NULL,
+                PRIMARY KEY (image_id, term),
+                FOREIGN KEY (image_id) REFERENCES images(image_id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS image_caption_cache (
+                checksum       TEXT PRIMARY KEY,
+                caption        TEXT NOT NULL,
+                visual_summary TEXT NOT NULL,
+                model          TEXT NOT NULL,
+                created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS pdf_page_skip_log (
+                source_doc  TEXT NOT NULL,
+                page_number INTEGER NOT NULL,
+                reason      TEXT NOT NULL,
+                logged_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (source_doc, page_number)
+            );
+
+            CREATE TABLE IF NOT EXISTS image_retrieval_logs (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id        TEXT DEFAULT '',
+                query             TEXT DEFAULT '',
+                article_ids_json  TEXT DEFAULT '[]',
+                image_ids_json    TEXT DEFAULT '[]',
+                pages_json        TEXT DEFAULT '[]',
+                linked_cases_json TEXT DEFAULT '[]',
+                reason            TEXT DEFAULT '',
+                latency_ms        REAL DEFAULT 0,
+                timestamp         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_images_source ON images(source_doc);
+            CREATE INDEX IF NOT EXISTS idx_images_page ON images(source_doc, page_number);
+            CREATE INDEX IF NOT EXISTS idx_images_checksum ON images(checksum);
+            CREATE INDEX IF NOT EXISTS idx_image_case_article ON image_case_map(article_id);
+            CREATE INDEX IF NOT EXISTS idx_image_search_term ON image_search_terms(term);
         """)
         conn.commit()
         logger.info("[KB_DB] Database initialized at %s", _DB_PATH)

@@ -53,6 +53,12 @@ RAG_RETRIEVAL_METHOD: str = _env_str("RAG_RETRIEVAL_METHOD", "hybrid").lower()
 # Maximum BFS depth for recursive co-retrieval (SQLite rules).
 CO_RETRIEVAL_MAX_DEPTH: int = int(_env_str("CO_RETRIEVAL_MAX_DEPTH", "3"))
 
+# Image extraction pipeline
+KB_IMAGES_DIR: str = _env_str("KB_IMAGES_DIR", "./kb_images")
+IMAGE_CAPTION_MODEL: str = _env_str("IMAGE_CAPTION_MODEL", "gpt-4o")
+IMAGE_CAPTION_MAX_CONCURRENCY: int = int(_env_str("IMAGE_CAPTION_MAX_CONCURRENCY", "3"))
+IMAGE_EMPTY_PAGE_STRICT: bool = _env_bool("IMAGE_EMPTY_PAGE_STRICT", False)
+
 # Escalation notifications — when False, NotificationService logs only (local dev).
 USE_LIVE_NOTIFICATIONS: bool = _env_bool("USE_LIVE_NOTIFICATIONS", False)
 

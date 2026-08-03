@@ -413,6 +413,11 @@ class RAGService:
             "follow the primary recommended steps first in order, then continue with related "
             "companion steps in the order provided. Do not renumber steps randomly or mix "
             "device-specific procedures across POS, Kiosk, Hub, and Card Reader.\n"
+            "- When images are provided alongside case text, reference them naturally in your response "
+            "(e.g. 'as shown in the screenshot'). Follow linked-case order for images too — "
+            "primary case visuals first, then companion case visuals.\n"
+            "- Do NOT describe UI elements, buttons, or labels that are not mentioned in the image "
+            "caption or visual summary. Only reference what the image evidence confirms.\n"
             "\n\nContext:\n{context}"
         )
         return base_rules
