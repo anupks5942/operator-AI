@@ -15,7 +15,7 @@ import sys
 from langchain_openai import OpenAIEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
-from qdrant_client.http.models import Distance, VectorParams
+from qdrant_client.http.models import Distance, PayloadSchemaType, PointStruct, SparseVector, VectorParams
 
 from data_injection.kb_parser import load_and_process_documents
 
@@ -85,36 +85,113 @@ def inject(
     )
     client = QdrantClient(path=abs_path)
     try:
+        from src.config import RAG_SPARSE_HYBRID_ENABLED
+        sparse_enabled = RAG_SPARSE_HYBRID_ENABLED
+
         if client.collection_exists(collection):
             client.delete_collection(collection)
-        client.create_collection(
-            collection_name=collection,
-            vectors_config=VectorParams(
-                size=cfg["embedding_dims"],
-                distance=Distance.COSINE,
-            ),
-        )
 
-        embeddings = OpenAIEmbeddings(model=cfg["embedding_model"])
-        vectorstore = QdrantVectorStore(
-            client=client,
-            collection_name=collection,
-            embedding=embeddings,
-        )
-        # Small batches: OpenAI embed + local Qdrant write (path mode is single-process)
-        batch_size = 32
-        total = len(docs)
-        for i in range(0, total, batch_size):
-            batch = docs[i : i + batch_size]
-            end = min(i + batch_size, total)
-            logger.info("Embedding + writing docs %d-%d / %d ...", i + 1, end, total)
-            vectorstore.add_documents(batch)
-            logger.info("Indexed %d / %d", end, total)
+        if sparse_enabled:
+            from qdrant_client.http.models import SparseVectorParams as SVP
+            client.create_collection(
+                collection_name=collection,
+                vectors_config={
+                    "dense": VectorParams(size=cfg["embedding_dims"], distance=Distance.COSINE),
+                },
+                sparse_vectors_config={
+                    "sparse_bm25": SVP(),
+                },
+            )
+            logger.info("Created collection with dense + sparse_bm25 named vectors")
+        else:
+            client.create_collection(
+                collection_name=collection,
+                vectors_config=VectorParams(
+                    size=cfg["embedding_dims"],
+                    distance=Distance.COSINE,
+                ),
+            )
+
+        _INDEXED_FIELDS = {
+            "metadata.article_id": PayloadSchemaType.KEYWORD,
+            "metadata.category": PayloadSchemaType.KEYWORD,
+            "metadata.intent": PayloadSchemaType.KEYWORD,
+            "metadata.device_type": PayloadSchemaType.KEYWORD,
+            "metadata.product": PayloadSchemaType.KEYWORD,
+            "metadata.audience": PayloadSchemaType.KEYWORD,
+            "metadata.status": PayloadSchemaType.KEYWORD,
+            "metadata.source_priority": PayloadSchemaType.INTEGER,
+        }
+        for field, schema_type in _INDEXED_FIELDS.items():
+            client.create_payload_index(collection, field, schema_type)
+            logger.info("Created payload index: %s (%s)", field, schema_type.name)
+
+        if sparse_enabled:
+            _inject_with_sparse(client, collection, docs, cfg)
+        else:
+            _inject_dense_only(client, collection, docs, cfg)
     finally:
         client.close()
 
     logger.info("Done. Indexed %d docs → %s [%s]", len(docs), abs_path, collection)
     return len(docs)
+
+
+def _inject_dense_only(client: QdrantClient, collection: str, docs, cfg: dict) -> None:
+    """Standard dense-only ingestion via LangChain QdrantVectorStore."""
+    embeddings = OpenAIEmbeddings(model=cfg["embedding_model"])
+    vectorstore = QdrantVectorStore(
+        client=client,
+        collection_name=collection,
+        embedding=embeddings,
+    )
+    batch_size = 32
+    total = len(docs)
+    for i in range(0, total, batch_size):
+        batch = docs[i : i + batch_size]
+        end = min(i + batch_size, total)
+        logger.info("Embedding + writing docs %d-%d / %d ...", i + 1, end, total)
+        vectorstore.add_documents(batch)
+        logger.info("Indexed %d / %d", end, total)
+
+
+def _inject_with_sparse(client: QdrantClient, collection: str, docs, cfg: dict) -> None:
+    """Sparse hybrid ingestion — dense + BM25 sparse vectors per document."""
+    import uuid
+    from src.services.sparse_hybrid import get_bm25_embedder, compute_sparse_vector
+
+    embeddings_model = OpenAIEmbeddings(model=cfg["embedding_model"])
+    bm25 = get_bm25_embedder()
+
+    batch_size = 32
+    total = len(docs)
+
+    for i in range(0, total, batch_size):
+        batch = docs[i : i + batch_size]
+        end = min(i + batch_size, total)
+        logger.info("[SPARSE] Embedding + writing docs %d-%d / %d ...", i + 1, end, total)
+
+        texts = [doc.page_content for doc in batch]
+        dense_vectors = embeddings_model.embed_documents(texts)
+
+        points = []
+        for j, doc in enumerate(batch):
+            sparse_vec = compute_sparse_vector(bm25, doc.page_content)
+            point = PointStruct(
+                id=str(uuid.uuid4()),
+                vector={
+                    "dense": dense_vectors[j],
+                    "sparse_bm25": sparse_vec,
+                },
+                payload={
+                    "page_content": doc.page_content,
+                    "metadata": doc.metadata,
+                },
+            )
+            points.append(point)
+
+        client.upsert(collection_name=collection, points=points)
+        logger.info("[SPARSE] Indexed %d / %d", end, total)
 
 
 def main(argv: list[str] | None = None) -> None:

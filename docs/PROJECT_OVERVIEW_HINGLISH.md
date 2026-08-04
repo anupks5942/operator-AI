@@ -39,7 +39,7 @@ Operator chat mein problem batata hai. Agent teen tarike se help karta hai:
 └─────┬──────────────┬──────────────┬──────┘
       │              │              │
       ▼              ▼              ▼
- ChromaDB+FlashRank  Setomatic APIs  Mandrill+Twilio
+ Qdrant+FlashRank   Setomatic APIs  Mandrill+Twilio
  (KB manuals)        (live data)     (escalation)
 ```
 
@@ -147,7 +147,7 @@ Priority roughly yeh hai (upar wala pehle jeetta hai):
 
 - Intents: `general_query`, `technical_support`, `refund_request`, `kiosk_not_responding`, …
 - `api_action_required` **hamesha false** in intents pe (refund/kiosk/technical ko tools pe mat bhejo)
-- Flow: query → Chroma retrieve → FlashRank rerank → LLM answer
+- Flow: query → Qdrant retrieve → FlashRank rerank → LLM answer
 - Kabhi “Did this resolve?” add hota hai (sirf jab troubleshooting markers hon)
 
 #### B) Tools path (ReAct loop)
@@ -275,9 +275,8 @@ Pagination: default **5 records/page**. Footer mein “show more”. Transaction
 ```
 operator-AI/
 ├── app.py                 # Streamlit demo UI
-├── main.py                # Legacy CLI / old entry — avoid
 ├── KB/                    # Active manuals (v2.2 + Bible)
-├── chroma_db/             # Local vector DB (gitignore; first run pe banta hai)
+├── spyderwash_qdrant/     # Local vector DB (gitignore; first run pe banta hai)
 ├── tests/
 │   ├── test_outage_workflow.py
 │   └── test_security.py

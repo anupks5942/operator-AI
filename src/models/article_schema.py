@@ -2,7 +2,7 @@
 Canonical Article Schema for the SpyderWash Knowledge Base.
 
 Each KB article is parsed into this structured format during ingestion.
-This enables both vector-based retrieval (ChromaDB) and structured/vectorless
+This enables both vector-based retrieval (Qdrant) and structured/vectorless
 retrieval (SQLite) from the same canonical source.
 """
 from pydantic import BaseModel, Field

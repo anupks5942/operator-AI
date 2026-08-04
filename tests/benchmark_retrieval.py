@@ -256,13 +256,26 @@ def main():
     print("  Running Vectorless RAG...")
     vectorless_results = evaluate_vectorless(test_cases)
 
-    # Vector DB (requires ChromaDB)
+    # Vector DB (requires Qdrant)
     print("  Running Vector DB RAG...")
     vector_results = evaluate_vector(test_cases)
 
-    # Hybrid (requires ChromaDB)
+    # Hybrid (requires Qdrant)
     print("  Running Hybrid RAG...")
     hybrid_results = evaluate_hybrid(test_cases)
+
+    # Qdrant sparse hybrid (only if feature flag enabled)
+    qdrant_hybrid_results = None
+    try:
+        from src.config import RAG_SPARSE_HYBRID_ENABLED
+        if RAG_SPARSE_HYBRID_ENABLED:
+            print("  Running Qdrant Sparse Hybrid (BM25 + Dense RRF)...")
+            qdrant_hybrid_results = evaluate_hybrid(test_cases)
+            qdrant_hybrid_results["method"] = "qdrant_hybrid"
+        else:
+            print("  Skipping Qdrant Sparse Hybrid (RAG_SPARSE_HYBRID_ENABLED=false)")
+    except Exception as e:
+        print(f"  Qdrant Sparse Hybrid skipped: {e}")
 
     print()
     print("-" * 80)
@@ -272,16 +285,21 @@ def main():
     print_summary(vectorless_results)
     print_summary(vector_results)
     print_summary(hybrid_results)
+    if qdrant_hybrid_results:
+        print_summary(qdrant_hybrid_results)
     print()
 
     # Save detailed results
     output_path = os.path.join(os.path.dirname(__file__), "benchmark_results.json")
+    all_results = {
+        "vectorless": vectorless_results,
+        "vector": vector_results,
+        "hybrid": hybrid_results,
+    }
+    if qdrant_hybrid_results:
+        all_results["qdrant_hybrid"] = qdrant_hybrid_results
     with open(output_path, "w", encoding="utf-8") as f:
-        json.dump({
-            "vectorless": vectorless_results,
-            "vector": vector_results,
-            "hybrid": hybrid_results,
-        }, f, indent=2)
+        json.dump(all_results, f, indent=2)
     print(f"  Detailed results saved to: {output_path}")
     print()
 

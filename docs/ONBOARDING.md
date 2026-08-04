@@ -8,7 +8,7 @@ Orient new developers to the codebase. Product scope and roadmap: [docs/README.m
 
 Operator AI is a LangGraph technical support agent for laundry operators:
 
-- RAG over legacy manuals (ChromaDB)
+- RAG over legacy manuals (Qdrant)
 - Live loyalty and transaction tools (Setomatic beta API)
 - Portal-guided refund help via RAG/Bible (no agent-executed refunds)
 - Global system status (web scrape)
@@ -19,7 +19,7 @@ Operator AI is a LangGraph technical support agent for laundry operators:
 |------|-------|
 | Language | Python 3.10+ |
 | Package manager | [uv](https://docs.astral.sh/uv/) |
-| Frameworks | FastAPI, Streamlit, LangGraph, LangChain, ChromaDB, OpenAI |
+| Frameworks | FastAPI, Streamlit, LangGraph, LangChain, Qdrant, OpenAI |
 | Quick start | [README.md](../README.md), [RUNBOOK.md](RUNBOOK.md) |
 | File map | [CODEBASE.md](CODEBASE.md) |
 
@@ -42,10 +42,7 @@ Operator AI is a LangGraph technical support agent for laundry operators:
 | File | Role |
 |------|------|
 | [app.py](../app.py) | Streamlit demo — in-process graph streaming |
-| [src/api/server.py](../src/api/server.py) | **Production** REST API |
-| [src/api/server.py](../src/api/server.py) | Production agent API (`:8000`) |
-| [main.py](../main.py) | Legacy `/query` + console harness — avoid |
-| [src/api/routes.py](../src/api/routes.py) | Legacy router — deprecated |
+| [src/api/server.py](../src/api/server.py) | **Production** REST API (`:8000`) |
 
 Contract: [API.md](API.md)
 
@@ -65,7 +62,7 @@ Outage detail: [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md)
 
 | File | Role |
 |------|------|
-| [src/services/rag_service.py](../src/services/rag_service.py) | KB ingest (PDF/DOCX), Chroma, RAG |
+| [src/services/rag_service.py](../src/services/rag_service.py) | KB ingest (PDF/DOCX), Qdrant, RAG |
 | [src/services/notifications.py](../src/services/notifications.py) | Mandrill + Twilio; mock when `USE_LIVE_NOTIFICATIONS=false` |
 | [src/config.py](../src/config.py) | Environment configuration |
 
@@ -74,7 +71,7 @@ Outage detail: [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md)
 | Path | Notes |
 |------|-------|
 | [KB/](../KB/) | Source manuals — **only `.pdf` and `.docx` are ingested** (legacy; interim until SpyderWash Bible ships) |
-| `chroma_db/` | Generated vector store (delete to force re-ingest) |
+| `./spyderwash_qdrant/` | Generated vector store (run `uv run python -m data_injection` to re-ingest) |
 
 **Product direction:** “The Bible of SpyderWash” (~500 pages, Brandon mail) replaces legacy multi-manual `KB/`. Structured chunks + KB Admin feedback loop — Phase 5 — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md). Operator videos are separate; not ingested today. Production target: Rackspace + ingest job → shared vector DB — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md).
 

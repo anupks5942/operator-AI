@@ -18,18 +18,18 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 ## ADR-002: Canonical API is server.py /api/v1/agent/chat
 
 **Status:** Accepted  
-**Context:** Multiple entry points existed: Streamlit in-process, `main.py` `/query`, `server.py` chat.  
+**Context:** Multiple entry points existed; consolidated to single production API.  
 **Decision:** Production integrators use `POST /api/v1/agent/chat` on [server.py](../src/api/server.py) only.  
-**Consequences:** React and .NET widgets target `:8000`. Legacy `/query` deprecated. See [API.md](API.md).
+**Consequences:** React and .NET widgets target `:8000`. Legacy endpoints removed. See [API.md](API.md).
 
 ---
 
-## ADR-003: Chroma for MVP; Qdrant before multi-replica prod
+## ADR-003: Vector Store — Qdrant (local on-disk)
 
-**Status:** Accepted  
-**Context:** KB starts small (legacy guides); Bible target ~500 pages. Chroma persists locally in `./chroma_db`.  
-**Decision:** Keep **ChromaDB** through QA/UAT. Migrate to **Qdrant** (or equivalent) before running multiple API replicas.  
-**Consequences:** Single-process API is fine for demo. Phase 3 roadmap includes vector DB migration. See [TECH_STACK.md](TECH_STACK.md).
+**Status:** Completed  
+**Context:** KB starts small (legacy guides); Bible target ~500 pages.  
+**Decision:** Use **Qdrant** (local on-disk at `./spyderwash_qdrant/`). Ingest via `uv run python -m data_injection`.  
+**Consequences:** Qdrant operational for single-node and multi-replica. See [TECH_STACK.md](TECH_STACK.md).
 
 ---
 
@@ -241,7 +241,7 @@ Format: **Status** | **Context** | **Decision** | **Consequences**
 **Status:** Accepted  
 **Context:** `troubleshoot_first_node` appended a "Sources: filename [p.X] | filename [p.Y]" line to KB troubleshooting responses. PM requested removal — operators do not need to see internal document references.  
 **Decision:** Remove the `context_docs` → `sources_note` block from `troubleshoot_first_node`. Troubleshooting responses now show only the KB answer followed by "Did this resolve the issue? (Yes/No)".  
-**Consequences:** Cleaner operator-facing output. Source provenance is still available in ChromaDB metadata for debugging but not surfaced in responses.
+**Consequences:** Cleaner operator-facing output. Source provenance is still available in Qdrant metadata for debugging but not surfaced in responses.
 
 ---
 
@@ -300,14 +300,14 @@ When making a significant architectural choice:
 **Context:** v2.2 KB document (324K chars) contains 171 structured articles with `ARTICLE START`/`ARTICLE END` delimiters, explicit metadata (ARTICLE ID, category, product, intent, search_terms), co-retrieval rules, and Brandon's own "Recommended RAG ingestion settings." The Bible (222K chars) is 82.5% brand-specific wiring/installation content that v2.2 explicitly excludes from the operator chatbot. Previous generic 500-char `RecursiveCharacterTextSplitter` destroyed article boundaries and mixed technician-only installation content into retrieval.  
 **Decision:**
 
-- **v2.2 articles as atomic chunks:** Regex-parse each article as one Document (~1550 chars avg). Extract ARTICLE ID, category, product, intent, search_terms, status, co_retrieval_ids into Chroma metadata fields.
+- **v2.2 articles as atomic chunks:** Regex-parse each article as one Document (~1550 chars avg). Extract ARTICLE ID, category, product, intent, search_terms, status, co_retrieval_ids into Qdrant metadata fields.
 - **Bible selective ingest:** Troubleshooting Sections 1-14 **plus** operator reference from `Operator Portal` through `Voiceover: SpyderWash Troubleshooting Guide` (Portal/POS/Kiosk/Hub FAQ, Installation FAQ including Relay vs Serial Control Board, Highest-Frequency Questions). Brand wiring diagrams, Voiceover transcript, PCI notes, and RMA SOP remain excluded. Tagged `source_priority=secondary`.
 - **Section 0 → system prompt:** v2.2's "AI Retrieval and Response Rules" (17.8K chars) injected into the LLM system prompt, not stored as retrievable chunks.
 - **FlashRank reranking:** MMR k=12 / fetch_k=40 / lambda=0.5; FlashRank `ms-marco-TinyBERT-L-2-v2` reranks to top 6 (supersedes earlier `rank-T5-flan` / top-4 settings — see ADR-032).
 - **Co-retrieval:** 17 articles specify mandatory companion articles. After reranking, companion articles are fetched by `article_id` filter and prepended to context.
 - **Metadata-aware filtering:** Narrow intents may map to v2.2 category for pre-filtering. **`technical_support` must not category-filter** (ADR-033). Direct `article_id` targeting supported.
 
-**Consequences:** Respects Brandon's explicit RAG ingestion instructions while covering Intent Matrix instructional FAQs that live past the Installation heading. Eliminates technician-only wiring from retrieval. Requires `chroma_db/` deletion and re-ingest when upgrading. See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md).
+**Consequences:** Respects Brandon's explicit RAG ingestion instructions while covering Intent Matrix instructional FAQs that live past the Installation heading. Eliminates technician-only wiring from retrieval. Run: `uv run python -m data_injection` to re-ingest when upgrading. See [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md).
 
 ---
 

@@ -67,7 +67,7 @@ Bible DOCX
 6. **Short follow-up expansion** — ≤6-word affirmatives/requests expand from prior AI / last `KB-…` article_id (ADR-036)
 7. **Resolve prompt** — content markers (± intent); skip definitional / trailing-offer answers (ADR-034/035)
 
-### Metadata fields indexed in Chroma
+### Metadata fields indexed in Qdrant
 
 | Field | Source | Example |
 |-------|--------|---------|
@@ -101,7 +101,7 @@ The Bible and v2.2 include **diagrams and screenshots**. v2.2's post-article sec
 | Option | Description | Effort | MVP fit |
 |--------|-------------|--------|---------|
 | **A — Text-first (recommended for MVP)** | Product adds text captions/steps beside every diagram in the Bible source | Low | Best short-term — no code change |
-| **B — OCR / caption at ingest** | Extract figures from PDF; OCR or GPT-4o vision → text chunks in Chroma | Medium | When QA proves text-only gaps |
+| **B — OCR / caption at ingest** | Extract figures from PDF; OCR or GPT-4o vision → text chunks in Qdrant | Medium | When QA proves text-only gaps |
 | **C — Figure links** | Export figures to Rackspace; chunk metadata includes `figure_url` | Low–medium | Operators open diagram manually |
 | **D — Multimodal RAG** | Image store + vision model at query time | High | Post-GA unless product insists |
 
@@ -159,9 +159,9 @@ Agent API container(s) on Rackspace
 | Layer | Rackspace-ready today? |
 |-------|------------------------|
 | Object storage for Bible + v2.2 + videos | **Planned** — not wired to agent |
-| Agent reads from object storage | **No** — reads local `KB/` + `./chroma_db` |
+| Agent reads from object storage | **No** — reads local `KB/` + `./spyderwash_qdrant/` |
 | Agent API deployed on Rackspace | **TBD** — no container/deploy manifest in repo |
-| Multi-instance API + shared vector DB | **No** — local Chroma + in-memory MemorySaver |
+| Multi-instance API + shared vector DB | **No** — local Qdrant + in-memory MemorySaver |
 
 Hosting target in [ROADMAP.md](ROADMAP.md) Phase 3 includes **Rackspace** as primary option (SpyderWash already there); Azure remains fallback if required.
 
@@ -206,7 +206,7 @@ Hosting target in [ROADMAP.md](ROADMAP.md) Phase 3 includes **Rackspace** as pri
 | [ ] | Confirm video upload timeline (all 24 before UAT vs incremental) | Brandon |
 | [ ] | When Bible sections include YouTube URLs, verify RAG returns link + steps | dev1 |
 | [ ] | KB re-ingest CLI reading from Rackspace Cloud Files | dev1 + infra vendor |
-| [ ] | Migrate Chroma → Qdrant on Rackspace | infra vendor (Phase 3) |
+| [ ] | Deploy Qdrant on Rackspace (shared instance) | infra vendor (Phase 3) |
 | [ ] | Super Admin upload triggers re-index webhook | backend team + dev1 |
 | [ ] | Remove v1.8 from KB/_archive (confirmed superseded) | dev1 |
 | [ ] | Optional: video transcript ingest pipeline | **Deferred** — not preferred vs Option B |
@@ -216,7 +216,7 @@ Hosting target in [ROADMAP.md](ROADMAP.md) Phase 3 includes **Rackspace** as pri
 ## Related documents
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — RAG path and system diagram
-- [TECH_STACK.md](TECH_STACK.md) — Chroma vs Qdrant
+- [TECH_STACK.md](TECH_STACK.md) — Qdrant vector store
 - [DECISIONS.md](DECISIONS.md) — ADR-003, ADR-012, ADR-013, ADR-015, ADR-030–037
 - [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) — Brandon mail, KB Admin prototype, chunk map
 - [REQUIREMENTS_MAP.md](REQUIREMENTS_MAP.md) — vendor doc traceability

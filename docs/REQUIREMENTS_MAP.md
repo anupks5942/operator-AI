@@ -37,7 +37,7 @@ These are **deliberate** gaps vs the vendor end-state doc — not oversights.
 | API Gateway (JWT/Auth0) on agent | Auth at gateway — **not on agent yet** (Phase 2) | ADR-014 |
 | AWS / Azure hosting | **Rackspace preferred** (SpyderWash already there) | ADR-013 |
 | SendGrid / AWS SES email | **Mandrill SMTP** (implemented) | — |
-| Pinecone or pgvector | **Chroma MVP → Qdrant** target | ADR-003 |
+| Pinecone or pgvector | **Qdrant** (done) | ADR-003 |
 | Low-confidence AI → escalate | **Intent Matrix + troubleshoot-first** (Gregg/Brandon) | ADR-014 |
 | Inbound operator SMS channel | **Outbound escalation SMS only** | PRD §3 |
 | Custom JS chat widget | **React QA + .NET Super Admin** — same REST API | ADR-006 |
@@ -62,7 +62,7 @@ These are **deliberate** gaps vs the vendor end-state doc — not oversights.
 | 1. Multi-channel input (Voice, SMS, Web) | **Partial** | 0–4 | Web REST chat only; voice Phase 4; SMS outbound escalation |
 | 2. API Gateway (JWT, rate limit, routing) | **Planned** | 2 | No auth on [server.py](../src/api/server.py) today |
 | 3. Dual AI agent core | **Partial** | — | Operator only; OpenAI not Claude; English only today |
-| 4. Intelligence layer (RAG, LangGraph, memory) | **Partial** | 1–3 | Chroma + MemorySaver; Qdrant + durable checkpoints Phase 3 |
+| 4. Intelligence layer (RAG, LangGraph, memory) | **Partial** | 1–3 | Qdrant + MemorySaver; durable checkpoints Phase 3 |
 | 5. Multi-tenant backend (PostgreSQL, analytics) | **Deferred** | 3–5 | No conversation DB; in-memory sessions |
 | 6. Integrations (Twilio, POS, email) | **Partial** | 0–2 | Twilio + Mandrill + Setomatic beta APIs |
 | 7. Admin panel (FAQ editor, escalation rules) | **Deferred** | 5 | Super Admin KB upload planned by backend team |
@@ -93,7 +93,7 @@ These are **deliberate** gaps vs the vendor end-state doc — not oversights.
 | Custom / embedded web chat | **Partial** | `POST /api/v1/agent/chat` — [API.md](API.md) |
 | JWT / Auth0 | **Planned** | Phase 2 — blocked on .NET contract |
 | GPT-4o / Claude 3.5 | **Partial** | `gpt-4o-mini` default — [config.py](../src/config.py) |
-| Pinecone / Qdrant / pgvector | **Partial** | Chroma now; Qdrant Phase 3 |
+| Pinecone / Qdrant / pgvector | **Implemented** | Qdrant (local on-disk at `./spyderwash_qdrant/`) |
 | LangChain / LangGraph | **Implemented** | [graph.py](../src/agent/graph.py) |
 | Python / FastAPI | **Implemented** | [server.py](../src/api/server.py) |
 | PostgreSQL multi-tenant | **Deferred** | Phase 3 checkpoints + Phase 5 analytics |
@@ -115,8 +115,8 @@ These are **deliberate** gaps vs the vendor end-state doc — not oversights.
 | Digitized PDF/DOCX for ingestion | **Partial** | [rag_service.py](../src/services/rag_service.py) — PDF/DOCX only |
 | XLSX / web pages | **Out of scope (v1)** | Not in loader — convert or extend loader |
 | Versioning of manuals | **Planned** | Phase 5 |
-| RAG preprocessing + embeddings | **Implemented** | HuggingFace + Chroma |
-| Vector DB | **Partial** | Chroma MVP; Qdrant Phase 3 |
+| RAG preprocessing + embeddings | **Implemented** | HuggingFace + Qdrant |
+| Vector DB | **Implemented** | Qdrant (local on-disk at `./spyderwash_qdrant/`) |
 | Continuous ingestion pipeline | **Planned** | Phase 3 Rackspace → ingest job |
 | **Bible embedded images** | **Planned** | Text-only ingest today — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) § Bible images |
 | Operator videos | **Planned (Option B)** | YouTube URLs in Bible sections — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |

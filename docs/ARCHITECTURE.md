@@ -15,7 +15,7 @@ flowchart LR
   dotnet[NET Super Admin prod]
   agentAPI[FastAPI server.py :8000]
   graph[LangGraph agent_app]
-  chroma[ChromaDB]
+  qdrant[Qdrant]
   setomatic[Setomatic APIs live]
   notify[Mandrill and Twilio]
 
@@ -23,7 +23,7 @@ flowchart LR
   react --> agentAPI
   dotnet --> agentAPI
   agentAPI --> graph
-  graph --> chroma
+  graph --> qdrant
   graph --> setomatic
   graph --> notify
 ```
@@ -185,7 +185,7 @@ RAG-only intents (no outage workflow):
 1. Load **`.pdf`, `.docx`, and `.txt`** from local `KB/` ([rag_service.py](../src/services/rag_service.py)) — active sources: **v2.2** + **Setomatic Bible**
 2. Chunk: v2.2 article-aware (one article = one chunk); Bible selective troubleshooting + operator FAQ (ADR-030)
 3. Embed: OpenAI `text-embedding-3-small` (via `OPENAI_EMBEDDING_MODEL`)
-4. Store: Chroma `./chroma_db` (single-node; not shared across replicas)
+4. Store: Qdrant `./spyderwash_qdrant/` (single-node; not shared across replicas)
 5. Retrieve: MMR k=12 / fetch_k=40 → FlashRank `ms-marco-TinyBERT-L-2-v2` top 6 → co-retrieval (ADR-032)
 6. Generate: chat model via `create_chat_model()` with v2.2 Section 0 rules in system prompt
 
@@ -247,7 +247,6 @@ Detail: [ESCALATION_WORKFLOW.md](ESCALATION_WORKFLOW.md)
 |-------|------------|-----|
 | [server.py](../src/api/server.py) | HTTP `invoke()` | **Production / QA** |
 | [app.py](../app.py) | In-process `stream()` | Local demo; sidebar routing diagnostics persisted in `st.session_state.routing_diagnostics` |
-| [main.py](../main.py) | HTTP `/query` or CLI | **Legacy** — avoid |
 
 ---
 

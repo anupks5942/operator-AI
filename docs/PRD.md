@@ -165,7 +165,7 @@ Automated coverage: [tests/test_outage_workflow.py](../tests/test_outage_workflo
 |------------|--------|--------------|
 | PCI PAN masking + CVV refusal | **Implemented** | [security.py](../src/utils/security.py), [graph.py](../src/agent/graph.py), [tests/test_security.py](../tests/test_security.py) |
 | Outage workflow TC1/TC2 | **Implemented** + tested | [src/agent/graph.py](../src/agent/graph.py), [tests/test_outage_workflow.py](../tests/test_outage_workflow.py) |
-| RAG over KB (Chroma) | **Partial** — legacy `KB/`; Bible pending | [src/services/rag_service.py](../src/services/rag_service.py) |
+| RAG over KB (Qdrant) | **Partial** — legacy `KB/`; Bible pending | [src/services/rag_service.py](../src/services/rag_service.py) |
 | SpyderWash Bible as sole KB | **Planned** | ~500 pages (Brandon mail); manual ingest when ready |
 | Structured KB chunks + admin feedback loop | **Planned** | Phase 5 — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
 | Bible images in RAG | **Not implemented** | Text-only ingest — [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
@@ -272,7 +272,7 @@ Use this section for quick navigation from the PRD. Do not duplicate the README 
 | [CODEBASE.md](CODEBASE.md) | What each repo file does |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | LangGraph, RAG path, two-server model |
 | [TECH_STACK.md](TECH_STACK.md) | MVP vs production stack |
-| [DECISIONS.md](DECISIONS.md) | Locked ADRs (scope, API, Chroma, Brandon chunks, etc.) |
+| [DECISIONS.md](DECISIONS.md) | Locked ADRs (scope, API, Qdrant, Brandon chunks, etc.) |
 | [ONBOARDING.md](ONBOARDING.md) | Guided tour for new backend devs |
 | [TESTING.md](TESTING.md) | Unit tests, manual TC1/TC2, PCI checks |
 | [RUNBOOK.md](RUNBOOK.md) | Local dev terminals, demo prep, failures |

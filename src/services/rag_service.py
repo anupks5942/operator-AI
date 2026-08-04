@@ -24,8 +24,83 @@ class Channel(StrEnum):
     VOICE = "voice"
 
 
+def _append_image_evidence(
+    context_docs: list[Document],
+    max_images_per_article: int = 3,
+    max_total_images: int = 6,
+) -> list[Document]:
+    """Enrich RAG context with image caption + visual summary text.
+
+    For each retrieved article, fetches associated image captions from SQLite
+    (primary + linked cases via BFS co-retrieval, handled inside
+    get_case_images) and appends them as extra Document entries. The stuff
+    chain concatenates these into the LLM prompt, so answers can reference
+    what screenshots/diagrams actually show — grounded in caption text, not
+    invented UI details.
+    """
+    if not context_docs:
+        return context_docs
+
+    try:
+        from src.services.image_retrieval import get_case_images
+    except Exception as exc:
+        logger.debug("[RAG IMAGES] image_retrieval import failed: %s", exc)
+        return context_docs
+
+    seen_article_ids: list[str] = []
+    for doc in context_docs:
+        aid = doc.metadata.get("article_id") if isinstance(doc.metadata, dict) else None
+        if aid and aid not in seen_article_ids:
+            seen_article_ids.append(aid)
+
+    if not seen_article_ids:
+        return context_docs
+
+    evidence_docs: list[Document] = []
+    total = 0
+    for aid in seen_article_ids:
+        if total >= max_total_images:
+            break
+        try:
+            images = get_case_images(aid, include_linked=True, limit=max_images_per_article)
+        except Exception as exc:
+            logger.debug("[RAG IMAGES] get_case_images failed for %s: %s", aid, exc)
+            continue
+        if not images:
+            continue
+
+        for img in images:
+            if total >= max_total_images:
+                break
+            caption = (img.get("caption") or "").strip()
+            visual = (img.get("visual_summary") or "").strip()
+            if not caption and not visual:
+                continue
+            source_tag = aid if img.get("is_primary") else f"{aid} (linked → {img.get('linked_from', aid)})"
+            block_lines = [f"IMAGE EVIDENCE [{source_tag}] page {img.get('page_number', '?')}"]
+            if caption:
+                block_lines.append(f"caption: {caption}")
+            if visual:
+                block_lines.append(f"visual: {visual}")
+            evidence_docs.append(
+                Document(
+                    page_content="\n".join(block_lines),
+                    metadata={
+                        "article_id": aid,
+                        "doc_type": "image_evidence",
+                        "image_id": img.get("image_id"),
+                    },
+                )
+            )
+            total += 1
+
+    if evidence_docs:
+        logger.info("[RAG IMAGES] Appended %d image evidence blocks", len(evidence_docs))
+    return list(context_docs) + evidence_docs
+
+
 def to_qdrant_filter(metadata_filter: dict | qmodels.Filter | None) -> qmodels.Filter | None:
-    """Convert Chroma-style metadata dicts to Qdrant Filter objects."""
+    """Convert dict-style metadata filters to Qdrant Filter objects."""
     if metadata_filter is None:
         return None
     if isinstance(metadata_filter, qmodels.Filter):
@@ -124,21 +199,10 @@ class RAGService:
             return
 
         try:
-            client = QdrantClient(path=self.qdrant_path)
-            if not client.collection_exists(self.collection):
-                logger.error(
-                    "Qdrant collection %r missing at %s. Run: uv run python -m data_injection",
-                    self.collection,
-                    self.qdrant_path,
-                )
-                client.close()
-                return
-            info = client.get_collection(self.collection)
-            if (info.points_count or 0) == 0:
-                logger.error(
-                    "Qdrant collection %r is empty. Run: uv run python -m data_injection",
-                    self.collection,
-                )
+            from src.services.qdrant_client_factory import get_qdrant_client, check_qdrant_health
+
+            client = get_qdrant_client(self.qdrant_path)
+            if not check_qdrant_health(client, self.collection):
                 client.close()
                 return
 
@@ -262,6 +326,7 @@ class RAGService:
             device_type=device_type,
         )
         qa_chain = self.voice_chain if channel == Channel.VOICE else self.chat_chain
+        final_context = _append_image_evidence(final_context)
         answer = qa_chain.invoke({"input": input_text, "context": final_context})
         return {"answer": answer, "context": final_context, "co_retrieval_meta": co_meta}
 
@@ -335,6 +400,7 @@ class RAGService:
             pass
 
         qa_chain = self.voice_chain if channel == Channel.VOICE else self.chat_chain
+        final_context = _append_image_evidence(final_context)
         answer = qa_chain.invoke({"input": input_text, "context": final_context})
 
         return {

@@ -84,7 +84,7 @@ FastAPI  :8000   POST /api/v1/agent/chat
 └───────────────────────────────────┘
          │            │            │
          ▼            ▼            ▼
-     ChromaDB    Setomatic     Mandrill/Twilio
+     Qdrant      Setomatic     Mandrill/Twilio
 ```
 
 **3 sentences jo zaroor bolni hain:**
@@ -189,11 +189,10 @@ Bolo:
 ### 5) `src/api/server.py` (3 min)
 
 Bolo:
-> Production entry: `POST /api/v1/agent/chat`.  
-> `routes.py` / `main.py` legacy hain — extend mat karna.  
+> Production entry: `POST /api/v1/agent/chat` (`server.py`).  
 > Streamlit demo `app.py` se in-process graph call karta hai.
 
-**Bonus agar time ho:** `src/services/rag_service.py` — “KB ingest yahan, chroma_db delete karke restart”.
+**Bonus agar time ho:** `src/services/rag_service.py` — “KB ingest yahan, uv run python -m data_injection se reingest”.
 
 ---
 
@@ -225,7 +224,7 @@ Teammate ko **clear list** do — screenshot / copy:
 | Galat lane (RAG vs tools) | `router.py` intent + flags |
 | Outage mid-flow toot gaya | `graph.py` sticky gates + state flags |
 | Card turn-2 pe gayab | `extracted_entities` / `merge_dicts` |
-| KB purana answer | `chroma_db/` delete + restart |
+| KB purana answer | Run: `uv run python -m data_injection` |
 | Escalation nahi gaya | `USE_LIVE_NOTIFICATIONS` + notifications.py |
 
 ---

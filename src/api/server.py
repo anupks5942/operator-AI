@@ -276,6 +276,11 @@ templates=Jinja2Templates(directory='templates')
 @app.on_event("startup")
 async def startup():
     print("Setomatic Operator AI started.")
+    try:
+        from src.services.images.ensure import ensure_images_extracted
+        ensure_images_extracted("all")
+    except Exception as exc:
+        logger.warning("[STARTUP] Image extract bootstrap failed: %s", exc)
 
 @app.get('/index')
 def home(request:Request):
@@ -352,8 +357,14 @@ def api_kb_get_companions(article_id: str):
 
 @app.get("/api/v1/kb/diagnostics")
 def api_kb_diagnostics():
-    """Get KB retrieval system health and statistics."""
-    return kb_diagnostics()
+    """Get KB retrieval system health and statistics, including monitoring metrics."""
+    from src.services.kb_database import get_retrieval_diagnostics_24h
+    base = kb_diagnostics()
+    monitoring = get_retrieval_diagnostics_24h()
+    if isinstance(base, dict):
+        base["monitoring_24h"] = monitoring
+        return base
+    return {"diagnostics": base, "monitoring_24h": monitoring}
 
 
 # ---------------------------------------------------------------------------

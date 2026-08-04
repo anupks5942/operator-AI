@@ -18,7 +18,7 @@ Phased task backlog. Check items off as completed. Each phase builds on the prev
 | React QA → single `:8000` instance | **Partial** | No auth; sessions in-memory |
 | Client demo (outage + escalation) | **Partial** | Configure live notifications + client escalation recipients |
 | UAT with portal-guided refunds (Bible) | **Partial** | Await Bible refund section; agent must not execute refunds |
-| Multi-replica / Rackspace prod | **No** | MemorySaver, local Chroma, no deploy artifacts |
+| Multi-replica / Rackspace prod | **No** | MemorySaver, local Qdrant, no deploy artifacts |
 
 ### What is solid today (MVP)
 
@@ -48,7 +48,7 @@ Phased task backlog. Check items off as completed. Each phase builds on the prev
 | **React chatbot** | **QA / UAT only** | dev2 | `POST :8000/api/v1/agent/chat` |
 | **.NET widget** | **Production** | Setomatic frontend team | SpyderWash Super Admin portal → same API |
 
-Both production and QA UIs must call the **same** agent API ([`server.py`](../src/api/server.py) on `:8000`). React is not the production widget. Production deploys **`server.py` only** — not `main.py` / legacy `/query` or `/notify/*`.
+Both production and QA UIs must call the **same** agent API ([`server.py`](../src/api/server.py) on `:8000`). React is not the production widget. Production deploys **`server.py` only**.
 
 ### External reference
 
@@ -72,9 +72,9 @@ Gaps from codebase audit, mapped to phases. Severity = impact if shipped to prod
 | `operator_id` hardcoded `4` in tool HTTP calls | 1 | dev1 | [tools.py](../src/agent/tools.py) |
 | Portal-guided refunds (no mock `:8001`) | 1 | **Done** — ADR-028; mock server removed |
 | `MemorySaver` — sessions lost on restart, not shared across replicas | 3 | infra vendor | [graph.py](../src/agent/graph.py) |
-| Local Chroma `./chroma_db` — not multi-replica safe | 3 | infra vendor | [rag_service.py](../src/services/rag_service.py) |
+| Local Qdrant `./spyderwash_qdrant/` — not multi-replica safe | 3 | infra vendor | [rag_service.py](../src/services/rag_service.py) |
 | No Dockerfile / CI pipeline | 2–3 | dev1 + infra vendor | repo root |
-| Legacy `/notify/sms` and `/notify/email` unauthenticated if `main.py` deployed | 2 | dev1 | [routes.py](../src/api/routes.py) — remove or gate |
+| ~~Legacy `/notify/sms` and `/notify/email`~~ | ~~2~~ | ~~dev1~~ | **Removed** — `main.py` and `routes.py` deleted |
 | Client-supplied `session_id` with no auth binding | 2 | dev1 | [server.py](../src/api/server.py) |
 
 ### Major — required for GA or reliable UAT
@@ -86,7 +86,7 @@ Gaps from codebase audit, mapped to phases. Severity = impact if shipped to prod
 | No HTTP integration tests for `/api/v1/agent/chat` | 1 | dev1 | [tests/](../tests/) |
 | `troubleshoot_first_node` creates new `RAGService()` per turn | 1 | dev1 | [graph.py](../src/agent/graph.py) — reuse singleton from [nodes.py](../src/agent/nodes.py) |
 | Sync blocking `chat()` handler; heavy cold start (torch, embeddings) | 2–3 | dev1 + infra vendor | [server.py](../src/api/server.py), startup pre-warm |
-| Shallow `/health` — no dependency readiness | 2 | dev1 | Add `/ready` (OpenAI, Chroma, Setomatic) |
+| Shallow `/health` — no dependency readiness | 2 | dev1 | Add `/ready` (OpenAI, Qdrant, Setomatic) |
 | 500 responses leak internal exception text | 2 | dev1 | [server.py](../src/api/server.py) |
 | No rate limiting or `message` max length | 2 | dev1 | FastAPI middleware |
 | KB: `.txt` not ingested; Bible not integrated | 1–3 | dev1 | [rag_service.py](../src/services/rag_service.py), [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
@@ -162,7 +162,7 @@ Gaps from codebase audit, mapped to phases. Severity = impact if shipped to prod
 
 **Exit criteria:** React QA passes TC1/TC2 against `:8000` with real operator contact in escalation emails; tools use request `operator_id`; HTTP tests green.
 
-**Minimum UAT bar (single instance, behind gateway):** Phase 0 exit + Phase 1 `operator_id` wiring + validated refund flag + persistent `chroma_db` volume or pre-built index.
+**Minimum UAT bar (single instance, behind gateway):** Phase 0 exit + Phase 1 `operator_id` wiring + validated refund flag + persistent `./spyderwash_qdrant/` volume or pre-built index.
 
 ---
 
@@ -179,14 +179,14 @@ Gaps from codebase audit, mapped to phases. Severity = impact if shipped to prod
 | [ ] | API authentication (API key or JWT from .NET gateway) | **Critical** — **Blocked** until backend defines contract |
 | [ ] | Bind `session_id` to authenticated `operator_id` | Prevent session hijack |
 | [ ] | Rate limiting and `message` max length | FastAPI middleware |
-| [x] | PCI: sanitize all ingress (`sanitize_user_text`) | server.py, app.py, routes.py, main.py |
+| [x] | PCI: sanitize all ingress (`sanitize_user_text`) | server.py, app.py |
 | [x] | PCI: mask escalation summary/SMS; CVV guardrail; tests | security.py, graph.py, tests/test_security.py |
 | [ ] | PCI: audit logs; remove full SMS body from mock log path | [notifications.py](../src/services/notifications.py) |
 | [ ] | Generic 500 responses (no internal exception in `detail`) | [server.py](../src/api/server.py) |
-| [ ] | Add `/ready` probe (OpenAI, Chroma, Setomatic reachable) | Keep `/health` as liveness only |
+| [ ] | Add `/ready` probe (OpenAI, Qdrant, Setomatic reachable) | Keep `/health` as liveness only |
 | [ ] | Escalation idempotency (skip re-dispatch if already sent) | [graph.py](../src/agent/graph.py) |
 | [ ] | Prod env: remove / ignore refund execute tools; portal-guide path only | ADR-028 |
-| [ ] | Remove or gate legacy `main.py`, `/query`, `/notify/*` | Deploy `server.py` only |
+| [x] | Remove legacy `main.py`, `/query`, `/notify/*` | Done — deleted |
 | [ ] | CI: run `test_outage_workflow` + `test_security` on every PR | GitHub Actions / Azure Pipelines |
 | [ ] | Dockerfile for agent API | infra vendor review |
 | [ ] | Structured log shipping | Datadog / CloudWatch / Loki |
@@ -206,7 +206,7 @@ Gaps from codebase audit, mapped to phases. Severity = impact if shipped to prod
 | [ ] | Deploy agent API on Rackspace (containers) | Same cloud as SpyderWash FE/BE |
 | [ ] | Pre-warm RAG/embeddings on startup; right-size memory | Mitigate cold start |
 | [ ] | Rackspace Cloud Files → ingest job for Bible PDF | [KB_AND_PLATFORM.md](KB_AND_PLATFORM.md) |
-| [ ] | Migrate Chroma → Qdrant (or managed vector DB) | **Critical** for multi-replica |
+| [x] | Qdrant (done) — local on-disk at `./spyderwash_qdrant/` | **Critical** for multi-replica |
 | [ ] | Persistent checkpoint store (PostgreSQL / Redis) | Replace in-memory MemorySaver |
 | [ ] | Environment matrix: dev / qa / uat / prod | URLs, secrets, feature flags |
 | [ ] | Secrets in platform store (Mandrill, Twilio, OpenAI) | Never commit `.env` |

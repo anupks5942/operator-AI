@@ -42,7 +42,7 @@ OPENAI_EMBEDDING_MODEL: str = _env_str("OPENAI_EMBEDDING_MODEL", "text-embedding
 # Must match the embedding model's output size (text-embedding-3-small = 1536).
 EMBEDDING_DIMENSIONS: int = int(_env_str("EMBEDDING_DIMENSIONS", "1536"))
 
-# Local on-disk Qdrant (replaces ./chroma_db). Built by: uv run python -m data_injection
+# Local on-disk Qdrant vector store. Built by: uv run python -m data_injection
 QDRANT_PATH: str = _env_str("QDRANT_PATH", "./spyderwash_qdrant")
 QDRANT_COLLECTION: str = _env_str("QDRANT_COLLECTION", "spyderwash_docs")
 # Section 0 prompt cache written during data_injection.
@@ -52,6 +52,9 @@ SECTION0_CACHE_PATH: str = _env_str("SECTION0_CACHE_PATH", "./spyderwash_section
 RAG_RETRIEVAL_METHOD: str = _env_str("RAG_RETRIEVAL_METHOD", "hybrid").lower()
 # Maximum BFS depth for recursive co-retrieval (SQLite rules).
 CO_RETRIEVAL_MAX_DEPTH: int = int(_env_str("CO_RETRIEVAL_MAX_DEPTH", "3"))
+
+# Sparse hybrid search (BM25 + dense RRF fusion in Qdrant)
+RAG_SPARSE_HYBRID_ENABLED: bool = _env_bool("RAG_SPARSE_HYBRID_ENABLED", False)
 
 # Image extraction pipeline
 KB_IMAGES_DIR: str = _env_str("KB_IMAGES_DIR", "./kb_images")

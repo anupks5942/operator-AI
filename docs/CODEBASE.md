@@ -11,13 +11,12 @@ Every source file in this repo and its role. Use this when navigating without an
 ```
 operator-AI/
 ├── app.py                      # Streamlit dev UI (in-process graph; persisted routing diagnostics sidebar)
-├── main.py                     # Legacy FastAPI + console harness — avoid
 ├── pyproject.toml              # Dependencies (uv)
 ├── .env.example                # Env template — copy to .env
 ├── README.md                   # Quick start
 ├── docs/                       # All project documentation
 ├── KB/                         # Knowledge base source files (PDF/DOCX ingested; .txt skipped)
-├── chroma_db/                  # Generated vector store (gitignored typically)
+├── spyderwash_qdrant/          # Generated vector store (gitignored typically)
 ├── tests/
 │   └── test_outage_workflow.py # Outage, post-escalation, follow-up, dedup, greeting reset
 └── src/
@@ -33,7 +32,7 @@ operator-AI/
     │   ├── routes.py           # Legacy /query, /notify/* — deprecated
     │   └── schemas.py          # Legacy Pydantic models
     ├── services/
-    │   ├── rag_service.py      # Chroma ingest + RAG chain
+    │   ├── rag_service.py      # Qdrant ingest + RAG chain
     │   └── notifications.py    # Mandrill email + Twilio SMS
     └── utils/
         └── security.py         # mask_credit_cards (PCI)
@@ -47,8 +46,6 @@ operator-AI/
 |---------|------|---------|
 | `uv run uvicorn src.api.server:app --port 8000` | server.py | **Canonical** agent API |
 | `uv run streamlit run app.py` | app.py | Local demo UI |
-| `uv run python main.py` | main.py | Legacy streaming console test |
-| `uv run uvicorn main:app` | main.py | Legacy `/query` API — **do not use** |
 
 ---
 
@@ -60,9 +57,9 @@ operator-AI/
 | `router.py` | Same tests + manual TC1/TC2 |
 | `notifications.py` | Same tests + live escalation smoke |
 | `tools.py` | Loyalty/tx/kiosk/POS against live beta API; portal-guided refunds via RAG |
-| `rag_service.py` | Delete `chroma_db/` to re-ingest; test RAG answers |
+| `rag_service.py` | Run: `uv run python -m data_injection` to re-ingest; test RAG answers |
 | `server.py` | curl `/health` and `/api/v1/agent/chat`; CORS for React |
-| `KB/` (new docs) | Delete `chroma_db/` and restart |
+| `KB/` (new docs) | Run: `uv run python -m data_injection` |
 
 ---
 
@@ -88,8 +85,7 @@ Full variable list: [ENVIRONMENT.md](ENVIRONMENT.md)
 
 | Item | Status |
 |------|--------|
-| `main.py` `/query` | Deprecated — use `server.py` |
-| `routes.py` `/notify/sms`, `/notify/email` | Deprecated — escalation via graph only |
+| `main.py`, `routes.py`, `schemas.py` | **Removed** — legacy code deleted |
 | `mock_server.py` | **Removed** — portal-guided refunds (ADR-028); no agent refund execute |
 
 ---

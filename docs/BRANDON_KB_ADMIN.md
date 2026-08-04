@@ -2,7 +2,7 @@
 
 Product direction from **Brandon Hinsen** ([Mail.pdf](../SendAnywhere_546287/Mail.pdf), April 2026) and his local **SpyderWash KB Admin** prototype (screenshots in mail). Maps to [INTENT_MATRIX.md](INTENT_MATRIX.md) (routing/escalation) vs **structured KB chunks** (retrieval).
 
-**Status:** **Not implemented** in this repo — Phase 5 target. MVP uses generic Chroma splits in [rag_service.py](../src/services/rag_service.py).
+**Status:** **Not implemented** in this repo — Phase 5 target. MVP uses Qdrant-backed article-aware chunking in [rag_service.py](../src/services/rag_service.py).
 
 ---
 
@@ -115,7 +115,7 @@ Approved chunk → re-embed → shared vector index (Qdrant)
 Operator Agent RAG uses updated chunk on next query
 ```
 
-**MVP shortcut:** Brandon edits Bible source or chunk JSON manually → dev1 re-ingests `KB/` → delete `chroma_db/`.
+**MVP shortcut:** Brandon edits Bible source or chunk JSON manually → dev1 re-ingests `KB/` → run: `uv run python -m data_injection`.
 
 ---
 

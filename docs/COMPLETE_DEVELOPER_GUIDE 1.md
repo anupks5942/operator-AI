@@ -18,7 +18,7 @@ LangGraph-orchestrated **technical support agent** for SpyderWash laundromat ope
 
 | Capability | Implementation |
 |---|---|
-| Knowledge answers / troubleshooting | RAG over KB (v2.2 articles + selective Bible) via ChromaDB + FlashRank |
+| Knowledge answers / troubleshooting | RAG over KB (v2.2 articles + selective Bible) via Qdrant + FlashRank |
 | Live loyalty / transactions / kiosk / POS / reports / remote device | LangChain `@tool` → HTTP to Setomatic beta API |
 | Refunds | **Portal guidance only** (RAG). No agent-executed refund API |
 | Outages | Blast-radius → clarify → troubleshoot → confirm → escalate (email/SMS) |
@@ -55,12 +55,11 @@ Exceptions: `rag_agent` may continue via `route_after_rag`; `tool_node` runs an 
 ```
 operator-AI/
 ├── app.py                          # Streamlit demo UI (in-process graph)
-├── main.py                         # LEGACY CLI / old FastAPI — do not use for prod
 ├── pyproject.toml                  # Dependencies (uv)
 ├── AGENTS.md                       # Rules for AI coding agents working on this repo
 ├── README.md                       # Quick start
-├── KB/                             # Source manuals (DOCX/PDF) ingested into Chroma
-├── chroma_db/                      # Generated vector DB (local disk; usually gitignored)
+├── KB/                             # Source manuals (DOCX/PDF) ingested into Qdrant
+├── spyderwash_qdrant/              # Generated vector DB (local disk; usually gitignored)
 ├── flashrank_cache/                # Cached FlashRank ONNX model files
 ├── tests/
 │   ├── test_outage_workflow.py     # Outage / post-escalation / dedup / greeting reset
@@ -97,7 +96,7 @@ operator-AI/
 |---|---|---|---|---|
 | **Chat LLM (OpenAI)** | `LLM_PROVIDER=openai` + `OPENAI_MODEL` | `gpt-4o-mini` | Router, RAG answers, conversation summary, escalation summary, tool ReAct | Cheap, strong tool-calling + structured output; default for MVP |
 | **Chat LLM (Groq)** | `LLM_PROVIDER=groq` + `GROQ_MODEL` | `llama-3.3-70b-versatile` | Same call sites via `create_chat_model()` | Optional faster/cheaper alternative; switch without code change |
-| **Embeddings** | `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | `RAGService` → Chroma ingest + similarity | OpenAI embeddings; good quality/cost for KB chunks |
+| **Embeddings** | `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | `RAGService` → Qdrant ingest + similarity | OpenAI embeddings; good quality/cost for KB chunks |
 | **Reranker** | (hardcoded) | FlashRank `ms-marco-TinyBERT-L-2-v2` | After MMR retrieval in `rag_service._rerank_documents` | See **§C.5** — local precision layer; replaced `rank-T5-flan` (ADR-032) |
 
 **Factory:** `src/llm.py` → `create_chat_model(temperature=0)`  
@@ -139,7 +138,7 @@ Older docs (`README.md`, `TECH_STACK.md`, parts of `ENVIRONMENT.md`) sometimes s
 
 ## C.5 Why FlashRank is used (important)
 
-**Short answer:** Vector search (MMR in Chroma) alone is not precise enough for operator KB answers. FlashRank is a **second-pass local reranker** that re-orders the MMR candidates by true query relevance before the LLM sees them.
+**Short answer:** Vector search (MMR in Qdrant) alone is not precise enough for operator KB answers. FlashRank is a **second-pass local reranker** that re-orders the MMR candidates by true query relevance before the LLM sees them.
 
 ### Problem it solves
 
@@ -160,7 +159,7 @@ Older docs (`README.md`, `TECH_STACK.md`, parts of `ENVIRONMENT.md`) sometimes s
 
 ```
 User query
-  → Chroma MMR retrieve (up to 12 docs)
+  → Qdrant MMR retrieve (up to 12 docs)
   → FlashRank `_rerank_documents(..., top_k=6)`   ← here
   → co-retrieval of companion articles
   → LLM generate answer
@@ -201,7 +200,7 @@ With FlashRank:
 | `fastapi` + `uvicorn` | Production HTTP API |
 | `streamlit` | Local demo UI |
 | `langgraph` | State machine orchestration + `MemorySaver` |
-| `langchain` / `langchain-openai` / `langchain-groq` / `langchain-chroma` / `langchain-community` / `langchain-text-splitters` / `langchain-classic` | LLM, tools, RAG chain, loaders, Chroma |
+| `langchain` / `langchain-openai` / `langchain-groq` / `langchain-qdrant` / `langchain-community` / `langchain-text-splitters` / `langchain-classic` | LLM, tools, RAG chain, loaders, Qdrant |
 | `pydantic` | Request schemas + tool args + structured router output |
 | `python-dotenv` | Load `.env` |
 | `requests` | All Setomatic HTTP tool calls + status page |
@@ -247,7 +246,7 @@ All app settings that belong in code are read in **`src/config.py`**.
 | `LLM_PROVIDER` | `openai` | `"openai"` or `"groq"` | `llm.py` | Switches entire chat stack |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Chat model id | When provider=openai | Cost/quality/latency tradeoff |
 | `GROQ_MODEL` | `llama-3.3-70b-versatile` | Chat model id | When provider=groq | Same |
-| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model | `RAGService` | **Must re-ingest** (`delete chroma_db/`) after change |
+| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model | `RAGService` | **Must re-ingest** (run `uv run python -m data_injection`) after change |
 | `USE_LIVE_NOTIFICATIONS` | `false` | Live vs mock notify | `NotificationService` | `false` = log only (safe local) |
 | `TWILIO_ACCOUNT_SID` / `AUTH_TOKEN` / `FROM_NUMBER` | empty | Twilio creds | SMS | Required when live SMS |
 | `ESCALATION_SMS_TO` | empty | On-call phone | SMS destination | Who gets store-down SMS |
@@ -274,7 +273,7 @@ There is **no SQL database** in MVP.
 - **Stores:** Full `AgentState` checkpoint per thread
 - **Limitation:** Lost on process restart; not shared across replicas
 
-## F.2 ChromaDB (`./chroma_db/`)
+## F.2 Qdrant (`./spyderwash_qdrant/`)
 
 Persistent local vector store for KB chunks.
 
@@ -301,7 +300,7 @@ Persistent local vector store for KB chunks.
 3. Co-retrieval of companion articles  
 4. LLM generation with Section 0 rules in system prompt  
 
-**Re-ingest:** delete `chroma_db/` and restart after KB or embedding model changes.
+**Re-ingest:** Run `uv run python -m data_injection` after KB or embedding model changes.
 
 ---
 
@@ -569,7 +568,7 @@ See Part E. Module runs `load_dotenv()` on import.
 | Variable | Why |
 |---|---|
 | `_rag_service` / `get_rag_service()` | Singleton RAG (expensive to rebuild) |
-| `_BRAND_FILTER_MAP` | Map query brand words → Chroma brand filter |
+| `_BRAND_FILTER_MAP` | Map query brand words → Qdrant brand filter |
 | `_INTENT_TO_CATEGORY_MAP` | Intent → v2.2 category filter |
 | `_TROUBLESHOOT_MARKERS` | Detect troubleshooting answers for resolve prompt |
 | `_TROUBLESHOOT_INTENTS` | Intents that may append “Did this resolve?” |
@@ -581,7 +580,7 @@ See Part E. Module runs `load_dotenv()` on import.
 | Function | Purpose | Params | Returns | Called from | Impact |
 |---|---|---|---|---|---|
 | `get_rag_service` | Lazy RAG singleton | — | `RAGService` | RAG nodes | One vectorstore per process |
-| `_extract_metadata_filter` | Build Chroma filter | state | dict/None | `retrieve_and_generate` | Narrows retrieval |
+| `_extract_metadata_filter` | Build Qdrant filter | state | dict/None | `retrieve_and_generate` | Narrows retrieval |
 | `_answer_contains_troubleshooting` | Marker count ≥2 | answer | bool | RAG node | Controls resolve prompt |
 | `_get_prior_ai_content` | Prior AI text | messages | str/None | follow-up expand | Context for short “yes” |
 | `_is_short_followup` | Affirmative short msg | text | bool | expand | Avoid bad retrieval |
@@ -752,12 +751,12 @@ See Part E. Module runs `load_dotenv()` on import.
 | `_parse_bible_selective` | Troubleshoot + operator FAQ chunks | list[Document] |
 | `_get_reranker` | Lazy FlashRank | Ranker |
 | `_rerank_documents` | Rerank to top_k | list[Document] |
-| `RAGService.__init__` | Load or ingest Chroma | — |
+| `RAGService.__init__` | Load or ingest Qdrant | — |
 | `_load_section0_prompt` | Cache Section 0 | — |
 | `_find_v22_file` | Path to v2.2 | str/None |
 | `load_and_process_documents` | Full KB walk | chunks/None |
 | `_ingest_v22` / `_ingest_bible` / `_ingest_generic` | Per-source ingest | list |
-| `initialize_vectorstore` | Persist Chroma | Chroma |
+| `initialize_vectorstore` | Persist Qdrant | QdrantVectorStore |
 | `_build_retriever` | MMR + filter | retriever |
 | `_fetch_co_retrieval_docs` | Companion fetch | list |
 | `_build_system_prompt` / `_condense_section0` | Generation rules | str |
@@ -799,14 +798,9 @@ See Part E. Module runs `load_dotenv()` on import.
 
 ---
 
-## K.13 `main.py` (legacy)
+## K.13 ~~`main.py`~~ (removed)
 
-| Function | Purpose |
-|---|---|
-| `stream_turn` | Console stream one turn |
-| `run_multi_turn_test` | Scripted multi-turn |
-
-Prefer `server.py` / `app.py`.
+Legacy CLI test harness has been deleted. Use `server.py` or `app.py`.
 
 ---
 
@@ -867,7 +861,7 @@ Manual TC1/TC2: [TESTING.md](TESTING.md), [ESCALATION_WORKFLOW.md](ESCALATION_WO
 - Inject secrets via env; never commit `.env`  
 - Put auth in front of `:8000`  
 - Replace `MemorySaver` before multi-replica scale  
-- Consider shared vector DB (Qdrant) instead of local `chroma_db/`
+- Consider shared vector DB (Qdrant Cloud) instead of local `./spyderwash_qdrant/`
 
 ---
 
@@ -882,14 +876,14 @@ Manual TC1/TC2: [TESTING.md](TESTING.md), [ESCALATION_WORKFLOW.md](ESCALATION_WO
 | OperatorId=4 hardcoded in tools | Request `operator_id` not yet wired into Setomatic tool calls |
 | No agent refund execute | By design (ADR-028) — portal guidance only |
 | No live machine telemetry | Guardrail refuses; portal only |
-| Local Chroma | Per-machine index; re-ingest after KB changes |
+| Local Qdrant | Per-machine index; re-ingest after KB changes |
 | Doc drift | Some older markdown still mention MiniLM / per-node OpenAI model envs |
 
 ## N.2 Troubleshooting
 
 | Symptom | Check |
 |---|---|
-| RAG answers empty / wrong | Delete `chroma_db/`, ensure KB DOCX present, `OPENAI_API_KEY` set, restart |
+| RAG answers empty / wrong | Run: `uv run python -m data_injection`, ensure KB DOCX present, `OPENAI_API_KEY` set, restart |
 | Tools fail | `SETOMATIC_BASE_URL`, network, OperatorId=4 assumption, tool logs |
 | Escalation “works” but no email/SMS | `USE_LIVE_NOTIFICATIONS=true` + Twilio/SMTP vars |
 | Wrong routing | Streamlit diagnostics sidebar; inspect `current_intent` / entities |

@@ -18,7 +18,7 @@ Current MVP choices (as implemented in this repo) vs target production stack. Se
 | Tool-calling LLM | OpenAI | `gpt-4o-mini` default | [TOOL_OPENAI_MODEL](../src/config.py) |
 | RAG LLM | OpenAI | `gpt-4o-mini` default | [RAG_OPENAI_MODEL](../src/config.py) via `ChatOpenAI` |
 | Embeddings | HuggingFace | `all-MiniLM-L6-v2` | Local sentence-transformers |
-| Vector store | ChromaDB | `./chroma_db` | Single-node persistence |
+| Vector store | Qdrant | `./spyderwash_qdrant/` | Single-node persistence |
 | Document loaders | LangChain | PDF, DOCX only | `.txt` in `KB/` not ingested — [rag_service.py](../src/services/rag_service.py). Bible ~500 pp; structured chunks Phase 5 — [BRANDON_KB_ADMIN.md](BRANDON_KB_ADMIN.md) |
 | HTTP client | requests | >= 2.31 | Setomatic API + status scrape |
 | Escalation email | Mandrill SMTP | smtp.mandrillapp.com:587 | Feature-flagged |
@@ -43,10 +43,10 @@ Current MVP choices (as implemented in this repo) vs target production stack. Se
 
 ### Legacy (do not use for new work)
 
-| Surface | File | Replacement |
-|---------|------|-------------|
-| `POST /query` | [main.py](../main.py) + [routes.py](../src/api/routes.py) | `POST /api/v1/agent/chat` |
-| `POST /notify/sms` | [routes.py](../src/api/routes.py) | Escalation via graph only |
+| Surface | File | Notes |
+|---------|------|-------|
+| `POST /api/v1/agent/chat` | [server.py](../src/api/server.py) | Production endpoint |
+| Escalation SMS/email | Graph-triggered via `NotificationService` | No standalone endpoint |
 
 ---
 

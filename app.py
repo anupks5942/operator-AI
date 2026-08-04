@@ -16,9 +16,17 @@ logging.basicConfig(
 )
 
 from src.agent.graph import agent_app as compiled_graph
+from src.services.images.ensure import ensure_images_extracted
 
 st.set_page_config(page_title="Setomatic Operator AI", page_icon="🕷️", layout="wide")
 st.title("🕷️ SpyderWash Operator AI - MVP Demo")
+
+try:
+    ensure_images_extracted("all")
+except Exception as _img_exc:
+    logging.getLogger(__name__).warning(
+        "Image extract bootstrap failed: %s", _img_exc
+    )
 
 # ── Timestamp helpers ─────────────────────────────────────────────────────────
 

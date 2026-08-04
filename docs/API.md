@@ -4,7 +4,7 @@
 **Base URL (local):** `http://localhost:8000`  
 **OpenAPI / Swagger:** `http://localhost:8000/docs`
 
-Legacy endpoints in [main.py](../main.py) and [routes.py](../src/api/routes.py) are **deprecated** for new integrations.
+Legacy endpoints (`main.py`, `routes.py`) have been **removed** from the codebase.
 
 ---
 
@@ -140,14 +140,13 @@ Logger name: `setomatic.api`
 
 ## Legacy endpoints (do not use)
 
-| Endpoint | Server | Replacement |
-|----------|--------|-------------|
-| `POST /query` | main.py | `POST /api/v1/agent/chat` |
-| `GET /health` | main.py routes | `GET /health` on server.py |
-| `POST /notify/sms` | routes.py | Escalation via graph only |
-| `POST /notify/email` | routes.py | Escalation via graph only |
+| Endpoint | Status |
+|----------|--------|
+| `POST /query` | **Removed** — use `POST /api/v1/agent/chat` |
+| `POST /notify/sms` | **Removed** — escalation via graph only |
+| `POST /notify/email` | **Removed** — escalation via graph only |
 
-Legacy `/query` does not support `operator_id`, `session_id`, or structured escalation flags.
+These legacy endpoints have been deleted from the codebase.
 
 ---
 

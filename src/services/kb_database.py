@@ -91,6 +91,9 @@ def initialize_database():
                 scores_json TEXT NOT NULL DEFAULT '[]',
                 latency_ms REAL NOT NULL DEFAULT 0,
                 co_retrieval_applied INTEGER NOT NULL DEFAULT 0,
+                error_type TEXT DEFAULT '',
+                empty_result INTEGER DEFAULT 0,
+                payload_filter_failed INTEGER DEFAULT 0,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -369,13 +372,18 @@ def log_retrieval(
     scores: list[float] = None,
     latency_ms: float = 0,
     co_retrieval_applied: bool = False,
+    error_type: str = "",
+    empty_result: bool = False,
+    payload_filter_failed: bool = False,
 ):
-    """Log a retrieval event for benchmarking."""
+    """Log a retrieval event for benchmarking and monitoring."""
     conn = _get_connection()
     try:
         conn.execute("""
-            INSERT INTO retrieval_logs (query, method, intent, device_type, articles_returned_json, scores_json, latency_ms, co_retrieval_applied)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO retrieval_logs
+            (query, method, intent, device_type, articles_returned_json, scores_json,
+             latency_ms, co_retrieval_applied, error_type, empty_result, payload_filter_failed)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             query,
             method,
@@ -385,8 +393,38 @@ def log_retrieval(
             json.dumps(scores or []),
             latency_ms,
             1 if co_retrieval_applied else 0,
+            error_type,
+            1 if empty_result else 0,
+            1 if payload_filter_failed else 0,
         ))
         conn.commit()
+    finally:
+        conn.close()
+
+
+def get_retrieval_diagnostics_24h() -> dict:
+    """Get retrieval monitoring stats for the last 24 hours."""
+    conn = _get_connection()
+    try:
+        row = conn.execute("""
+            SELECT
+                COUNT(*) as total_queries,
+                SUM(CASE WHEN empty_result = 1 THEN 1 ELSE 0 END) as empty_results,
+                SUM(CASE WHEN error_type != '' THEN 1 ELSE 0 END) as errors,
+                SUM(CASE WHEN payload_filter_failed = 1 THEN 1 ELSE 0 END) as filter_failures,
+                AVG(latency_ms) as avg_latency
+            FROM retrieval_logs
+            WHERE timestamp >= datetime('now', '-24 hours')
+        """).fetchone()
+
+        total = row[0] or 0
+        return {
+            "total_queries_24h": total,
+            "empty_search_rate_24h": round((row[1] or 0) / max(total, 1) * 100, 2),
+            "error_rate_24h": round((row[2] or 0) / max(total, 1) * 100, 2),
+            "payload_filter_failure_rate_24h": round((row[3] or 0) / max(total, 1) * 100, 2),
+            "avg_latency_ms_24h": round(row[4] or 0, 2),
+        }
     finally:
         conn.close()
 

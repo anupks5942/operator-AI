@@ -98,8 +98,8 @@ Expected:
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | 500 on chat | Missing `OPENAI_API_KEY` | Set in `.env`, restart |
-| Empty RAG answers | Empty/missing `chroma_db/` | Add PDF/DOCX to `KB/`, delete `chroma_db/`, restart |
-| KB txt not in answers | stale `chroma_db/` or Streamlit not restarted after KB change | Delete `chroma_db/`, restart app so `.txt` files re-ingest |
+| Empty RAG answers | Empty/missing `./spyderwash_qdrant/` | Add PDF/DOCX to `KB/`. Run: `uv run python -m data_injection` |
+| KB txt not in answers | stale `./spyderwash_qdrant/` or Streamlit not restarted after KB change | Run: `uv run python -m data_injection`, then restart app |
 | Refund requests | Agent does not execute refunds | Guide operator to SpyderWash portal; ensure Bible refund section is ingested |
 | No email/SMS | `USE_LIVE_NOTIFICATIONS=false` | Set `true` + Twilio/SMTP vars |
 | Email/SMS failed | Bad credentials | Check server logs |
@@ -111,13 +111,13 @@ Expected:
 
 ## Knowledge base re-ingest
 
-Chroma builds on first `RAGService()` init when `chroma_db/` is empty.
+Qdrant collection is built by the data injection pipeline into `./spyderwash_qdrant/`.
 
 To force rebuild:
 
 1. Stop processes
-2. Delete `chroma_db/`
-3. Restart — ingests `.pdf` and `.docx` from `KB/` only
+2. Run: `uv run python -m data_injection`
+3. Restart — ingests `.pdf` and `.docx` from `KB/`
 
 Chunk settings: 500 chars, 50 overlap ([rag_service.py](../src/services/rag_service.py)).
 
@@ -125,9 +125,10 @@ Chunk settings: 500 chars, 50 overlap ([rag_service.py](../src/services/rag_serv
 
 ## Legacy commands (avoid)
 
+Legacy `main.py` has been removed. Use `server.py` only:
+
 ```bash
-uv run uvicorn main:app --reload   # use server.py
-uv run python main.py              # console harness only
+uv run uvicorn src.api.server:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ---

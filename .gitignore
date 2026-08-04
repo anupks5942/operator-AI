@@ -14,7 +14,6 @@ wheels/
 .env.*
 
 # Local databases
-chroma_db/
 spyderwash_qdrant/
 spyderwash_section0.txt
 *.db
