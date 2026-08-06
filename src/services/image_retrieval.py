@@ -31,6 +31,54 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     return dict(row)
 
 
+def filter_images_safe(
+    images: list[dict],
+    article_id: str = "",
+    article_meta: dict | None = None,
+) -> list[dict]:
+    """Apply image safety rules per Brandon's v2.3 guidance.
+
+    Drops images that are:
+    - Outdated (review_status = 'outdated' or 'unapproved')
+    - Product/device mismatch with the selected article
+    - Flagged for text-image conflict
+
+    Returns filtered list (may be shorter).
+    """
+    if not images:
+        return []
+
+    article_product = (article_meta or {}).get("product", "").lower()
+    article_device = (article_meta or {}).get("device_type", "").lower()
+
+    filtered: list[dict] = []
+    for img in images:
+        review = (img.get("review_status") or "approved").lower()
+        if review in ("outdated", "unapproved"):
+            logger.debug("[IMAGE_SAFETY] Dropped %s: review_status=%s", img.get("image_id"), review)
+            continue
+
+        if img.get("text_image_conflict"):
+            logger.debug("[IMAGE_SAFETY] Dropped %s: text_image_conflict", img.get("image_id"))
+            continue
+
+        # Device/product mismatch check (only if article has specifics)
+        if article_product and article_device:
+            img_articles = img.get("_registry_articles", [])
+            if img_articles and article_id and article_id not in img_articles:
+                logger.debug("[IMAGE_SAFETY] Dropped %s: not linked to %s", img.get("image_id"), article_id)
+                continue
+
+        filtered.append(img)
+
+    if len(filtered) < len(images):
+        logger.info(
+            "[IMAGE_SAFETY] Filtered %d -> %d images for article=%s",
+            len(images), len(filtered), article_id,
+        )
+    return filtered
+
+
 def get_case_images(
     article_id: str,
     include_linked: bool = True,

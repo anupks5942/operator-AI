@@ -64,13 +64,23 @@ class ChatRequest(BaseModel):
     channel: str = Field(default="chat", description="chat | voice")
 
 
+class ImageRef(BaseModel):
+    stable_id: str = Field(default="", description="Stable image identifier (IMG-SW-####).")
+    url: str = Field(default="", description="Relative URL or path to the image file.")
+    caption: str = Field(default="", description="Image caption/description.")
+    alt: str = Field(default="", description="Alt text for accessibility.")
+    image_type: str = Field(default="screenshot", description="Type: screenshot, diagram, photo, table.")
+
+
 class ChatResponse(BaseModel):
-    # reply is the final natural-language answer produced by the agent.
     reply: str                = Field(..., description="Final AI-generated reply.")
-    # detected_intent is the semantic category assigned by the router node.
     detected_intent: str      = Field(..., description="Intent label from the router classifier.")
-    # requires_escalation is True when the escalation node fired (store down / human requested).
     requires_escalation: bool = Field(..., description="True if an SMS escalation was triggered.")
+    selected_article_id: Optional[str] = Field(None, description="Primary article used to generate reply.")
+    related_article_ids: list[str] = Field(default_factory=list, description="Co-retrieved or companion article IDs.")
+    images: list[ImageRef] = Field(default_factory=list, description="Images associated with the response.")
+    citations: list[str] = Field(default_factory=list, description="Source references used in the reply.")
+    retrieval_explanation: Optional[str] = Field(None, description="Brief explanation of retrieval path.")
 
 
 # ---------------------------------------------------------------------------
@@ -261,10 +271,34 @@ def run_agent(
 
     final_state: dict = compiled_graph.invoke(initial_state, config=config)
 
+    # Extract multimodal metadata from state
+    co_meta = final_state.get("co_retrieval_meta") or {}
+    retrieved_articles = co_meta.get("companion_ids", [])
+    primary_article = ""
+    if final_state.get("retrieved_articles"):
+        primary_article = final_state["retrieved_articles"][0] if final_state["retrieved_articles"] else ""
+
+    # Build image refs from state if available
+    image_refs = []
+    state_images = final_state.get("response_images") or []
+    for img in state_images:
+        image_refs.append({
+            "stable_id": img.get("stable_id", ""),
+            "url": img.get("url", img.get("file_path", "")),
+            "caption": img.get("caption", ""),
+            "alt": img.get("alt_text", img.get("alt", "")),
+            "image_type": img.get("image_type", "screenshot"),
+        })
+
     return {
         "reply": _extract_reply(final_state),
         "detected_intent": final_state.get("current_intent") or "unknown",
         "requires_escalation": bool(final_state.get("escalation_dispatched", False)),
+        "selected_article_id": primary_article or None,
+        "related_article_ids": retrieved_articles,
+        "images": image_refs,
+        "citations": final_state.get("citations", []),
+        "retrieval_explanation": co_meta.get("method"),
     }
 
 # ---------------------------------------------------------------------------

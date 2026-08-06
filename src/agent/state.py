@@ -51,3 +51,8 @@ class AgentState(TypedDict):
     # overwriting the entire dict, preserving entities from earlier workflow steps.
     extracted_entities: Annotated[dict, merge_dicts]
     channel:                   Optional[str]
+    # Multimodal response fields populated by retrieve_and_generate
+    retrieved_articles:        Optional[list]
+    response_images:           Optional[list]
+    co_retrieval_meta:         Optional[dict]
+    citations:                 Optional[list]

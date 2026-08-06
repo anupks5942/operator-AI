@@ -9,7 +9,7 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 _ARTICLE_PATTERN = re.compile(
-    r"ARTICLE START:\s*(KB-[A-Z]+-\d+)\s*(.*?)ARTICLE END:\s*\1",
+    r"ARTICLE START:\s*(KB-[A-Z0-9][\w-]*)\s*(.*?)ARTICLE END:\s*\1",
     re.DOTALL,
 )
 
@@ -22,7 +22,7 @@ _CO_RETRIEVAL_PATTERN = re.compile(
     r"CO-RETRIEVAL RULE:?\s*(.+?)(?:\n|$)", re.IGNORECASE
 )
 
-_ARTICLE_ID_REF_PATTERN = re.compile(r"KB-[A-Z]+-\d+")
+_ARTICLE_ID_REF_PATTERN = re.compile(r"KB-[A-Z0-9][\w-]*")
 
 _V22_FILENAME_MARKERS = ("ai_support_knowledge_base", "ai support knowledge base")
 _BIBLE_FILENAME_MARKERS = ("bible",)
@@ -74,7 +74,7 @@ def parse_v22_articles(text: str) -> tuple[list[Document], str, list[Document]]:
 
         metadata = {
             "article_id": article_id,
-            "source_file": "SpyderWash_AI_Support_Knowledge_Base (v2.2).docx",
+            "source_file": "SpyderWash_AI_Support_Knowledge_Base (v2.3).docx",
             "doc_type": "kb_article",
             "brand": "SpyderWash",
             "source_priority": "primary",
@@ -104,7 +104,7 @@ def parse_v22_articles(text: str) -> tuple[list[Document], str, list[Document]]:
             co_ids = [cid for cid in co_ids if cid != article_id]
             metadata["co_retrieval_ids"] = ";".join(co_ids) if co_ids else ""
 
-        content = f"[{article_id}] {body}"
+        content = body
         articles.append(Document(page_content=content, metadata=metadata))
 
     last_article_end = text.rfind("ARTICLE END:")
@@ -124,7 +124,7 @@ def parse_v22_articles(text: str) -> tuple[list[Document], str, list[Document]]:
             visual_chunks.append(Document(
                 page_content=f"[VISUAL REFERENCE]\n{chunk}",
                 metadata={
-                    "source_file": "SpyderWash_AI_Support_Knowledge_Base (v2.2).docx",
+                    "source_file": "SpyderWash_AI_Support_Knowledge_Base (v2.3).docx",
                     "doc_type": "visual_reference",
                     "brand": "SpyderWash",
                     "source_priority": "secondary",

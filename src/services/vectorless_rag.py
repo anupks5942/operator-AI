@@ -18,6 +18,7 @@ from src.services.kb_database import (
 )
 from src.services.co_retrieval import expand_co_retrieval
 from src.services.article_context import build_ordered_context
+from src.services.page_index import route as page_index_route, get_leaf_for_article
 from src.config import CO_RETRIEVAL_MAX_DEPTH
 
 logger = logging.getLogger(__name__)
@@ -59,11 +60,13 @@ def vectorless_retrieve(
     query: str,
     intent: str = "",
     device_type: str = "",
+    category: str = "",
+    product: str = "",
     top_k: int = 6,
     max_co_depth: int | None = None,
 ) -> tuple[list[Document], dict]:
     """
-    Vectorless retrieval: structured lookup + keyword matching + recursive co-retrieval.
+    Vectorless retrieval: PageIndex pre-filter + structured lookup + keyword matching + recursive co-retrieval.
 
     Returns:
         (ordered_documents, co_retrieval_meta)
@@ -72,7 +75,18 @@ def vectorless_retrieve(
     depth = max_co_depth if max_co_depth is not None else CO_RETRIEVAL_MAX_DEPTH
     retrieved_articles: list[CanonicalArticle] = []
 
-    if intent:
+    # PageIndex pre-filter: narrow candidate set by hierarchy
+    page_index_candidates = page_index_route(
+        query, hints={"category": category, "product": product, "device_type": device_type}
+    )
+    if page_index_candidates:
+        from src.services.kb_database import get_article
+        for aid in page_index_candidates[:top_k]:
+            art = get_article(aid)
+            if art:
+                retrieved_articles.append(art)
+
+    if not retrieved_articles and intent:
         retrieved_articles.extend(search_by_intent_and_device(intent, device_type, limit=top_k))
 
     if not retrieved_articles and intent:
@@ -107,6 +121,14 @@ def vectorless_retrieve(
     latency_ms = (time.time() - start_time) * 1000
     article_ids = [d.metadata.get("article_id", "") for d in final_docs if d.metadata.get("article_id")]
 
+    # Compute page_index_leaf for traceability
+    page_index_leaf = ""
+    if article_ids:
+        page_index_leaf = get_leaf_for_article(article_ids[0])
+
+    # Rejected = page_index candidates that weren't selected
+    rejected_ids = [aid for aid in page_index_candidates if aid not in set(article_ids)]
+
     log_retrieval(
         query=query,
         method="vectorless",
@@ -116,6 +138,8 @@ def vectorless_retrieve(
         scores=[],
         latency_ms=latency_ms,
         co_retrieval_applied=len(co_result.companion_ids) > 0,
+        page_index_leaf=page_index_leaf,
+        rejected_ids=rejected_ids,
     )
 
     co_meta = {
@@ -126,6 +150,8 @@ def vectorless_retrieve(
         "cycles_skipped": len(co_result.cycles_skipped),
         "depth_by_id": co_result.depth_by_id,
         "latency_ms": latency_ms,
+        "page_index_leaf": page_index_leaf,
+        "rejected_ids": rejected_ids,
     }
 
     logger.info(

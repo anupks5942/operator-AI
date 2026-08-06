@@ -1,6 +1,7 @@
 """Map PDF pages to article/case IDs.
 
-v2.2: Uses ARTICLE START/END text markers found in PDF page text.
+v2.3+: Uses Image Asset Registry (Brandon's explicit mapping) when available.
+v2.2 fallback: ARTICLE START/END text markers found in PDF page text.
 Bible: Builds synthetic section IDs from known section start markers.
 """
 from __future__ import annotations
@@ -12,8 +13,108 @@ import fitz  # PyMuPDF
 
 logger = logging.getLogger(__name__)
 
-_ARTICLE_START_RE = re.compile(r"ARTICLE\s+START:\s*(KB-[A-Z]+-\d+)")
-_ARTICLE_END_RE = re.compile(r"ARTICLE\s+END:\s*(KB-[A-Z]+-\d+)")
+
+def get_articles_from_registry(image_stable_id: str) -> list[str]:
+    """Look up article IDs for an image from the asset registry (v2.3+).
+
+    Returns empty list if registry not populated or image not found.
+    """
+    try:
+        from src.services.images.asset_registry import get_registry_articles_for_image
+        return get_registry_articles_for_image(image_stable_id)
+    except Exception:
+        return []
+
+
+def get_registry_description(image_stable_id: str) -> str:
+    """Get Brandon's authored description for an image ID."""
+    try:
+        from src.services.images.asset_registry import get_registry_description as _get
+        return _get(image_stable_id)
+    except Exception:
+        return ""
+
+_ARTICLE_START_RE = re.compile(r"ARTICLE\s+START:\s*(KB-[A-Z0-9][\w-]*)")
+_ARTICLE_END_RE = re.compile(r"ARTICLE\s+END:\s*(KB-[A-Z0-9][\w-]*)")
+
+
+def map_paragraphs_to_pages(docx_path: str, pdf_path: str) -> dict[int, int]:
+    """Map DOCX paragraph indices to PDF page numbers.
+
+    Uses proportional mapping: paragraph position relative to total paragraphs
+    maps to the same relative position in total PDF pages. Then refines by
+    searching for ARTICLE START/END markers to anchor key positions.
+    """
+    import fitz
+    from docx import Document
+
+    doc = Document(docx_path)
+    total_paras = len(doc.paragraphs)
+
+    pdf_doc = fitz.open(pdf_path)
+    total_pages = len(pdf_doc)
+
+    # Build anchor points: paragraph indices where ARTICLE START appears
+    anchors: list[tuple[int, int]] = []  # (para_idx, page_number)
+
+    article_start_paras: dict[str, int] = {}
+    for i, para in enumerate(doc.paragraphs):
+        text = para.text.strip()
+        m = _ARTICLE_START_RE.search(text)
+        if m:
+            article_start_paras[m.group(1)] = i
+
+    # Find same markers in PDF to get page numbers
+    for page_idx in range(total_pages):
+        page_text = pdf_doc[page_idx].get_text()
+        for m in _ARTICLE_START_RE.finditer(page_text):
+            aid = m.group(1)
+            if aid in article_start_paras:
+                anchors.append((article_start_paras[aid], page_idx + 1))
+
+    pdf_doc.close()
+
+    # Sort anchors by paragraph index
+    anchors.sort(key=lambda x: x[0])
+
+    def _estimate_page(para_idx: int) -> int:
+        """Estimate page for a paragraph using anchor interpolation."""
+        if not anchors:
+            return max(1, int((para_idx / max(total_paras, 1)) * total_pages) + 1)
+
+        # Before first anchor
+        if para_idx <= anchors[0][0]:
+            ratio = para_idx / max(anchors[0][0], 1)
+            return max(1, int(ratio * anchors[0][1]))
+
+        # After last anchor
+        if para_idx >= anchors[-1][0]:
+            remaining_paras = total_paras - anchors[-1][0]
+            remaining_pages = total_pages - anchors[-1][1]
+            offset = para_idx - anchors[-1][0]
+            extra = int((offset / max(remaining_paras, 1)) * remaining_pages)
+            return min(total_pages, anchors[-1][1] + extra)
+
+        # Between two anchors — interpolate
+        for i in range(len(anchors) - 1):
+            if anchors[i][0] <= para_idx <= anchors[i + 1][0]:
+                para_span = anchors[i + 1][0] - anchors[i][0]
+                page_span = anchors[i + 1][1] - anchors[i][1]
+                ratio = (para_idx - anchors[i][0]) / max(para_span, 1)
+                return anchors[i][1] + int(ratio * page_span)
+
+        return max(1, int((para_idx / max(total_paras, 1)) * total_pages) + 1)
+
+    # Build the full mapping for every paragraph that might have an image
+    para_to_page: dict[int, int] = {}
+    for i in range(total_paras):
+        para_to_page[i] = _estimate_page(i)
+
+    logger.info(
+        "[CASE_MAPPER] Mapped %d paragraphs to pages using %d anchors",
+        total_paras, len(anchors),
+    )
+    return para_to_page
 
 _BIBLE_SECTION_MARKERS = [
     ("BIBLE-TROUBLESHOOT", "Troubleshooting\nNetwork Issues"),

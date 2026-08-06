@@ -22,7 +22,7 @@ from src.services.kb_database import initialize_database, upsert_article, upsert
 logger = logging.getLogger(__name__)
 
 _ARTICLE_PATTERN = re.compile(
-    r"ARTICLE START:\s*(KB-[A-Z]+-\d+)\s*(.*?)ARTICLE END:\s*\1",
+    r"ARTICLE START:\s*(KB-[A-Z0-9][\w-]*)\s*(.*?)ARTICLE END:\s*\1",
     re.DOTALL,
 )
 
@@ -31,17 +31,18 @@ _V22_FILENAME_MARKERS = ("ai_support_knowledge_base", "ai support knowledge base
 _SECTION0_KEEP_HEADERS = {
     "Operator-facing scope and assumptions",
     "Answer selection order",
+    "Required customer-response structure",
     "Required Operator-response structure",
     "Question discipline",
     "Security and privacy",
     "RMA and hardware-return control",
     "Financial and contractual accuracy",
     "Software and feature-currentness",
+    "Integrated technical content and source priority",
 }
 
 _SECTION0_REMOVE_HEADERS = {
     "Primary purpose",
-    "Integrated technical content and source priority",
     "Article schema",
     "Recommended RAG ingestion settings",
     "1. Intent Taxonomy and Routing",
@@ -75,7 +76,7 @@ def clean_section0(section0_text: str) -> str:
                 continue
             if any(h in stripped for h in (
                 "SPYDERWASH", "AI Support Knowledge Base", "Setomatic Systems",
-                "Operator-Facing Edition", "Revision 2.2",
+                "Operator-Facing Edition", "Revision 2.",
                 "Operator-actionable issue resolution",
             )):
                 continue

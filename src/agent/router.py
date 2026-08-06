@@ -468,7 +468,7 @@ explicitly asked the user for a missing piece of information, or a confirmation,
      - If the assistant was looking up machine configurations -> intent = `machine_config_lookup`
      - If the assistant was listing loyalty card categories -> intent = `loyalty_card_categories`
      - If the assistant was asking 'Is this affecting one machine or the entire location?' -> intent = `emergency_store_down`
-     - If the assistant was asking 'Did this resolve the issue?' or 'Did this resolve the issue? (Yes/No)' -> keep the active hardware/outage/troubleshooting intent (`machine_down`, `machines_not_starting`, `kiosk_not_responding`, `multiple_machines_offline`, `emergency_store_down`, or `technical_support`)
+     - If the assistant provided troubleshooting steps and the user replies with a yes/no or resolution status -> keep the active hardware/outage/troubleshooting intent (`machine_down`, `machines_not_starting`, `kiosk_not_responding`, `multiple_machines_offline`, `emergency_store_down`, or `technical_support`)
      - If the assistant was asking 'To help me get you the right fix, is this affecting just one specific machine, or is your entire laundromat offline?' -> keep the active hardware/outage/troubleshooting intent (`machine_down`, `machines_not_starting`, `kiosk_not_responding`, `multiple_machines_offline`, `emergency_store_down`, or `technical_support`)
      - If the assistant was asking a clarifying question about the device type (e.g. 'Legacy Kiosk or Platinum Kiosk?', 'which type of kiosk', 'which machine', 'could you provide more details') -> keep the active troubleshooting intent (`kiosk_not_responding`, `machine_down`, `machines_not_starting`, `technical_support`, etc.) and set `api_action_required` to FALSE. The user's reply is providing details for the same issue, not a new query.
 
@@ -477,7 +477,7 @@ explicitly asked the user for a missing piece of information, or a confirmation,
 
   b. Set the flags correctly:
      - For API workflows: `api_action_required` = true
-     - For outage/escalation workflow: if the user confirms troubleshooting failed (replied 'no' to 'Did this resolve the issue?' or 'Did this resolve the issue? (Yes/No)'), set `escalation_required` = true. Otherwise, set it to false.
+     - For outage/escalation workflow: if the user confirms troubleshooting failed (replied 'no' or indicates the issue persists after troubleshooting steps), set `escalation_required` = true. Otherwise, set it to false.
 
   c. Extract the provided entity into `extracted_entities`:
      - Card numbers or transaction IDs -> `card_number` or `transaction_detail_id`
@@ -489,9 +489,9 @@ explicitly asked the user for a missing piece of information, or a confirmation,
      - User reply to 'To help me get you the right fix, is this affecting just one specific machine, or is your entire laundromat offline?':
        * 'one machine' / 'specific machine' / 'just one' -> `blast_radius`: "single_machine"
        * 'entire laundromat offline' / 'entire location' / 'whole store' / 'all' -> `blast_radius`: "entire_location"
-     - User reply to 'Did this resolve the issue?' or 'Did this resolve the issue? (Yes/No)':
-       * 'no' / 'it did not' / 'still down' / 'still broken' -> `troubleshooting_failed`: true
-       * 'yes' / 'it resolved it' / 'fixed' -> `troubleshooting_failed`: false
+     - User reply after troubleshooting steps were provided:
+       * 'no' / 'it did not' / 'still down' / 'still broken' / 'not working' -> `troubleshooting_failed`: true
+       * 'yes' / 'it resolved it' / 'fixed' / 'working now' -> `troubleshooting_failed`: false
 
   IMPORTANT: A user replying "entire location", "entire laundromat offline", or "no" to a prompt from the assistant is continuing the outage/machine down/troubleshooting workflow, so intent must be kept as the active workflow intent (including `technical_support` if that was the active intent).
 
@@ -517,6 +517,7 @@ _DOMAIN_KEYWORDS = frozenset({
     "login", "password", "credentials", "sign in", "log in",
     "cashbox", "cash drawer", "reconcil", "refund",
     "printer", "print", "label printer", "thermal", "paper jam",
+    "led", "light", "blinking", "flashing", "beeping", "error code",
 })
 
 

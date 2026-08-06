@@ -200,16 +200,16 @@ class POSTransactionsSchema(BaseModel):
         description="End date (YYYY-MM-DD). Required.",
     )
     card_code: int = Field(
-        default=17,
-        description="Payment type filter: 17=Loyalty Card (default), 19=Credit Card, 20=Cash.",
+        ...,
+        description="Payment type filter (required): 17=Loyalty Card, 19=Credit Card, 20=Cash. Ask operator if not specified.",
     )
     order_type: int = Field(
-        default=1,
-        description="Order type: 1=All (default), 2=Sale only, 3=WDF and PUD.",
+        ...,
+        description="Order type (required): 1=All, 2=Sale only, 3=WDF and PUD. Ask operator if not specified.",
     )
     account_type: int = Field(
-        default=1,
-        description="Customer type: 1=All (default), 2=Commercial only, 3=Non-commercial only.",
+        ...,
+        description="Customer type (required): 1=All, 2=Commercial only, 3=Non-commercial only. Ask operator if not specified.",
     )
     card_no: str | None = Field(
         default=None,
@@ -927,9 +927,9 @@ _POS_OPERATOR_ID = 4
 def get_pos_transactions(
     start_date: str,
     end_date: str,
-    card_code: int = 17,
-    order_type: int = 1,
-    account_type: int = 1,
+    card_code: int,
+    order_type: int,
+    account_type: int,
     card_no: str | None = None,
     location_id: int | None = None,
     pos_id: str | None = None,
@@ -947,9 +947,9 @@ def get_pos_transactions(
     Args:
         start_date: Start date (YYYY-MM-DD). Required.
         end_date: End date (YYYY-MM-DD). Required.
-        card_code: Payment type — 17=Loyalty Card (default), 19=Credit Card, 20=Cash.
-        order_type: Order type — 1=All (default), 2=Sale only, 3=WDF and PUD.
-        account_type: Customer type — 1=All (default), 2=Commercial only, 3=Non-commercial only.
+        card_code: Payment type — 17=Loyalty Card, 19=Credit Card, 20=Cash. Required; ask if missing.
+        order_type: Order type — 1=All, 2=Sale only, 3=WDF and PUD. Required; ask if missing.
+        account_type: Customer type — 1=All, 2=Commercial only, 3=Non-commercial only. Required; ask if missing.
         card_no: Optional filter by specific card number.
         location_id: Optional filter by location ID.
         pos_id: Optional filter by POS terminal ID.

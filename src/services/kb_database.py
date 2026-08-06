@@ -94,6 +94,8 @@ def initialize_database():
                 error_type TEXT DEFAULT '',
                 empty_result INTEGER DEFAULT 0,
                 payload_filter_failed INTEGER DEFAULT 0,
+                page_index_leaf TEXT DEFAULT '',
+                rejected_ids_json TEXT DEFAULT '[]',
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -109,18 +111,22 @@ def initialize_database():
             -- Image extraction tables
             CREATE TABLE IF NOT EXISTS images (
                 image_id       TEXT PRIMARY KEY,
+                stable_id      TEXT UNIQUE,
                 source_doc     TEXT NOT NULL,
                 file_path      TEXT NOT NULL,
                 checksum       TEXT NOT NULL,
+                phash          TEXT DEFAULT '',
                 image_type     TEXT DEFAULT 'screenshot',
                 caption        TEXT DEFAULT '',
                 visual_summary TEXT DEFAULT '',
+                alt_text       TEXT DEFAULT '',
                 width          INTEGER,
                 height         INTEGER,
                 format         TEXT,
                 file_size      INTEGER,
                 page_number    INTEGER,
                 sequence       INTEGER,
+                review_status  TEXT DEFAULT 'approved',
                 created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -173,6 +179,44 @@ def initialize_database():
             CREATE INDEX IF NOT EXISTS idx_images_checksum ON images(checksum);
             CREATE INDEX IF NOT EXISTS idx_image_case_article ON image_case_map(article_id);
             CREATE INDEX IF NOT EXISTS idx_image_search_term ON image_search_terms(term);
+
+            -- Image Asset Registry (Brandon v2.3)
+            CREATE TABLE IF NOT EXISTS image_asset_registry (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                image_id TEXT UNIQUE NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                source_doc TEXT NOT NULL DEFAULT 'v2.3',
+                version TEXT NOT NULL DEFAULT '2.3',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS image_registry_articles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                image_id TEXT NOT NULL,
+                article_id TEXT NOT NULL,
+                UNIQUE(image_id, article_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_registry_image_id
+                ON image_asset_registry(image_id);
+            CREATE INDEX IF NOT EXISTS idx_registry_articles_image
+                ON image_registry_articles(image_id);
+            CREATE INDEX IF NOT EXISTS idx_registry_articles_article
+                ON image_registry_articles(article_id);
+
+            -- PageIndex tree (hierarchical routing)
+            CREATE TABLE IF NOT EXISTS page_index_nodes (
+                node_id TEXT PRIMARY KEY,
+                parent_id TEXT,
+                level TEXT NOT NULL,
+                label TEXT NOT NULL,
+                article_id TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_page_index_parent
+                ON page_index_nodes(parent_id);
+            CREATE INDEX IF NOT EXISTS idx_page_index_article
+                ON page_index_nodes(article_id);
         """)
         conn.commit()
         logger.info("[KB_DB] Database initialized at %s", _DB_PATH)
@@ -334,21 +378,24 @@ def search_by_keywords(
     device_type: str = "",
     limit: int = 10,
 ) -> list[CanonicalArticle]:
-    """Vectorless retrieval: find articles by keyword match on search_terms."""
+    """Vectorless retrieval: find articles by keyword match on search_terms.
+
+    Terms are stored as semicolon-delimited strings, so we use LIKE matching
+    to find rows containing any of the keywords.
+    """
     conn = _get_connection()
     try:
         if not keywords:
             return []
 
-        placeholders = ",".join("?" * len(keywords))
+        like_clauses = " OR ".join(["st.term LIKE ?"] * len(keywords))
         query = f"""
-            SELECT a.*, COUNT(st.term) as match_count
+            SELECT a.*, COUNT(DISTINCT st.term) as match_count
             FROM articles a
             JOIN search_terms st ON a.article_id = st.article_id
-            WHERE st.term IN ({placeholders})
-            AND a.status = 'current'
+            WHERE ({like_clauses})
         """
-        params: list = [k.lower() for k in keywords]
+        params: list = [f"%{k.lower()}%" for k in keywords]
 
         if device_type:
             query += " AND a.device_type = ?"
@@ -375,6 +422,8 @@ def log_retrieval(
     error_type: str = "",
     empty_result: bool = False,
     payload_filter_failed: bool = False,
+    page_index_leaf: str = "",
+    rejected_ids: list[str] = None,
 ):
     """Log a retrieval event for benchmarking and monitoring."""
     conn = _get_connection()
@@ -382,8 +431,9 @@ def log_retrieval(
         conn.execute("""
             INSERT INTO retrieval_logs
             (query, method, intent, device_type, articles_returned_json, scores_json,
-             latency_ms, co_retrieval_applied, error_type, empty_result, payload_filter_failed)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             latency_ms, co_retrieval_applied, error_type, empty_result, payload_filter_failed,
+             page_index_leaf, rejected_ids_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             query,
             method,
@@ -396,6 +446,8 @@ def log_retrieval(
             error_type,
             1 if empty_result else 0,
             1 if payload_filter_failed else 0,
+            page_index_leaf,
+            json.dumps(rejected_ids or []),
         ))
         conn.commit()
     finally:

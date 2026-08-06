@@ -10,6 +10,7 @@ import argparse
 import logging
 import os
 import shutil
+import sqlite3
 import sys
 
 from langchain_openai import OpenAIEmbeddings
@@ -134,7 +135,83 @@ def inject(
         client.close()
 
     logger.info("Done. Indexed %d docs → %s [%s]", len(docs), abs_path, collection)
+
+    # Populate PageIndex tree from article metadata
+    _populate_page_index(docs)
+
     return len(docs)
+
+
+def _populate_page_index(docs) -> None:
+    """Build the PageIndex hierarchical tree from article metadata.
+
+    Levels: root -> part -> category -> product -> article
+    Stored in page_index_nodes table.
+    """
+    from src.services.kb_database import _DB_PATH, initialize_database
+    initialize_database()
+
+    conn = sqlite3.connect(_DB_PATH)
+    try:
+        conn.execute("DELETE FROM page_index_nodes")
+
+        conn.execute(
+            "INSERT OR IGNORE INTO page_index_nodes (node_id, parent_id, level, label, article_id) "
+            "VALUES ('root', NULL, 'root', 'SpyderWash KB', NULL)"
+        )
+
+        seen_parts: set[str] = set()
+        seen_categories: set[str] = set()
+        seen_products: set[str] = set()
+
+        for doc in docs:
+            meta = doc.metadata
+            article_id = meta.get("article_id", "")
+            category = meta.get("category", "general")
+            product = meta.get("product", "general")
+
+            if not article_id:
+                continue
+
+            part_prefix = article_id.split("-")[1] if "-" in article_id else "MISC"
+            part_id = f"part_{part_prefix}"
+            if part_id not in seen_parts:
+                seen_parts.add(part_id)
+                conn.execute(
+                    "INSERT OR IGNORE INTO page_index_nodes (node_id, parent_id, level, label, article_id) "
+                    "VALUES (?, 'root', 'part', ?, NULL)",
+                    (part_id, f"Part: {part_prefix}"),
+                )
+
+            cat_id = f"cat_{part_prefix}_{category.replace(' ', '_')}"
+            if cat_id not in seen_categories:
+                seen_categories.add(cat_id)
+                conn.execute(
+                    "INSERT OR IGNORE INTO page_index_nodes (node_id, parent_id, level, label, article_id) "
+                    "VALUES (?, ?, 'category', ?, NULL)",
+                    (cat_id, part_id, category),
+                )
+
+            prod_id = f"prod_{part_prefix}_{category.replace(' ', '_')}_{product.replace(' ', '_')}"
+            if prod_id not in seen_products:
+                seen_products.add(prod_id)
+                conn.execute(
+                    "INSERT OR IGNORE INTO page_index_nodes (node_id, parent_id, level, label, article_id) "
+                    "VALUES (?, ?, 'product', ?, NULL)",
+                    (prod_id, cat_id, product),
+                )
+
+            conn.execute(
+                "INSERT OR IGNORE INTO page_index_nodes (node_id, parent_id, level, label, article_id) "
+                "VALUES (?, ?, 'article', ?, ?)",
+                (f"leaf_{article_id}", prod_id, article_id, article_id),
+            )
+
+        conn.commit()
+        count = conn.execute("SELECT COUNT(*) FROM page_index_nodes").fetchone()[0]
+        logger.info("[PAGE_INDEX] Populated %d nodes in page_index_nodes", count)
+    finally:
+        conn.close()
 
 
 def _inject_dense_only(client: QdrantClient, collection: str, docs, cfg: dict) -> None:

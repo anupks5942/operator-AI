@@ -42,7 +42,7 @@ def _append_image_evidence(
         return context_docs
 
     try:
-        from src.services.image_retrieval import get_case_images
+        from src.services.image_retrieval import get_case_images, filter_images_safe
     except Exception as exc:
         logger.debug("[RAG IMAGES] image_retrieval import failed: %s", exc)
         return context_docs
@@ -63,6 +63,13 @@ def _append_image_evidence(
             break
         try:
             images = get_case_images(aid, include_linked=True, limit=max_images_per_article)
+            # Apply image safety rules
+            article_meta = {}
+            for doc in context_docs:
+                if doc.metadata.get("article_id") == aid:
+                    article_meta = doc.metadata
+                    break
+            images = filter_images_safe(images, article_id=aid, article_meta=article_meta)
         except Exception as exc:
             logger.debug("[RAG IMAGES] get_case_images failed for %s: %s", aid, exc)
             continue
@@ -484,6 +491,8 @@ class RAGService:
             "primary case visuals first, then companion case visuals.\n"
             "- Do NOT describe UI elements, buttons, or labels that are not mentioned in the image "
             "caption or visual summary. Only reference what the image evidence confirms.\n"
+            "- NEVER end your response with 'Did this resolve the issue?', 'Did this resolve the issue? (Yes/No)', "
+            "or any similar follow-up resolution question. Just provide the steps and end.\n"
             "\n\nContext:\n{context}"
         )
         return base_rules

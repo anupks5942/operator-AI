@@ -21,8 +21,9 @@ from src.services.images.case_mapper import (
     build_v22_page_map,
     build_bible_page_map,
     get_article_for_page,
+    map_paragraphs_to_pages,
 )
-from src.services.images.extractor import extract_page_images, ExtractedImage
+from src.services.images.extractor import extract_page_images, extract_docx_images, ExtractedImage
 from src.services.images.dedupe import deduplicate_images
 from src.services.images.captioner import caption_images, CaptionResult
 from src.services.images.search_terms import extract_search_terms
@@ -116,6 +117,49 @@ def _store_image(
         conn.close()
 
 
+def _apply_asset_registry(db_path: str, docx_path: str) -> None:
+    """Apply Brandon's Image Asset Registry to stored images.
+
+    For each registry entry (IMG-SW-###):
+    - Sets stable_id on the corresponding extracted image (matched by sequence)
+    - Writes Brandon's description as caption + visual_summary
+    - Links registry article IDs into image_case_map
+    """
+    from src.services.images.asset_registry import parse_asset_registry, ingest_registry
+
+    rows = parse_asset_registry(docx_path)
+    if not rows:
+        logger.warning("[PIPELINE] No Image Asset Registry found — skipping registry apply")
+        return
+
+    ingest_registry(rows, db_path)
+
+    conn = sqlite3.connect(db_path)
+    try:
+        all_images = conn.execute(
+            "SELECT image_id FROM images WHERE source_doc = 'v22' ORDER BY page_number, sequence"
+        ).fetchall()
+
+        for idx, row in enumerate(rows):
+            if idx >= len(all_images):
+                break
+            db_image_id = all_images[idx][0]
+            conn.execute(
+                "UPDATE images SET stable_id = ?, caption = ?, visual_summary = ? WHERE image_id = ?",
+                (row.image_id, row.description, row.description, db_image_id),
+            )
+            for article_id in row.related_articles:
+                conn.execute(
+                    "INSERT OR IGNORE INTO image_case_map (image_id, article_id, is_primary) VALUES (?, ?, 1)",
+                    (db_image_id, article_id),
+                )
+
+        conn.commit()
+        logger.info("[PIPELINE] Applied registry: %d IMG-SW IDs + descriptions + article links", len(rows))
+    finally:
+        conn.close()
+
+
 def run_image_pipeline(
     source: str,
     caption_limit: int | None = None,
@@ -144,7 +188,7 @@ def run_image_pipeline(
 
     logger.info("[PIPELINE] Starting image pipeline for source=%s, file=%s", source, docx_path)
 
-    # Step 1: DOCX -> PDF
+    # Step 1: DOCX -> PDF (for page mapping and article boundaries)
     pdf_path = convert_docx_to_pdf(docx_path)
     logger.info("[PIPELINE] PDF ready: %s", pdf_path)
 
@@ -154,29 +198,43 @@ def run_image_pipeline(
     else:
         page_map = build_bible_page_map(pdf_path)
 
-    # Step 3: Extract images page by page
-    doc = fitz.open(pdf_path)
+    # Step 3: Extract images — DOCX-first for v22, PDF fallback for Bible
     all_images: list[tuple[ExtractedImage, list[str]]] = []
 
-    for page_idx in range(len(doc)):
-        page = doc[page_idx]
-        page_num = page_idx + 1
+    if source == "v22":
+        # PRIMARY: Extract directly from DOCX (clean original images)
+        para_to_page = map_paragraphs_to_pages(docx_path, pdf_path)
+        docx_results = extract_docx_images(docx_path, images_dir, prefix=source)
 
-        skip_reason = is_empty_page(page, strict=strict_empty)
-        if skip_reason:
-            _log_empty_page(db_path, source, page_num, skip_reason)
-            continue
-
-        article_ids = get_article_for_page(page_map, page_num)
-        prefix = f"{source}_{article_ids[0] if article_ids else 'UNLINKED'}"
-
-        extracted = extract_page_images(page, page_num, images_dir, prefix, doc)
-        for img in extracted:
+        for img, para_idx in docx_results:
+            page_num = para_to_page.get(para_idx, 1)
+            img.page_number = page_num
+            article_ids = get_article_for_page(page_map, page_num)
             all_images.append((img, article_ids))
 
-    total_pages = len(doc)
-    doc.close()
-    logger.info("[PIPELINE] Extracted %d raw images from %d pages", len(all_images), total_pages)
+        logger.info("[PIPELINE] DOCX-first: extracted %d images from DOCX directly", len(docx_results))
+    else:
+        # Bible: use PDF extraction (no DOCX structure to leverage)
+        doc = fitz.open(pdf_path)
+        for page_idx in range(len(doc)):
+            page = doc[page_idx]
+            page_num = page_idx + 1
+
+            skip_reason = is_empty_page(page, strict=strict_empty)
+            if skip_reason:
+                _log_empty_page(db_path, source, page_num, skip_reason)
+                continue
+
+            article_ids = get_article_for_page(page_map, page_num)
+            prefix = f"{source}_{article_ids[0] if article_ids else 'UNLINKED'}"
+
+            extracted = extract_page_images(page, page_num, images_dir, prefix, doc)
+            for img in extracted:
+                all_images.append((img, article_ids))
+
+        doc.close()
+
+    logger.info("[PIPELINE] Extracted %d raw images total", len(all_images))
 
     # Step 4: Deduplicate
     raw_imgs = [img for img, _ in all_images]
@@ -208,6 +266,10 @@ def run_image_pipeline(
         stored += 1
 
     logger.info("[PIPELINE] Stored %d images for source=%s", stored, source)
+
+    # Step 7: Apply Image Asset Registry (v2.3+) for captions and stable IDs
+    if source == "v22":
+        _apply_asset_registry(db_path, docx_path)
 
 
 def main(argv: list[str] | None = None):

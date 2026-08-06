@@ -261,6 +261,47 @@ def retrieve_and_generate(state: AgentState):
     )
     answer = response.get("answer", "I'm sorry, I couldn't find an answer to your question.")
 
+    # Extract multimodal metadata for response schema
+    co_meta = response.get("co_retrieval_meta") or {}
+    source_docs = response.get("context") or []
+    retrieved_article_ids = []
+    for doc in source_docs:
+        aid = doc.metadata.get("article_id") if hasattr(doc, "metadata") else ""
+        if aid and aid not in retrieved_article_ids:
+            retrieved_article_ids.append(aid)
+
+    # Get images linked to retrieved articles
+    response_images = []
+    try:
+        from src.services.image_retrieval import get_case_images, filter_images_safe
+        for aid in retrieved_article_ids[:3]:
+            imgs = get_case_images(aid, include_linked=False, limit=3)
+            article_meta = {}
+            for doc in source_docs:
+                if hasattr(doc, "metadata") and doc.metadata.get("article_id") == aid:
+                    article_meta = doc.metadata
+                    break
+            imgs = filter_images_safe(imgs, article_id=aid, article_meta=article_meta)
+            for img in imgs:
+                response_images.append({
+                    "stable_id": img.get("stable_id", ""),
+                    "file_path": img.get("file_path", ""),
+                    "caption": img.get("caption", ""),
+                    "alt_text": img.get("alt_text", img.get("visual_summary", "")),
+                    "image_type": img.get("image_type", "screenshot"),
+                })
+    except Exception:
+        pass
+
+    # Strip "Did this resolve the issue?" if the LLM generated it
+    import re as _re_resolve
+    answer = _re_resolve.sub(
+        r'\s*Did this resolve the issue\??\s*(\(Yes/No\))?\s*$',
+        '',
+        answer,
+        flags=_re_resolve.IGNORECASE,
+    ).rstrip()
+
     current_intent = state.get("current_intent") or ""
     answer_lower = answer.lower()
     has_content_markers = _answer_contains_troubleshooting(answer)
@@ -279,14 +320,21 @@ def retrieve_and_generate(state: AgentState):
     )
     has_trailing_question = any(p in answer_lower for p in _TRAILING_QUESTION_PHRASES)
 
+    multimodal_state = {
+        "retrieved_articles": retrieved_article_ids,
+        "response_images": response_images,
+        "co_retrieval_meta": co_meta,
+        "citations": retrieved_article_ids,
+    }
+
     if should_prompt and not has_trailing_question:
-        answer += "\n\nDid this resolve the issue? (Yes/No)"
         return {
             "messages": [AIMessage(content=answer)],
             "extracted_entities": {"troubleshooting_done": True},
+            **multimodal_state,
         }
 
-    return {"messages": [AIMessage(content=answer)]}
+    return {"messages": [AIMessage(content=answer)], **multimodal_state}
 
 
 def guardrail_node(state: AgentState):

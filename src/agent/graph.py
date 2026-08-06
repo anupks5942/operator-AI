@@ -13,7 +13,7 @@ from src.agent.nodes import (
     summarize_conversation_node,
     _extract_metadata_filter,
 )
-from src.agent.router import semantic_router, infer_blast_radius, _is_resolution_message
+from src.agent.router import semantic_router, infer_blast_radius, _is_resolution_message, _contains_domain_keyword
 from src.agent.tools import SETOMATIC_TOOLS
 from src.services.notifications import NotificationService
 from src.utils.security import mask_credit_cards, sanitize_outbound_text
@@ -213,16 +213,32 @@ def _user_indicates_resolved(text: str) -> bool:
     return _is_resolution_message(text)
 
 
+import re as _re_dup
+
+_MACHINE_ID_RE = _re_dup.compile(r'\b(?:machine|washer|dryer|reader|kiosk|pos|position)\s*#?\s*(\d+)\b', _re_dup.IGNORECASE)
+
+
 def _is_duplicate_outage(state: dict, new_text: str) -> bool:
-    """Return True if new_text is essentially the same outage already ticketed."""
+    """Return True if new_text is essentially the same outage already ticketed.
+
+    A message that mentions a specific machine number NOT present in the
+    original ticket is treated as a NEW issue (different machine).
+    """
     entities = state.get("extracted_entities") or {}
-    last_summary = entities.get("last_ticket_summary", "")
+    last_summary = entities.get("last_ticket_summary", "") or state.get("last_ticket_summary", "")
     if not last_summary:
         return False
 
     last_blast = entities.get("last_ticket_blast_radius", "") or state.get("last_ticket_blast_radius", "")
     current_blast = state.get("blast_radius") or entities.get("blast_radius", "")
     if last_blast and current_blast and last_blast != current_blast:
+        return False
+
+    # If the new message specifies a machine number not in the original ticket,
+    # treat it as a different machine → not a duplicate.
+    new_ids = set(_MACHINE_ID_RE.findall(new_text))
+    old_ids = set(_MACHINE_ID_RE.findall(last_summary))
+    if new_ids and new_ids != old_ids:
         return False
 
     a = set(last_summary.lower().split())
@@ -751,6 +767,20 @@ def post_escalation_ack_node(state: AgentState):
         return {"messages": [msg]}
 
     if len(latest.split()) > 3:
+        # Check if this is just restating the same issue already escalated
+        last_summary = (state.get("extracted_entities") or {}).get("last_ticket_summary", "") or state.get("last_ticket_summary", "")
+        _a = set((last_summary or "").lower().split())
+        _b = set(latest_lower.split())
+        _is_restate = _a and _b and (len(_a & _b) / len(_a | _b)) >= 0.5
+
+        if _is_restate:
+            msg = AIMessage(content=(
+                f"Your escalation ticket ({active_ticket}) has already been dispatched to the on-call technician "
+                f"for this issue, and they will contact you shortly. "
+                f"If the issue is resolved before they reach out, no further action is needed."
+            ))
+            return {"messages": [msg]}
+
         snippet = latest[:80] + ("..." if len(latest) > 80 else "")
         existing_notes = list(state.get("ticket_notes") or [])
         existing_notes.append(latest)
@@ -817,14 +847,15 @@ _TOOL_SYSTEM_PROMPT = (
 
     "POS TRANSACTION RULE: When calling get_pos_transactions, map the operator's natural language "
     "to the correct parameter values:\n"
-    "  - Payment type (card_code): 'loyalty card' or 'loyalty' = 17, 'credit card' or 'credit' = 19, 'cash' = 20. Default: 17.\n"
-    "  - Order type (order_type): 'all orders' = 1, 'sales only' or 'sale' = 2, 'WDF and PUD' = 3. Default: 1.\n"
+    "  - Payment type (card_code): 'loyalty card' or 'loyalty' = 17, 'credit card' or 'credit' = 19, 'cash' = 20.\n"
+    "  - Order type (order_type): 'all orders' = 1, 'sales only' or 'sale' = 2, 'WDF and PUD' = 3.\n"
     "  - Customer type (account_type): 'all customers' = 1, 'commercial' or 'commercial only' = 2, "
-    "'non-commercial' or 'residential' = 3. Default: 1.\n"
+    "'non-commercial' or 'residential' = 3.\n"
     "  - Card number (card_no): If the user mentions a card number — even in masked format like "
     "'--****-1234', 'XXXX1234', 'ending in 1234', or 'last 4: 1234' — extract the last 4 digits "
     "and pass them as card_no. This ensures only that card's transactions are returned.\n"
-    "  If the operator does not specify these filters, use the defaults (17, 1, 1). "
+    "  card_code, order_type, and account_type are REQUIRED — do NOT invent defaults. "
+    "If the operator does not specify any of them, ask before calling the tool. "
     "Always require a date range — ask the operator if not provided.\n\n"
 
     "KIOSK LOOKUP RULE: When calling get_kiosk_purchases or get_kiosk_recharges, both require "
@@ -1140,10 +1171,9 @@ def route_after_classifier(state: AgentState) -> str:
                     return "post_escalation_ack"
                 return "rag"
             return "rag"
-        # Short messages: check for yes/no to "Did this resolve?" from prior RAG troubleshooting.
-        # Use prior AI content to confirm we're responding to a resolve prompt, not a new query.
-        _prior_asked_resolve = prior_ai and "did this resolve" in prior_ai.lower()
-        if entities.get("troubleshooting_done") and _prior_asked_resolve:
+        # Short messages: check for yes/no after troubleshooting steps were provided.
+        # Use troubleshooting_done flag to confirm we're responding to a troubleshoot flow.
+        if entities.get("troubleshooting_done"):
             _pe_last = latest.strip().lower()
             _pe_pos = {"yes", "yeah", "yep", "yup", "ya", "yaa", "yah", "y", "si", "sí"}
             if _pe_last in _pe_pos or _user_indicates_resolved(latest):
@@ -1153,6 +1183,11 @@ def route_after_classifier(state: AgentState) -> str:
                 return "confirm_escalation"
         if intent == "greeting":
             return "greeting"
+        # ADR-037: short new-topic messages post-escalation should route to RAG,
+        # not back to the ticket. If the message contains a domain keyword or the
+        # router classified it as a knowledge/troubleshooting query, answer it.
+        if intent in ("general_query", "technical_support") or _contains_domain_keyword(latest):
+            return "rag"
         return "post_escalation_ack"
 
     # Post-resolution closure: after "Glad to hear..." if the user replies with another
@@ -1401,26 +1436,13 @@ def route_after_rag(state: AgentState) -> str:
     if not entities.get("troubleshooting_done"):
         return "__end__"
 
-    # Only intercept when the user is replying to a PRIOR "Did this resolve?"
-    # prompt. Walk backwards past the RAG AIMessage to find the AI message
-    # BEFORE the current RAG response — if that prior AI didn't ask
-    # "Did this resolve?", the current RAG just generated a fresh answer and
-    # we must show it (return __end__).
+    # Check if user indicated troubleshooting failed after steps were provided.
     messages = state.get("messages", [])
     human_text = ""
-    prior_ai_text = ""
-    ai_count = 0
     for msg in reversed(messages):
         if msg.type == "human" and not human_text:
             human_text = msg.content.lower()
-        elif msg.type == "ai" and msg.content and str(msg.content).strip():
-            ai_count += 1
-            if ai_count == 2:
-                prior_ai_text = msg.content.lower()
-                break
-
-    if "did this resolve" not in prior_ai_text:
-        return "__end__"
+            break
 
     user_words = set(human_text.split())
     _negative_words = {"no", "nope", "nah", "not", "still", "broken", "failed", "offline", "down", "unresolved", "didn't", "didnt", "doesn't", "doesnt"}
