@@ -515,8 +515,7 @@ def troubleshoot_first_node(state: AgentState):
     response = rag_service.query(combined_query, channel=state.get("channel", "chat"), metadata_filter=metadata_filter)
     answer = response.get("answer", "Please verify local network connections and power cycle your devices.")
 
-    # Explicitly concatenate the resolution prompt so the router detects the next turn as a confirmation.
-    full_response = answer + "\n\nDid this resolve the issue? (Yes/No)"
+    full_response = answer
 
     entities["troubleshooting_done"] = True
 
